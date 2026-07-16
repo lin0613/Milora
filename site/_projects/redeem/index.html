@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="查詢各遊戲目前可用與已過期兌換碼、獎勵、來源、適用服務器及兌換連結。">
+<meta name="robots" content="noindex,follow">
+<link rel="canonical" href="http://127.0.0.1:817/redeem/">
+<meta name="color-scheme" content="dark">
+<link rel="stylesheet" href="/assets/shared/common.css">
+<script defer src="/assets/shared/runtime.js?v=20260713-responsive-mobile-shell-1220"></script>
+<title>兌換碼｜遊戲成就紀錄器</title>
+<style>
+:root{--bg:#071019;--panel:#0c151f;--panel2:#111d29;--line:#243445;--text:#eef6fb;--muted:#8ea2b5;--a:#62dbc9;--b:#88aaff;--danger:#ff8793;--ok:#76e4a4;--gold:#ffd477}
+*{box-sizing:border-box}html,body{min-height:100%;margin:0;background:var(--bg);color:var(--text);font-family:"Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif}button{font:inherit;cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}
+.shell{min-height:100vh;padding:22px}.top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:18px}.top h1{margin:0;font-size:clamp(26px,4vw,42px);letter-spacing:0}.top p{margin:7px 0 0;color:var(--muted);line-height:1.55}.topSide{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}.statusLine{min-height:24px;color:var(--muted);font-size:13px}.notificationSettingsBtn[hidden]{display:none}
+.filters{display:grid;gap:10px;margin-bottom:16px}.filtersHead{display:flex;align-items:center;justify-content:space-between;gap:10px}.filtersLabel{color:#cbd8e5;font-size:13px;font-weight:900}.gameChooser{display:flex;gap:10px;flex-wrap:wrap}.gameOption{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:#0b121a;color:var(--text);font-weight:900}.gameOption img{width:24px;height:24px;border-radius:6px;object-fit:cover;background:#081018}.gameOption.active{border-color:rgba(98,219,201,.75);background:rgba(98,219,201,.12);box-shadow:0 0 0 1px rgba(98,219,201,.16) inset}.gameOption:focus-visible{outline:2px solid var(--a);outline-offset:2px}.mobileGameDropdown,.mobileNotificationSettingsBtn{display:none}.mobileGameDropdown{position:relative}.mobileGameDropdownTrigger{display:flex;align-items:center;gap:10px;width:100%;min-height:50px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:#0b121a;color:var(--text);font:inherit;font-weight:900;text-align:left}.mobileGameDropdownTrigger:focus-visible{outline:2px solid var(--a);outline-offset:2px}.mobileGameSelection{display:flex;align-items:center;gap:10px;min-width:0;flex:1}.mobileGameSelection img,.mobileGameMenuOption img{flex:0 0 30px;width:30px;height:30px;border-radius:6px;object-fit:cover;background:#081018}.mobileGameSelection span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobileGameSelectionPlaceholder{color:var(--muted);font-weight:800}.mobileGameChevron{flex:0 0 auto;color:var(--muted);font-size:18px;line-height:1;transition:transform .16s}.mobileGameDropdownTrigger[aria-expanded="true"] .mobileGameChevron{transform:rotate(180deg)}.mobileGameMenu{position:absolute;z-index:8;top:calc(100% + 6px);left:0;right:0;max-height:min(320px,55vh);padding:6px;border:1px solid var(--line);border-radius:8px;background:#0b121a;box-shadow:0 18px 50px rgba(0,0,0,.5);overflow-y:auto}.mobileGameMenu[hidden]{display:none}.mobileGameMenuOption{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:8px;border:1px solid transparent;border-radius:6px;background:transparent;color:var(--text);font:inherit;font-weight:900;text-align:left}.mobileGameMenuOption:hover,.mobileGameMenuOption[aria-selected="true"]{border-color:rgba(98,219,201,.45);background:rgba(98,219,201,.1)}.mobileGameMenuOption span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.mobileGameMenuOption::after{content:"";flex:0 0 8px;width:8px;height:8px;margin-left:auto;border-radius:50%;background:transparent}.mobileGameMenuOption[aria-selected="true"]::after{background:var(--a)}.mobileGameMenuEmpty{padding:12px;color:var(--muted);text-align:center}html.mobileShellProject .gameChooser{display:none}html.mobileShellProject .mobileGameDropdown{display:block}html.mobileShellProject .mobileNotificationSettingsBtn:not([hidden]){display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+.tableWrap{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel)}table{width:100%;min-width:1020px;border-collapse:collapse}th,td{padding:13px 14px;border-bottom:1px solid var(--line);text-align:center;vertical-align:middle}th{position:sticky;top:0;background:var(--panel2);z-index:1;color:#cbd8e5;font-size:13px}tr:last-child td{border-bottom:0}tr.targetCode{background:rgba(98,219,201,.08);box-shadow:inset 3px 0 var(--a)}.codeCell{font-weight:950;letter-spacing:.03em;text-align:center}.codeCell strong{font-size:15px}.sourceText{max-width:260px;margin:0 auto;color:#cbd8e5;line-height:1.55;text-align:center;white-space:pre-wrap;word-break:break-word}.rewardText{max-width:260px;margin:0 auto;color:var(--gold);font-weight:900;line-height:1.55;text-align:center;white-space:pre-wrap;word-break:break-word}.timeText,.serverText{margin:0 auto;color:var(--muted);line-height:1.55;text-align:center}.timeText{white-space:pre-line}.statusBadge{display:inline-flex;align-items:center;justify-content:center;padding:5px 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;font-weight:900;white-space:nowrap}.statusBadge.open{color:var(--ok);border-color:rgba(118,228,164,.35);background:rgba(118,228,164,.08)}.statusBadge.expired{color:#ffb1ba;border-color:rgba(255,135,147,.35);background:rgba(255,135,147,.08)}
+.actions{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}.primary,.secondary{padding:8px 11px;border-radius:8px;font-weight:900}.primary{border:0;background:linear-gradient(135deg,var(--a),var(--b));color:#071017}.secondary{border:1px solid var(--line);background:#0b121a;color:var(--text)}.linkBtn{display:inline-flex;align-items:center;justify-content:center;text-align:center;text-decoration:none}.pager{display:none;align-items:center;justify-content:center;gap:10px;margin-top:12px;color:var(--muted);font-weight:900}.pager.show{display:flex}.pagerInfo{min-width:150px;text-align:center;color:#cbd8e5}.pagerBtn{min-width:42px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:#0b121a;color:var(--text);font-weight:900}.empty{padding:52px 18px;text-align:center;color:var(--muted);line-height:1.7}.error{border-color:rgba(255,135,147,.35);color:#ffbdc5}.toast{position:fixed;right:18px;bottom:18px;z-index:50;max-width:min(360px,calc(100vw - 36px));padding:12px 14px;border:1px solid rgba(118,228,164,.35);border-radius:8px;background:#102016;color:#dfffe9;font-weight:900;box-shadow:0 18px 42px rgba(0,0,0,.35);opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .16s ease,transform .16s ease}.toast.show{opacity:1;transform:translateY(0)}.toast.error{border-color:rgba(255,135,147,.45);background:#251119;color:#ffd7de}
+.settingsDialog{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 24px);padding:0;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);box-shadow:0 28px 90px rgba(0,0,0,.55)}.settingsDialog::backdrop{background:rgba(2,7,12,.78);backdrop-filter:blur(5px)}.settingsHead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}.settingsHead h2{margin:0;font-size:20px}.settingsHead p{margin:5px 0 0;color:var(--muted);font-size:12px}.iconClose{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid var(--line);border-radius:8px;background:#0b121a;color:var(--text);font-size:24px;line-height:1}.settingsBody{padding:16px 18px 18px}.preferenceList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.gameSubscription{display:flex;align-items:center;gap:9px;min-height:46px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#071019;color:#cbd8e5;font-size:14px;font-weight:900;cursor:pointer}.gameSubscription:has(input:checked){border-color:rgba(98,219,201,.65);background:rgba(98,219,201,.1);color:#dffffa}.gameSubscription input{width:18px;height:18px;margin:0;accent-color:var(--a);cursor:pointer}.settingsActions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.settingsMessage{min-height:22px;margin-top:10px;color:var(--muted);font-size:13px}.settingsMessage.ok{color:var(--ok)}.settingsMessage.error{color:#ffbdc5}
+@media(max-width:760px){.shell{padding:14px}.top{align-items:flex-start;flex-direction:column}.topSide{width:100%;justify-content:space-between}.gameOption{flex:1 1 100%;justify-content:flex-start}.mobileGameMenu{position:static;max-height:320px;margin-top:6px;box-shadow:none}.tableWrap{overflow:visible;border:0;background:transparent}body.redeemGameUnselected .tableWrap{display:none}table,tbody,tr,td{display:block;width:100%}table{min-width:0}thead{display:none}tbody{display:grid;gap:10px}tr{padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}td{display:grid;grid-template-columns:82px minmax(0,1fr);gap:10px;align-items:center;padding:8px 0;border:0;text-align:left}td::before{content:attr(data-label);color:var(--muted);font-size:12px;font-weight:800}.codeCell{display:block;padding:0 0 10px;border-bottom:1px solid var(--line);text-align:center}.codeCell::before{display:none}.codeCell strong{font-size:17px;overflow-wrap:anywhere}.sourceText,.rewardText,.timeText,.serverText{max-width:none;margin:0;text-align:left}.actions{justify-content:flex-start}.actions>*{flex:1}.empty{display:block!important;padding:34px 14px;text-align:center}.empty::before{display:none}.pager.show{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.pagerInfo{grid-column:1/-1;grid-row:1;min-width:0;padding:2px 0 5px}.pagerBtn{width:100%;min-height:44px;padding:9px 12px}.pagerPrev{grid-column:1}.pagerNext{grid-column:2}.preferenceList{grid-template-columns:1fr}}
+.timeText{white-space:nowrap}
+</style>
+</head>
+<body>
+<main class="shell">
+ <section class="top">
+  <div>
+   <h1>兌換碼</h1>
+   <p>各遊戲目前收錄的兌換碼與服務器適用範圍。</p>
+  </div>
+  <div class="topSide"><div class="statusLine" id="statusLine">正在載入……</div><button class="secondary notificationSettingsBtn" id="notificationSettingsBtn" type="button" hidden>兌換碼通知</button></div>
+ </section>
+ <section class="filters" aria-label="兌換碼篩選">
+  <div class="filtersHead"><div class="filtersLabel">選擇遊戲</div><button class="secondary notificationSettingsBtn mobileNotificationSettingsBtn" id="mobileNotificationSettingsBtn" type="button" hidden>兌換碼通知</button></div>
+  <div class="gameChooser" id="gameChooser"></div>
+  <div class="mobileGameDropdown" id="mobileGameDropdown"><button class="mobileGameDropdownTrigger" id="mobileGameDropdownTrigger" type="button" aria-haspopup="listbox" aria-expanded="false"><span class="mobileGameSelection" id="mobileGameSelection"><span class="mobileGameSelectionPlaceholder">選擇遊戲</span></span><span class="mobileGameChevron" aria-hidden="true">⌄</span></button><div class="mobileGameMenu" id="mobileGameMenu" role="listbox" aria-label="選擇遊戲" hidden></div></div>
+ </section>
+ <section class="tableWrap">
+  <table>
+   <thead><tr><th>兌換碼</th><th>來源</th><th>獎勵</th><th>時間</th><th>服務器名稱</th><th>狀態</th><th>操作</th></tr></thead>
+   <tbody id="redeemBody"><tr><td colspan="7" class="empty">正在載入兌換碼……</td></tr></tbody>
+ </table>
+ </section>
+ <nav class="pager" id="pager" aria-label="兌換碼分頁"></nav>
+ <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</main>
+<dialog class="settingsDialog" id="notificationSettingsDialog" aria-labelledby="notificationSettingsTitle">
+ <div class="settingsHead"><div><h2 id="notificationSettingsTitle">兌換碼通知</h2><p>新增兌換碼時通知</p></div><button class="iconClose" id="closeNotificationSettingsBtn" type="button" aria-label="關閉">×</button></div>
+ <div class="settingsBody"><form id="notificationSettingsForm"><div class="preferenceList" id="notificationPreferenceList"><div class="empty">正在載入設定……</div></div><div class="settingsActions"><button class="secondary" id="cancelNotificationSettingsBtn" type="button">取消</button><button class="primary" id="saveNotificationSettingsBtn" type="submit">儲存設定</button></div></form><div class="settingsMessage" id="notificationSettingsMessage"></div></div>
+</dialog>
+<script>
+const $=id=>document.getElementById(id);
+const PAGE_SIZE=50;
+const query=new URLSearchParams(location.search);
+const redeemState={games:[],codes:[],preferences:[],selectedGameId:query.get("game")||"",targetCode:query.get("code")||"",page:1,user:null};
+function esc(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]))}
+function formatDate(value){const stamp=Number(value||0);if(!stamp)return "未設定";return new Date(stamp*1000).toLocaleDateString("zh-TW",{year:"numeric",month:"2-digit",day:"2-digit"})}
+function timeText(row){return `${row.start_at?formatDate(row.start_at):"未知"} ～ ${row.end_at?formatDate(row.end_at):"未知"}`}
+function gameIcon(gameId){return ""}
+function statusText(status){return status==="expired"?"已過期":"開放中"}
+function showToast(message,type="ok"){
+ const toast=$("toast");
+ toast.textContent=message;
+ toast.className=`toast show${type==="error"?" error":""}`;
+ clearTimeout(showToast.timer);
+ showToast.timer=setTimeout(()=>{toast.className="toast"},1800);
+}
+async function apiJson(path,options={}){const response=await fetch(path,{credentials:"same-origin",cache:"no-store",...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let value={};try{value=await response.json()}catch{}if(!response.ok||value.ok===false)throw new Error(value.detail||value.message||`請求失敗（${response.status}）`);return value}
+function setSettingsMessage(message="",type=""){$("notificationSettingsMessage").textContent=message;$("notificationSettingsMessage").className=`settingsMessage${type?` ${type}`:""}`}
+function renderNotificationPreferences(){const host=$("notificationPreferenceList");host.innerHTML=redeemState.preferences.length?redeemState.preferences.map(row=>`<label class="gameSubscription"><input type="checkbox" data-game-id="${esc(row.game_id)}" ${row.selected?"checked":""}><span>${esc(row.name||row.game_id)}</span></label>`).join(""):'<div class="empty">目前沒有可訂閱的遊戲。</div>'}
+async function loadNotificationPreferences(){const result=await apiJson("/api/redeem-notification-preferences");redeemState.preferences=result.preferences||[];renderNotificationPreferences()}
+async function loadAuthState(){try{const result=await apiJson("/api/auth/me");redeemState.user=result.authenticated?result.user:null}catch{redeemState.user=null}document.querySelectorAll(".notificationSettingsBtn").forEach(button=>button.hidden=!redeemState.user)}
+function renderGameChooser(){
+ const games=redeemState.games;
+ $("gameChooser").innerHTML=games.length?games.map(game=>`<button class="gameOption ${game.game_id===redeemState.selectedGameId?"active":""}" type="button" data-game-id="${esc(game.game_id)}" aria-pressed="${game.game_id===redeemState.selectedGameId?"true":"false"}"><span>${esc(game.name||game.game_id)}</span></button>`).join(""):'<div class="empty">目前沒有可選擇的遊戲。</div>';
+ const selected=games.find(game=>game.game_id===redeemState.selectedGameId);
+  $("mobileGameDropdownTrigger").disabled=!games.length;
+  $("mobileGameSelection").innerHTML=selected?`<span>${esc(selected.name||selected.game_id)}</span>`:'<span class="mobileGameSelectionPlaceholder">選擇遊戲</span>';
+  $("mobileGameMenu").innerHTML=games.length?games.map(game=>`<button class="mobileGameMenuOption" type="button" role="option" data-mobile-game-id="${esc(game.game_id)}" aria-selected="${game.game_id===redeemState.selectedGameId?"true":"false"}"><span>${esc(game.name||game.game_id)}</span></button>`).join(""):'<div class="mobileGameMenuEmpty">目前沒有可選擇的遊戲。</div>';
+}
+function selectedCodes(){
+ return redeemState.selectedGameId?redeemState.codes.filter(row=>row.game_id===redeemState.selectedGameId):[];
+}
+function renderPager(total,pageCount){
+ const pager=$("pager");
+ if(total<=PAGE_SIZE){pager.className="pager";pager.innerHTML="";return}
+ pager.className="pager show";
+  pager.innerHTML=`<button class="pagerBtn pagerPrev" type="button" data-page-action="prev" aria-label="上一頁" ${redeemState.page<=1?"disabled":""}>‹ 上一頁</button><span class="pagerInfo">第 ${redeemState.page} / ${pageCount} 頁</span><button class="pagerBtn pagerNext" type="button" data-page-action="next" aria-label="下一頁" ${redeemState.page>=pageCount?"disabled":""}>下一頁 ›</button>`;
+}
+function render(data){
+ redeemState.games=data.games||[];
+ redeemState.codes=data.codes||[];
+ if(redeemState.selectedGameId&&!redeemState.games.some(game=>game.game_id===redeemState.selectedGameId)){redeemState.selectedGameId="";redeemState.page=1}
+ if(redeemState.selectedGameId&&redeemState.targetCode){const targetIndex=redeemState.codes.filter(row=>row.game_id===redeemState.selectedGameId).findIndex(row=>row.code.toLowerCase()===redeemState.targetCode.toLowerCase());if(targetIndex>=0)redeemState.page=Math.floor(targetIndex/PAGE_SIZE)+1}
+  document.body.classList.toggle("redeemGameUnselected",!redeemState.selectedGameId);
+  renderGameChooser();
+ renderSelectedCodes();
+}
+function renderSelectedCodes(){
+  const codes=selectedCodes();
+  if(!redeemState.selectedGameId){
+   $("statusLine").textContent="請先選擇遊戲";
+  $("redeemBody").innerHTML='<tr><td colspan="7" class="empty">請先選擇遊戲。</td></tr>';
+  renderPager(0,1);
+  return;
+ }
+ const selectedGame=redeemState.games.find(game=>game.game_id===redeemState.selectedGameId);
+ const pageCount=Math.max(1,Math.ceil(codes.length/PAGE_SIZE));
+ redeemState.page=Math.min(Math.max(1,redeemState.page),pageCount);
+ const start=(redeemState.page-1)*PAGE_SIZE;
+ const pageRows=codes.slice(start,start+PAGE_SIZE);
+ const pageLabel=codes.length>PAGE_SIZE?`，第 ${redeemState.page} / ${pageCount} 頁`:"";
+ $("statusLine").textContent=`${selectedGame?.name||redeemState.selectedGameId}：共 ${codes.length} 筆${pageLabel}`;
+ renderPager(codes.length,pageCount);
+ $("redeemBody").innerHTML=pageRows.length?pageRows.map(row=>`<tr class="${redeemState.targetCode&&row.code.toLowerCase()===redeemState.targetCode.toLowerCase()?"targetCode":""}">
+  <td class="codeCell" data-label="兌換碼"><strong>${esc(row.code)}</strong></td>
+  <td data-label="來源"><div class="sourceText">${esc(row.source||"—")}</div></td>
+  <td data-label="獎勵"><div class="rewardText">${esc(row.reward||"—")}</div></td>
+  <td data-label="時間"><div class="timeText">${esc(timeText(row))}</div></td>
+  <td data-label="服務器"><div class="serverText">${esc(row.server_names||"—")}</div></td>
+  <td data-label="狀態"><span class="statusBadge ${esc(row.status)}">${esc(statusText(row.status))}</span></td>
+  <td data-label="操作"><div class="actions"><button class="secondary copyBtn" data-code="${esc(row.code)}" type="button">複製</button>${row.redeem_url?`<a class="primary linkBtn" href="${esc(row.redeem_url)}" target="_blank" rel="noreferrer">前往</a>`:""}</div></td>
+ </tr>`).join(""):'<tr><td colspan="7" class="empty">目前沒有可顯示的兌換碼。</td></tr>';
+}
+async function loadRedeemCodes(){
+ try{
+  const response=await fetch("/api/redeem-codes",{credentials:"same-origin",cache:"no-store"});
+  const data=await response.json();
+  if(!response.ok||!data.ok)throw new Error(data.detail||data.message||`請求失敗（${response.status}）`);
+  render(data);
+ }catch(error){
+  $("statusLine").textContent="載入失敗";
+  $("redeemBody").innerHTML=`<tr><td colspan="7" class="empty error">${esc(error.message)}</td></tr>`;
+  renderPager(0,1);
+ }
+}
+function selectGame(gameId){
+  redeemState.selectedGameId=gameId||"";
+  document.body.classList.toggle("redeemGameUnselected",!redeemState.selectedGameId);
+ redeemState.targetCode="";
+ redeemState.page=1;
+ const nextUrl=new URL(location.href);if(redeemState.selectedGameId)nextUrl.searchParams.set("game",redeemState.selectedGameId);else nextUrl.searchParams.delete("game");nextUrl.searchParams.delete("code");history.replaceState(null,"",nextUrl.pathname+nextUrl.search);
+ renderGameChooser();
+ renderSelectedCodes();
+ closeMobileGameDropdown();
+}
+$("gameChooser").addEventListener("click",event=>{
+ const button=event.target.closest(".gameOption");
+ if(!button)return;
+ selectGame(button.dataset.gameId||"");
+});
+function closeMobileGameDropdown(){$("mobileGameMenu").hidden=true;$("mobileGameDropdownTrigger").setAttribute("aria-expanded","false")}
+$("mobileGameDropdownTrigger").addEventListener("click",()=>{const opening=$("mobileGameMenu").hidden;$("mobileGameMenu").hidden=!opening;$("mobileGameDropdownTrigger").setAttribute("aria-expanded",String(opening))});
+$("mobileGameMenu").addEventListener("click",event=>{const option=event.target.closest("[data-mobile-game-id]");if(option)selectGame(option.dataset.mobileGameId||"")});
+document.addEventListener("click",event=>{if(!$("mobileGameDropdown").contains(event.target))closeMobileGameDropdown()});
+document.addEventListener("keydown",event=>{if(event.key==="Escape")closeMobileGameDropdown()});
+$("pager").addEventListener("click",event=>{
+ const button=event.target.closest("[data-page-action]");
+ if(!button)return;
+ const action=button.dataset.pageAction;
+ redeemState.page+=action==="next"?1:-1;
+ renderSelectedCodes();
+});
+async function copyText(text){
+ if(navigator.clipboard&&window.isSecureContext){
+  try{await navigator.clipboard.writeText(text);return}catch{}
+ }
+ const area=document.createElement("textarea");
+ area.value=text;
+ area.setAttribute("readonly","");
+ area.style.position="fixed";
+ area.style.left="-9999px";
+ area.style.top="0";
+ document.body.appendChild(area);
+ area.focus();
+ area.select();
+ let ok=false;
+ try{ok=document.execCommand("copy")}finally{document.body.removeChild(area)}
+ if(!ok)throw new Error("copy failed");
+}
+$("redeemBody").addEventListener("click",async event=>{
+ const button=event.target.closest(".copyBtn");
+ if(!button)return;
+ const code=button.dataset.code||"";
+ try{await copyText(code);button.textContent="已複製";showToast("兌換碼已複製成功");setTimeout(()=>button.textContent="複製",900)}catch{showToast("複製失敗，請手動選取兌換碼。","error")}
+});
+async function openNotificationSettings(){setSettingsMessage("正在載入設定……");$("notificationPreferenceList").innerHTML='<div class="empty">正在載入設定……</div>';$("notificationSettingsDialog").showModal();try{await loadNotificationPreferences();setSettingsMessage("")}catch(error){setSettingsMessage(error.message,"error")}}
+document.querySelectorAll(".notificationSettingsBtn").forEach(button=>button.addEventListener("click",openNotificationSettings));
+function closeNotificationSettings(){$("notificationSettingsDialog").close();setSettingsMessage("")}
+$("closeNotificationSettingsBtn").addEventListener("click",closeNotificationSettings);
+$("cancelNotificationSettingsBtn").addEventListener("click",closeNotificationSettings);
+$("notificationSettingsDialog").addEventListener("click",event=>{if(event.target===$("notificationSettingsDialog"))closeNotificationSettings()});
+$("notificationSettingsForm").addEventListener("submit",async event=>{event.preventDefault();const gameIds=[...$("notificationPreferenceList").querySelectorAll("[data-game-id]:checked")].map(input=>input.dataset.gameId);$("saveNotificationSettingsBtn").disabled=true;setSettingsMessage("正在儲存……");try{await apiJson("/api/redeem-notification-preferences",{method:"PUT",body:JSON.stringify({game_ids:gameIds})});setSettingsMessage("通知設定已儲存。","ok");showToast("兌換碼通知已儲存")}catch(error){setSettingsMessage(error.message,"error")}finally{$("saveNotificationSettingsBtn").disabled=false}});
+window.addEventListener("focus",loadAuthState);window.addEventListener("storage",event=>{if(event.key==="achievement_auth_changed_at")loadAuthState()});
+loadRedeemCodes();loadAuthState();
+</script>
+</body>
+</html>

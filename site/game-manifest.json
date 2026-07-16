@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 5,
+  "defaultGame": "wuwa",
+  "projects": [
+    {
+      "id": "wuwa",
+      "name": "鳴潮",
+      "subtitle": "成就紀錄器",
+      "route": "/_projects/wuwa/index.html",
+      "enabled": true,
+      "iconEndpoint": "",
+      "achievementPointLabel": "星聲",
+      "minimumCatalogCount": 800,
+      "catalogFile": "data/catalogs/wuwa/achievements.json",
+      "relationsDir": "data/relations/wuwa",
+      "features": {
+        "hiddenAchievements": true,
+        "relations": true,
+        "officialSync": true
+      },
+      "sourcePolicy": {
+        "preserveFields": [
+          "hidden",
+          "category",
+          "source_order",
+          "raw"
+        ],
+        "reviewOnConflict": true,
+        "reviewOnRemoval": true,
+        "protectProgress": true,
+        "protectRelations": true,
+        "primary": {
+          "id": "ww_data",
+          "name": "Arikatsu/WutheringWaves_Data（WW_Data）",
+          "url": "https://github.com/Arikatsu/WutheringWaves_Data",
+          "role": "primary",
+          "mode": "remote_repository",
+          "purpose": "official_catalog",
+          "trustedFields": [
+            "achievement_id",
+            "name",
+            "condition",
+            "category",
+            "reward",
+            "hidden",
+            "source_order",
+            "level",
+            "next_link"
+          ]
+        },
+        "secondary": {
+          "id": "kuro_official_wiki",
+          "name": "鳴潮既有官方來源",
+          "url": "https://wiki.kurobbs.com/mc/item/1220879855033786368",
+          "role": "secondary",
+          "mode": "remote_reference",
+          "purpose": "cross_validation",
+          "trustedFields": [
+            "version"
+          ]
+        },
+        "fallback": {
+          "id": "verified_catalog_snapshot",
+          "name": "目前正式目錄（僅供故障保護）",
+          "url": "",
+          "role": "fallback",
+          "mode": "protected_snapshot",
+          "automaticApply": false
+        }
+      }
+    },
+    {
+      "id": "hsr",
+      "name": "崩壞：星穹鐵道",
+      "subtitle": "成就紀錄器",
+      "route": "/_projects/hsr/index.html",
+      "enabled": true,
+      "iconEndpoint": "",
+      "achievementPointLabel": "星瓊",
+      "minimumCatalogCount": 1200,
+      "catalogFile": "data/catalogs/hsr/achievements.json",
+      "relationsDir": "data/relations/hsr",
+      "features": {
+        "hiddenAchievements": true,
+        "relations": true,
+        "officialSync": true
+      },
+      "sourcePolicy": {
+        "preserveFields": [
+          "hidden",
+          "category",
+          "source_order",
+          "raw"
+        ],
+        "reviewOnConflict": true,
+        "reviewOnRemoval": true,
+        "protectProgress": true,
+        "protectRelations": true,
+        "primary": {
+          "id": "turn_based_game_data",
+          "name": "Dimbreath/TurnBasedGameData",
+          "url": "https://gitlab.com/Dimbreath/turnbasedgamedata",
+          "role": "primary",
+          "mode": "remote_repository",
+          "purpose": "official_catalog",
+          "trustedFields": [
+            "achievement_id",
+            "name",
+            "condition",
+            "category",
+            "reward",
+            "hidden",
+            "source_order",
+            "progress"
+          ]
+        },
+        "secondary": {
+          "id": "stardb_hsr",
+          "name": "StarDB 崩鐵成就資料",
+          "url": "https://stardb.gg/zh-tw/achievement-tracker",
+          "role": "secondary",
+          "mode": "remote_reference",
+          "purpose": "cross_validation",
+          "trustedFields": [
+            "version"
+          ]
+        },
+        "fallback": {
+          "id": "verified_catalog_snapshot",
+          "name": "目前正式目錄（僅供故障保護）",
+          "url": "",
+          "role": "fallback",
+          "mode": "protected_snapshot",
+          "automaticApply": false
+        }
+      }
+    },
+    {
+      "id": "genshin",
+      "name": "原神",
+      "subtitle": "成就紀錄器",
+      "route": "/_projects/genshin/index.html",
+      "enabled": true,
+      "iconEndpoint": "",
+      "achievementPointLabel": "原石",
+      "minimumCatalogCount": 1200,
+      "catalogFile": "data/catalogs/genshin/achievements.json",
+      "relationsDir": "data/relations/genshin",
+      "features": {
+        "hiddenAchievements": true,
+        "relations": true,
+        "officialSync": true
+      },
+      "sourcePolicy": {
+        "preserveFields": [
+          "hidden",
+          "category",
+          "source_order",
+          "raw"
+        ],
+        "reviewOnConflict": true,
+        "reviewOnRemoval": true,
+        "protectProgress": true,
+        "protectRelations": true,
+        "primary": {
+          "id": "anime_game_data",
+          "name": "Dimbreath/animegamedata2",
+          "url": "https://gitlab.com/Dimbreath/animegamedata2",
+          "role": "primary",
+          "mode": "remote_repository",
+          "purpose": "official_catalog",
+          "trustedFields": [
+            "achievement_id",
+            "name",
+            "condition",
+            "category",
+            "reward",
+            "hidden",
+            "source_order",
+            "progress"
+          ]
+        },
+        "secondary": {
+          "id": "stardb_genshin",
+          "name": "StarDB 原神成就資料",
+          "url": "https://stardb.gg/zh-tw/genshin/achievement-tracker",
+          "role": "secondary",
+          "mode": "remote_reference",
+          "purpose": "cross_validation",
+          "trustedFields": [
+            "version"
+          ]
+        },
+        "fallback": {
+          "id": "verified_catalog_snapshot",
+          "name": "目前正式目錄（僅供故障保護）",
+          "url": "",
+          "role": "fallback",
+          "mode": "protected_snapshot",
+          "automaticApply": false
+        }
+      }
+    },
+    {
+      "id": "zzz",
+      "name": "絕區零",
+      "subtitle": "成就紀錄器",
+      "route": "/_projects/zzz/index.html",
+      "enabled": true,
+      "iconEndpoint": "",
+      "achievementPointLabel": "菲林",
+      "minimumCatalogCount": 600,
+      "catalogFile": "data/catalogs/zzz/achievements.json",
+      "relationsDir": "data/relations/zzz",
+      "features": {
+        "hiddenAchievements": true,
+        "relations": true,
+        "officialSync": true
+      },
+      "sourcePolicy": {
+        "preserveFields": [
+          "hidden",
+          "category",
+          "source_order",
+          "raw"
+        ],
+        "reviewOnConflict": true,
+        "reviewOnRemoval": true,
+        "protectProgress": true,
+        "protectRelations": true,
+        "primary": {
+          "id": "zenless_data",
+          "name": "Dimbreath/ZenlessData",
+          "url": "https://git.mero.moe/dimbreath/ZenlessData",
+          "role": "primary",
+          "mode": "remote_repository",
+          "purpose": "official_catalog",
+          "trustedFields": [
+            "achievement_id",
+            "name",
+            "condition",
+            "category",
+            "reward",
+            "hidden",
+            "source_order",
+            "progress"
+          ]
+        },
+        "secondary": {
+          "id": "stardb_zzz",
+          "name": "StarDB 絕區零成就資料",
+          "url": "https://stardb.gg/zh-tw/zzz/achievement-tracker",
+          "role": "secondary",
+          "mode": "remote_reference",
+          "purpose": "cross_validation",
+          "trustedFields": [
+            "version"
+          ]
+        },
+        "fallback": {
+          "id": "verified_catalog_snapshot",
+          "name": "目前正式目錄（僅供故障保護）",
+          "url": "",
+          "role": "fallback",
+          "mode": "protected_snapshot",
+          "automaticApply": false
+        }
+      }
+    },
+    {
+      "id": "hna",
+      "name": "崩壞：因緣精靈",
+      "subtitle": "成就紀錄器｜尚未開放",
+      "route": "/_projects/hna/index.html",
+      "enabled": false,
+      "placeholder": true,
+      "iconEndpoint": "",
+      "features": {
+        "placeholder": true,
+        "officialSync": false
+      }
+    },
+    {
+      "id": "coming-soon",
+      "name": "敬請期待",
+      "subtitle": "",
+      "route": "",
+      "enabled": false,
+      "iconEndpoint": ""
+    }
+  ]
+}

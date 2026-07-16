@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<link rel="stylesheet" href="/assets/shared/common.css">
+<script defer src="/assets/shared/runtime.js?v=20260713-responsive-mobile-shell-1220"></script>
+<meta name="color-scheme" content="dark">
+<title>帳號設定｜遊戲成就紀錄器</title>
+<style>
+:root{--bg:#071019;--panel:#0b151f;--panel2:#0f1c28;--line:rgba(143,174,202,.17);--text:#e7f1f8;--muted:#8499ab;--accent:#62dbc9;--accent2:#88aaff;--danger:#ff8792;--ok:#82e5b7;--shadow:0 24px 80px rgba(0,0,0,.36)}
+*{box-sizing:border-box}html,body{min-height:100%;margin:0;background:radial-gradient(circle at 80% -10%,rgba(136,170,255,.11),transparent 38%),radial-gradient(circle at 12% 4%,rgba(98,219,201,.1),transparent 32%),var(--bg);color:var(--text);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}button,input{font:inherit}button{cursor:pointer}.page{width:min(1040px,100%);margin:auto;padding:28px 20px 44px}.hero{display:block;max-width:720px;margin:0 auto 20px}.eyebrow{color:#75dcca;font-size:11px;font-weight:900;letter-spacing:.16em}.hero h1{margin:0;font-size:clamp(28px,4vw,43px);line-height:1.12}.hero p{max-width:680px;margin:0;color:var(--muted);line-height:1.7}.statusPill{display:flex;align-items:center;gap:8px;flex:0 0 auto;padding:10px 14px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.035);color:var(--muted);font-size:13px}.statusDot{width:9px;height:9px;border-radius:50%;background:#7890a4;box-shadow:0 0 0 4px rgba(120,144,164,.12)}.statusPill.online .statusDot{background:var(--ok);box-shadow:0 0 0 4px rgba(130,229,183,.12)}.layout{display:block;max-width:720px;margin:0 auto}.card{border:1px solid var(--line);border-radius:22px;background:linear-gradient(180deg,rgba(255,255,255,.025),transparent 160px),var(--panel);box-shadow:var(--shadow);overflow:hidden}.cardHead{padding:22px 22px 0}.cardHead h2{margin:0;font-size:21px}.cardHead p{margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.6}.cardBody{padding:20px 22px 22px}.tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:6px;border:1px solid var(--line);border-radius:14px;background:rgba(0,0,0,.14);margin-bottom:18px}.tab{padding:10px;border:0;border-radius:10px;background:transparent;color:var(--muted);font-weight:800}.tab.active{background:linear-gradient(135deg,rgba(98,219,201,.16),rgba(136,170,255,.11));color:#effffc;box-shadow:inset 0 0 0 1px rgba(98,219,201,.15)}form{display:grid;gap:13px}label{display:grid;gap:7px;color:#b9cad6;font-size:13px;font-weight:700}input{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:#071019;color:var(--text);outline:none}input:focus{border-color:rgba(98,219,201,.58);box-shadow:0 0 0 3px rgba(98,219,201,.09)}.primary,.secondary,.danger,.linkBtn{border-radius:12px;border:1px solid transparent}.primary{padding:12px 15px;background:linear-gradient(135deg,#58d3c1,#7d9df2);color:#041317;font-weight:900}.primary:disabled,.secondary:disabled,.danger:disabled{opacity:.55;cursor:not-allowed}.secondary{padding:11px 14px;background:rgba(255,255,255,.045);border-color:var(--line);color:var(--text);font-weight:800}.secondary:hover{background:rgba(255,255,255,.075)}.danger{padding:11px 14px;background:rgba(255,105,119,.09);border-color:rgba(255,135,146,.27);color:#ffb1b9;font-weight:900}.authLinks{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:13px}.linkBtn{padding:5px 0;background:transparent;color:#8fb0ca}.linkBtn:hover{color:#c8fff7}.message{min-height:23px;margin-top:13px;color:var(--muted);font-size:13px;line-height:1.55}.message.error{color:#ffabb4}.message.ok{color:var(--ok)}.accountView{display:none}.accountHero{display:flex;align-items:center;gap:15px;padding:16px;border:1px solid rgba(98,219,201,.2);border-radius:16px;background:rgba(98,219,201,.055)}.avatar{display:none}.accountMeta{min-width:0}.accountEmail{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:900}.accountUsername{margin-top:5px;color:#b9cad6;font-size:13px}.fieldHint{color:var(--muted);font-size:12px;line-height:1.55}.accountRole{margin-top:5px;color:#88ddcf;font-size:12px}.syncNote{margin:14px 0 0;padding:12px 13px;border-radius:13px;background:rgba(136,170,255,.06);border:1px solid rgba(136,170,255,.16);color:#aebed1;font-size:13px;line-height:1.6}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.projectGrid{display:grid;gap:10px}.projectBtn{width:100%;display:flex;align-items:center;gap:12px;padding:13px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.025);color:var(--text);text-align:left}.projectBtn:hover{background:rgba(255,255,255,.055);border-color:rgba(98,219,201,.24)}.projectIcon{display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;border-radius:13px;background:#12202c;border:1px solid rgba(255,255,255,.06)}.projectIcon svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8}.projectText{display:grid;min-width:0}.projectText strong{font-size:14px}.projectText small{margin-top:4px;color:var(--muted)}.infoList{display:grid;gap:12px;margin-top:18px}.infoItem{display:grid;grid-template-columns:30px 1fr;gap:10px;color:var(--muted);font-size:13px;line-height:1.55}.infoNo{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:rgba(98,219,201,.08);color:#8ce8db;font-weight:900}.changePasswordPanel{display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;padding:20px;background:rgba(2,8,13,.72);backdrop-filter:blur(8px)}.changePasswordPanel.open{display:flex}.changePasswordDialog{width:min(520px,100%);max-height:calc(100vh - 40px);overflow:auto;border:1px solid var(--line);border-radius:20px;background:var(--panel);box-shadow:var(--shadow)}.changePasswordDialogHead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line)}.changePasswordDialogHead h3{margin:0;font-size:18px}.changePasswordClose{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.04);color:var(--text);font-size:24px;line-height:1}.changePasswordClose:hover{background:rgba(255,255,255,.08)}.changePasswordDialogBody{padding:20px}body.modalOpen{overflow:hidden}.resetPanel{display:none}.notice{margin-bottom:18px;padding:13px 15px;border:1px solid rgba(136,170,255,.2);border-radius:14px;background:rgba(136,170,255,.065);color:#b9c9dd;font-size:13px;line-height:1.55}.footer{margin-top:20px;text-align:center;color:#657c8f;font-size:11px}.hidden{display:none!important}.notificationButton{position:relative}.notificationBadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;margin-left:7px;border-radius:999px;background:#ff7182;color:#fff;font-size:10px;font-weight:900}.notificationBadge[hidden]{display:none}.notificationToolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.notificationList{display:grid;gap:10px;min-height:70px}.notificationCard{padding:13px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.025)}.notificationCard.unread{border-color:rgba(98,219,201,.5);background:rgba(98,219,201,.045)}.notificationCard h4{margin:0 0 7px;font-size:14px}.notificationCard p{margin:0;color:#c6d5df;white-space:pre-wrap;line-height:1.6;font-size:13px}.notificationMeta{margin-top:8px;color:var(--muted);font-size:11px}.notificationItemActions{display:flex;gap:7px;flex-wrap:wrap;margin-top:10px}.notificationItemActions a{display:inline-flex;align-items:center;padding:8px 10px;border-radius:9px;background:rgba(98,219,201,.1);color:#a6f4e9;text-decoration:none;font-size:12px;font-weight:850}.notificationEmpty{padding:20px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:13px}
+@media(max-width:760px){.page{padding:18px 12px 30px}.hero{display:grid}.layout{grid-template-columns:1fr}.cardHead,.cardBody{padding-left:17px;padding-right:17px}.hero h1{font-size:30px}}
+</style>
+</head>
+<body>
+<main class="page">
+ <section class="hero">
+  <div><h1>帳號設定</h1></div>
+ </section>
+ <div class="notice hidden" id="externalMessage"></div>
+ <section class="layout">
+  <article class="card">
+   <div class="cardHead"><h2 id="mainTitle">登入或註冊</h2><p id="mainIntro"></p></div>
+   <div class="cardBody">
+    <section id="guestView">
+     <div class="tabs"><button class="tab active" id="loginTab" type="button">登入</button><button class="tab" id="registerTab" type="button">註冊</button></div>
+     <form id="authForm">
+      <label><span id="identifierLabel">使用者名稱或電子信箱</span><input id="email" type="text" autocomplete="username" maxlength="254" required placeholder="使用者名稱或電子信箱"></label>
+      <label>密碼<input id="password" type="password" autocomplete="current-password" minlength="8" maxlength="200" required placeholder="至少 8 個字元"></label>
+      <button class="primary" id="submitBtn" type="submit">登入</button>
+     </form>
+     <div class="authLinks"><button class="linkBtn" id="forgotBtn" type="button">忘記密碼？</button><button class="linkBtn hidden" id="resendBtn" type="button">重新寄送驗證信</button></div>
+     <div class="message" id="authMessage"></div>
+    </section>
+    <section class="accountView" id="accountView">
+     <div class="accountHero"><div class="avatar" id="avatar">A</div><div class="accountMeta"><div class="accountEmail" id="accountEmail">—</div><div class="accountUsername" id="accountUsername">尚未設定使用者名稱</div><div class="accountRole" id="accountRole">—</div></div></div>
+     <div class="actions"><button class="secondary" id="usernameBtn" type="button">設定使用者名稱</button><button class="secondary" id="changePasswordBtn" type="button">更換密碼</button><button class="secondary notificationButton" id="accountNotificationsBtn" type="button">站內通知<span class="notificationBadge" id="accountNotificationBadge" hidden>0</span></button><button class="danger" id="logoutBtn" type="button">登出</button></div>
+     <section class="changePasswordPanel" id="usernamePanel" role="dialog" aria-modal="true" aria-labelledby="usernameTitle"><div class="changePasswordDialog"><div class="changePasswordDialogHead"><h3 id="usernameTitle">設定使用者名稱</h3><button class="changePasswordClose" id="usernameCloseBtn" type="button" aria-label="關閉">×</button></div><div class="changePasswordDialogBody"><form id="usernameForm"><label>使用者名稱<input id="usernameInput" type="text" autocomplete="username" minlength="3" maxlength="30" pattern="[A-Za-z0-9]+" autocapitalize="none" spellcheck="false" required placeholder="例如 Ace123"></label><div class="fieldHint">使用者名稱限用英文與數字，長度不得少於 3 個字元。</div><div class="actions"><button class="primary" id="usernameSubmitBtn" type="submit">儲存使用者名稱</button><button class="secondary" id="usernameCancelBtn" type="button">取消</button></div></form><div class="message" id="usernameMessage"></div></div></div></section><section class="changePasswordPanel" id="changePasswordPanel" role="dialog" aria-modal="true" aria-labelledby="changePasswordTitle"><div class="changePasswordDialog"><div class="changePasswordDialogHead"><h3 id="changePasswordTitle">更換密碼</h3><button class="changePasswordClose" id="changePasswordCloseBtn" type="button" aria-label="關閉">×</button></div><div class="changePasswordDialogBody"><form id="changePasswordForm"><label>目前密碼<input id="currentPassword" type="password" autocomplete="current-password" minlength="8" maxlength="200" required placeholder="輸入目前密碼"></label><label>新密碼<input id="changeNewPassword" type="password" autocomplete="new-password" minlength="8" maxlength="200" required placeholder="至少 8 個字元"></label><label>再次輸入新密碼<input id="changeConfirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="200" required placeholder="再次輸入新密碼"></label><div class="actions"><button class="primary" id="changePasswordSubmitBtn" type="submit">確認更換密碼</button><button class="secondary" id="cancelChangePasswordBtn" type="button">取消</button></div></form><div class="message" id="changePasswordMessage"></div></div></div></section><section class="changePasswordPanel" id="accountNotificationPanel" role="dialog" aria-modal="true" aria-labelledby="accountNotificationTitle"><div class="changePasswordDialog"><div class="changePasswordDialogHead"><h3 id="accountNotificationTitle">站內通知</h3><button class="changePasswordClose" id="accountNotificationCloseBtn" type="button" aria-label="關閉">×</button></div><div class="changePasswordDialogBody"><div class="notificationToolbar"><button class="secondary" id="accountNotificationReadAllBtn" type="button">全部標為已讀</button></div><div class="notificationList" id="accountNotificationList"><div class="notificationEmpty">正在載入通知……</div></div><div class="message" id="accountNotificationMessage"></div></div></div></section><div class="message" id="accountMessage"></div>
+    </section>
+    <section class="resetPanel" id="resetPanel">
+     <form id="resetForm">
+      <label>新密碼<input id="newPassword" type="password" autocomplete="new-password" minlength="8" maxlength="200" required placeholder="至少 8 個字元"></label>
+      <label>再次輸入新密碼<input id="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="200" required placeholder="再次輸入新密碼"></label>
+      <button class="primary" id="resetSubmitBtn" type="submit">更新密碼</button>
+     </form>
+     <div class="message" id="resetMessage"></div>
+    </section>
+    <section class="changePasswordPanel" id="forgotPasswordPanel" role="dialog" aria-modal="true" aria-labelledby="forgotPasswordTitle">
+     <div class="changePasswordDialog">
+      <div class="changePasswordDialogHead"><h3 id="forgotPasswordTitle">重設密碼</h3><button class="changePasswordClose" id="forgotPasswordCloseBtn" type="button" aria-label="關閉">×</button></div>
+      <div class="changePasswordDialogBody">
+       <div class="notice">請輸入註冊時使用的電子信箱，我們會寄送密碼重設連結。</div>
+       <form id="forgotPasswordForm">
+        <label>電子信箱<input id="forgotPasswordEmail" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com"></label>
+        <div class="actions"><button class="primary" id="forgotPasswordSubmitBtn" type="submit">寄送重設郵件</button><button class="secondary" id="forgotPasswordCancelBtn" type="button">取消</button></div>
+       </form>
+       <div class="message" id="forgotPasswordMessage"></div>
+      </div>
+     </div>
+    </section>
+    <section class="changePasswordPanel" id="resetLinkInvalidPanel" role="dialog" aria-modal="true" aria-labelledby="resetLinkInvalidTitle">
+     <div class="changePasswordDialog">
+      <div class="changePasswordDialogHead"><h3 id="resetLinkInvalidTitle">無法重設密碼</h3></div>
+      <div class="changePasswordDialogBody">
+       <div class="notice" id="resetLinkInvalidMessage">此密碼重設連結無效、已使用或已過期。請重新申請密碼重設信。</div>
+       <div class="actions"><button class="primary" id="resetLinkInvalidConfirmBtn" type="button">返回登入</button></div>
+      </div>
+     </div>
+    </section>
+   </div>
+  </article>
+ </section>
+</main>
+<script>
+const ACCOUNT_AUTH_LINK_BUILD='20260628-forgot-password-dialog-1911';
+const $=id=>document.getElementById(id);
+let mode="login",currentUser=null,busy=false,accountNotifications=[],sessionLoadPromise=null,resetTokenValidated=false,resetTokenChecking=false;
+let initialAuthParams=new URLSearchParams(location.search);
+let activeResetToken=initialAuthParams.get("reset_token")||"";
+let activeVerifyToken=activeResetToken?"":(initialAuthParams.get("verify_token")||"");
+let authChannel=null;try{if("BroadcastChannel" in window)authChannel=new BroadcastChannel("achievement-auth-v1")}catch{}
+function setMessage(id,text,type=""){const el=$(id);el.textContent=text;el.className="message"+(type?` ${type}`:"")}
+async function apiJson(path,options={}){const response=await fetch(path,{credentials:"same-origin",headers:{"Content-Type":"application/json",...(options.headers||{})},cache:"no-store",...options});let value={};try{value=await response.json()}catch{}if(!response.ok||value.ok===false){const error=new Error(value.message||`要求失敗（${response.status}）`);error.status=response.status;throw error}return value}
+function isEmailValue(value){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value||'').trim())}
+function escapeHtml(value){return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]))}
+function formatNotificationDate(value){const timestamp=Number(value||0);return timestamp?new Date(timestamp*1000).toLocaleString('zh-TW',{hour12:false}):'—'}
+function renderAccountNotificationBadge(){const unread=accountNotifications.filter(item=>!item.is_read).length;$('accountNotificationBadge').hidden=!unread;$('accountNotificationBadge').textContent=unread>99?'99+':String(unread)}
+function renderAccountNotifications(){const list=$('accountNotificationList');list.innerHTML=accountNotifications.length?accountNotifications.map(item=>`<article class="notificationCard ${item.is_read?'':'unread'}"><h4>${escapeHtml(item.title)}${item.is_read?'':'　<span>未讀</span>'}</h4><p>${escapeHtml(item.body)}</p><div class="notificationMeta">${escapeHtml(formatNotificationDate(item.created_at))}｜${escapeHtml(item.kind||'info')}</div><div class="notificationItemActions">${item.link?`<a href="${escapeHtml(item.link)}" target="_top">前往</a>`:''}${item.is_read?'':`<button class="secondary accountNotificationReadBtn" data-id="${escapeHtml(item.id)}" type="button">標為已讀</button>`}</div></article>`).join(''):'<div class="notificationEmpty">目前沒有通知。</div>'}
+async function loadAccountNotifications(silent=false){if(!currentUser){accountNotifications=[];renderAccountNotificationBadge();return}try{const result=await apiJson('/api/message-center?item_type=notification');accountNotifications=result.items||[];renderAccountNotificationBadge();if($('accountNotificationPanel').classList.contains('open'))renderAccountNotifications()}catch(err){if(!silent)setMessage('accountNotificationMessage',err.message,'error')}}
+function closeAccountNotifications(){const panel=$('accountNotificationPanel');panel.classList.remove('open');if(!$('changePasswordPanel').classList.contains('open')&&!$('usernamePanel').classList.contains('open'))document.body.classList.remove('modalOpen');setMessage('accountNotificationMessage','')}
+function notifyAuthChanged(){const payload={type:"achievement-auth-changed",at:Date.now()};try{authChannel?.postMessage(payload)}catch{}try{localStorage.setItem("achievement_auth_changed_at",String(payload.at))}catch{}try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:"achievement-hub-auth-changed",at:payload.at},location.origin)}catch{}}
+function setMode(next){mode=next==="register"?"register":"login";const registering=mode==="register";const identifier=$('email');$('loginTab').classList.toggle('active',!registering);$('registerTab').classList.toggle('active',registering);identifier.type=registering?'email':'text';identifier.autocomplete=registering?'email':'username';identifier.placeholder=registering?'you@example.com':'使用者名稱或電子信箱';$('password').autocomplete=registering?'new-password':'current-password';$('identifierLabel').textContent=registering?'電子信箱':'使用者名稱或電子信箱';$('submitBtn').textContent=registering?'建立帳號':'登入';$('forgotBtn').classList.toggle('hidden',registering);$('resendBtn').classList.toggle('hidden',!registering);setMessage('authMessage','')}
+function showResetPending(){
+ if(!activeResetToken)return false;
+ currentUser=null;
+ accountNotifications=[];
+ renderAccountNotificationBadge();
+ $('guestView').style.display='none';
+ $('accountView').style.display='none';
+ $('resetPanel').style.display='none';
+ $('mainTitle').textContent='正在驗證重設連結';
+ $('mainIntro').classList.remove('hidden');
+ $('mainIntro').textContent='正在確認此連結是否仍然有效，請稍候……';
+ return true;
+}
+function showResetPanel(){
+ if(!activeResetToken||!resetTokenValidated)return false;
+ currentUser=null;
+ accountNotifications=[];
+ renderAccountNotificationBadge();
+ $('guestView').style.display='none';
+ $('accountView').style.display='none';
+ $('resetPanel').style.display='block';
+ $('resetPanel').dataset.token=activeResetToken;
+ $('changePasswordPanel').classList.remove('open');
+ $('usernamePanel').classList.remove('open');
+ $('accountNotificationPanel').classList.remove('open');
+ document.body.classList.remove('modalOpen');
+ $('mainTitle').textContent='設定新密碼';
+ $('mainIntro').classList.remove('hidden');
+ $('mainIntro').textContent='連結有效。更新後，所有舊登入階段都會失效。';
+ requestAnimationFrame(()=>$('newPassword').focus());
+ return true;
+}
+function openForgotPasswordPanel(){
+ const candidate=$('email').value.trim();
+ $('forgotPasswordEmail').value=isEmailValue(candidate)?candidate:'';
+ setMessage('forgotPasswordMessage','');
+ $('forgotPasswordPanel').classList.add('open');
+ document.body.classList.add('modalOpen');
+ requestAnimationFrame(()=>$('forgotPasswordEmail').focus());
+}
+function closeForgotPasswordPanel(){
+ $('forgotPasswordPanel').classList.remove('open');
+ $('forgotPasswordEmail').value='';
+ setMessage('forgotPasswordMessage','');
+ document.body.classList.remove('modalOpen');
+ requestAnimationFrame(()=>$('forgotBtn').focus());
+}
+function showInvalidResetDialog(message='密碼重設連結無效或已過期。'){
+ activeResetToken='';
+ resetTokenValidated=false;
+ resetTokenChecking=false;
+ cleanQuery();
+ $('newPassword').value=$('confirmPassword').value='';
+ $('resetPanel').style.display='none';
+ $('resetPanel').dataset.token='';
+ $('guestView').style.display='block';
+ $('accountView').style.display='none';
+ setMode('login');
+ $('mainTitle').textContent='登入或註冊';
+ $('mainIntro').textContent='';
+ $('mainIntro').classList.add('hidden');
+ $('resetLinkInvalidMessage').textContent=message+' 請重新輸入信箱並申請新的密碼重設信。';
+ $('resetLinkInvalidPanel').classList.add('open');
+ document.body.classList.add('modalOpen');
+ requestAnimationFrame(()=>$('resetLinkInvalidConfirmBtn').focus());
+}
+function closeInvalidResetDialog(){
+ $('resetLinkInvalidPanel').classList.remove('open');
+ document.body.classList.remove('modalOpen');
+ requestAnimationFrame(()=>$('email').focus());
+}
+function renderSession(){if(activeResetToken){if(resetTokenValidated)showResetPanel();else showResetPending();return}const logged=Boolean(currentUser);$('guestView').style.display=logged?'none':'block';$('accountView').style.display=logged?'block':'none';$('resetPanel').style.display='none';$('resetPanel').dataset.token='';$('changePasswordPanel').classList.remove('open');$('usernamePanel').classList.remove('open');$('accountNotificationPanel').classList.remove('open');$('forgotPasswordPanel').classList.remove('open');document.body.classList.remove('modalOpen');$('mainTitle').textContent=logged?'帳號已登入':'登入或註冊';$('mainIntro').textContent='';$('mainIntro').classList.add('hidden');if(logged){const username=currentUser.username||'';$('accountEmail').textContent=username||currentUser.email||'已登入';$('accountUsername').textContent=username?(currentUser.email||''):'';$('accountUsername').classList.toggle('hidden',!username);$('usernameBtn').textContent=username?'更改使用者名稱':'設定使用者名稱';$('accountRole').textContent=currentUser.is_site_owner?'站長':currentUser.role==='admin'?'管理員':'一般用戶';$('avatar').textContent=(username||currentUser.email||'A').slice(0,1).toUpperCase()}else{accountNotifications=[];renderAccountNotificationBadge()}}
+function showVerificationPending(){
+ if(!activeVerifyToken)return false;
+ currentUser=null;
+ accountNotifications=[];
+ renderAccountNotificationBadge();
+ $('guestView').style.display='none';
+ $('accountView').style.display='none';
+ $('resetPanel').style.display='none';
+ $('mainTitle').textContent='正在驗證信箱';
+ $('mainIntro').classList.remove('hidden');
+ $('mainIntro').textContent='正在確認郵件連結，請稍候……';
+ return true;
+}
+async function loadSession(){if(sessionLoadPromise)return sessionLoadPromise;sessionLoadPromise=(async()=>{if(activeResetToken){if(resetTokenValidated)showResetPanel();else if(resetTokenChecking)showResetPending();return}if(activeVerifyToken){showVerificationPending();return}try{const result=await apiJson('/api/auth/me');currentUser=result.authenticated?result.user:null;renderSession();if(currentUser)await loadAccountNotifications(true)}catch(err){currentUser=null;renderSession();setMessage('authMessage',err.message,'error')}})();try{return await sessionLoadPromise}finally{sessionLoadPromise=null}}
+function cleanQuery(){const u=new URL(location.href);u.searchParams.delete('verify_token');u.searchParams.delete('reset_token');history.replaceState({},'',u.pathname+u.search+u.hash);try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'achievement-hub-clear-auth-query'},location.origin)}catch{}}
+async function processLinks(){
+ if(activeResetToken){
+  showResetPending();
+  resetTokenChecking=true;
+  const token=activeResetToken;
+  try{
+   await apiJson('/api/auth/reset-password/validate',{method:'POST',body:JSON.stringify({token})});
+   if(activeResetToken!==token)return true;
+   resetTokenValidated=true;
+   showResetPanel();
+  }catch(err){
+   if(activeResetToken===token){
+    if(err.status===400)showInvalidResetDialog(err.message||'密碼重設連結無效或已過期。');
+    else{$('mainTitle').textContent='暫時無法驗證重設連結';$('mainIntro').textContent=(err.message||'連線失敗。')+' 請稍後重新整理頁面再試。'}
+   }
+  }finally{resetTokenChecking=false}
+  return true;
+ }
+ if(!activeVerifyToken)return false;
+ showVerificationPending();
+ const token=activeVerifyToken;
+ try{
+  const result=await apiJson('/api/auth/verify-email',{method:'POST',body:JSON.stringify({token})});
+  activeVerifyToken='';
+  currentUser=result.user;
+  cleanQuery();
+  renderSession();
+  setMessage('accountMessage','信箱驗證完成，所有遊戲專案已自動登入。','ok');
+  notifyAuthChanged();
+ }catch(err){
+  activeVerifyToken='';
+  cleanQuery();
+  currentUser=null;
+  renderSession();
+  setMessage('authMessage','信箱驗證失敗：'+err.message,'error');
+ }
+ return true;
+}
+$('resetLinkInvalidConfirmBtn').onclick=closeInvalidResetDialog;
+$('resetLinkInvalidPanel').addEventListener('click',event=>{if(event.target===$('resetLinkInvalidPanel'))closeInvalidResetDialog()});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&$('resetLinkInvalidPanel').classList.contains('open'))closeInvalidResetDialog()});
+$('loginTab').onclick=()=>setMode('login');$('registerTab').onclick=()=>setMode('register');
+$('authForm').onsubmit=async event=>{event.preventDefault();if(busy)return;const identifier=$('email').value.trim(),password=$('password').value;if(mode==='register'&&!isEmailValue(identifier))return setMessage('authMessage','請輸入有效的電子信箱。','error');if(mode==='login'&&identifier.length<3)return setMessage('authMessage','請輸入使用者名稱或電子信箱。','error');if(password.length<8)return setMessage('authMessage','密碼至少需要 8 個字元。','error');busy=true;$('submitBtn').disabled=true;setMessage('authMessage',mode==='register'?'正在建立帳號並寄送驗證信……':'正在登入……');try{const payload=mode==='register'?{email:identifier,password}:{identifier,password};const result=await apiJson(mode==='register'?'/api/auth/register':'/api/auth/login',{method:'POST',body:JSON.stringify(payload)});if(mode==='register'){setMessage('authMessage','註冊完成。請到信箱點擊驗證連結。','ok')}else{currentUser=result.user;$('password').value='';renderSession();setMessage('accountMessage','登入成功。','ok');notifyAuthChanged()}}catch(err){setMessage('authMessage',err.message,'error')}finally{busy=false;$('submitBtn').disabled=false}};
+$('forgotBtn').onclick=openForgotPasswordPanel;
+$('forgotPasswordCancelBtn').onclick=closeForgotPasswordPanel;
+$('forgotPasswordCloseBtn').onclick=closeForgotPasswordPanel;
+$('forgotPasswordPanel').addEventListener('click',event=>{if(event.target===$('forgotPasswordPanel'))closeForgotPasswordPanel()});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&$('forgotPasswordPanel').classList.contains('open'))closeForgotPasswordPanel()});
+$('forgotPasswordForm').onsubmit=async event=>{event.preventDefault();const email=$('forgotPasswordEmail').value.trim();if(!isEmailValue(email)){setMessage('forgotPasswordMessage','請輸入有效的電子信箱。','error');$('forgotPasswordEmail').focus();return}$('forgotPasswordSubmitBtn').disabled=true;setMessage('forgotPasswordMessage','正在寄送密碼重設信……');try{await apiJson('/api/auth/forgot-password',{method:'POST',body:JSON.stringify({email})});setMessage('forgotPasswordMessage','若此信箱已註冊，密碼重設信將在幾分鐘內寄達。請一併查看垃圾郵件。','ok')}catch(err){setMessage('forgotPasswordMessage',err.message,'error')}finally{$('forgotPasswordSubmitBtn').disabled=false}};
+$('resendBtn').onclick=async()=>{const email=$('email').value.trim();if(!isEmailValue(email))return setMessage('authMessage','請先輸入有效的電子信箱。','error');$('resendBtn').disabled=true;try{await apiJson('/api/auth/resend-verification',{method:'POST',body:JSON.stringify({email})});setMessage('authMessage','若帳號尚未驗證，新的驗證信將在幾分鐘內寄達。','ok')}catch(err){setMessage('authMessage',err.message,'error')}finally{$('resendBtn').disabled=false}};
+function closeUsernamePanel(){const panel=$('usernamePanel');panel.classList.remove('open');if(!$('changePasswordPanel').classList.contains('open'))document.body.classList.remove('modalOpen');$('usernameInput').value='';setMessage('usernameMessage','')}
+$('usernameBtn').onclick=()=>{closeChangePassword();closeUsernamePanel();$('usernameInput').value=currentUser?.username||'';$('usernameTitle').textContent=currentUser?.username?'更改使用者名稱':'設定使用者名稱';$('usernamePanel').classList.add('open');document.body.classList.add('modalOpen');$('usernameInput').focus();$('usernameInput').select()};
+$('usernameCancelBtn').onclick=closeUsernamePanel;
+$('usernameCloseBtn').onclick=closeUsernamePanel;
+$('usernamePanel').addEventListener('click',event=>{if(event.target===$('usernamePanel'))closeUsernamePanel()});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&$('usernamePanel').classList.contains('open'))closeUsernamePanel()});
+$('usernameForm').onsubmit=async event=>{event.preventDefault();const username=$('usernameInput').value.trim();if(!/^[A-Za-z0-9]{3,30}$/.test(username))return setMessage('usernameMessage','使用者名稱至少 3 個字，且只能使用英文字母與數字。','error');$('usernameSubmitBtn').disabled=true;setMessage('usernameMessage','正在儲存使用者名稱……');try{const result=await apiJson('/api/auth/username',{method:'POST',body:JSON.stringify({username})});currentUser=result.user;closeUsernamePanel();renderSession();setMessage('accountMessage','使用者名稱已更新。','ok');notifyAuthChanged()}catch(err){setMessage('usernameMessage',err.message,'error')}finally{$('usernameSubmitBtn').disabled=false}};
+function closeChangePassword(){
+ const panel=$('changePasswordPanel');panel.classList.remove('open');document.body.classList.remove('modalOpen');
+ $('currentPassword').value='';$('changeNewPassword').value='';$('changeConfirmPassword').value='';
+ setMessage('changePasswordMessage','');
+}
+$('changePasswordBtn').onclick=()=>{
+ closeUsernamePanel();
+ const panel=$('changePasswordPanel'),opening=!panel.classList.contains('open');
+ closeChangePassword();
+ if(opening){panel.classList.add('open');document.body.classList.add('modalOpen');$('currentPassword').focus()}
+};
+$('cancelChangePasswordBtn').onclick=closeChangePassword;
+$('changePasswordCloseBtn').onclick=closeChangePassword;
+$('changePasswordPanel').addEventListener('click',event=>{if(event.target===$('changePasswordPanel'))closeChangePassword()});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&$('changePasswordPanel').classList.contains('open'))closeChangePassword()});
+$('changePasswordForm').onsubmit=async event=>{
+ event.preventDefault();
+ const currentPassword=$('currentPassword').value;
+ const newPassword=$('changeNewPassword').value;
+ const confirmPassword=$('changeConfirmPassword').value;
+ if(currentPassword.length<8)return setMessage('changePasswordMessage','目前密碼至少需要 8 個字元。','error');
+ if(newPassword.length<8)return setMessage('changePasswordMessage','新密碼至少需要 8 個字元。','error');
+ if(newPassword!==confirmPassword)return setMessage('changePasswordMessage','兩次輸入的新密碼不一致。','error');
+ if(currentPassword===newPassword)return setMessage('changePasswordMessage','新密碼不可與目前密碼相同。','error');
+ $('changePasswordSubmitBtn').disabled=true;
+ setMessage('changePasswordMessage','正在更換密碼……');
+ try{
+  await apiJson('/api/auth/change-password',{method:'POST',body:JSON.stringify({current_password:currentPassword,new_password:newPassword})});
+  closeChangePassword();
+  setMessage('accountMessage','密碼更換成功。','ok');
+  notifyAuthChanged();
+ }catch(err){setMessage('changePasswordMessage',err.message,'error')}
+ finally{$('changePasswordSubmitBtn').disabled=false}
+};
+$('accountNotificationsBtn').onclick=async()=>{closeUsernamePanel();closeChangePassword();$('accountNotificationPanel').classList.add('open');document.body.classList.add('modalOpen');setMessage('accountNotificationMessage','正在載入通知……');await loadAccountNotifications();setMessage('accountNotificationMessage','');renderAccountNotifications()};
+$('accountNotificationCloseBtn').onclick=closeAccountNotifications;
+$('accountNotificationPanel').addEventListener('click',event=>{if(event.target===$('accountNotificationPanel'))closeAccountNotifications()});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&$('accountNotificationPanel').classList.contains('open'))closeAccountNotifications()});
+$('accountNotificationReadAllBtn').onclick=async()=>{try{await apiJson('/api/message-center/read-all?item_type=notification',{method:'POST',body:'{}'});await loadAccountNotifications();renderAccountNotifications()}catch(err){setMessage('accountNotificationMessage',err.message,'error')}};
+$('accountNotificationList').onclick=async event=>{const read=event.target.closest('.accountNotificationReadBtn'),id=read?.dataset.id;if(!id)return;try{await apiJson(`/api/message-center/${encodeURIComponent(id)}/read`,{method:'POST',body:'{}'});await loadAccountNotifications();renderAccountNotifications()}catch(err){setMessage('accountNotificationMessage',err.message,'error')}};
+$('logoutBtn').onclick=async()=>{$('logoutBtn').disabled=true;setMessage('accountMessage','正在登出所有專案……');try{await apiJson('/api/auth/logout',{method:'POST',body:'{}'});currentUser=null;$('password').value='';setMode('login');renderSession();setMessage('authMessage','已登出，請重新登入。','ok');notifyAuthChanged();window.scrollTo({top:0,left:0,behavior:'auto'});requestAnimationFrame(()=>$('email').focus())}catch(err){setMessage('accountMessage',err.message,'error')}finally{$('logoutBtn').disabled=false}};
+$('resetForm').onsubmit=async event=>{event.preventDefault();const token=activeResetToken||$('resetPanel').dataset.token||'',password=$('newPassword').value,confirmPassword=$('confirmPassword').value;if(!resetTokenValidated)return showInvalidResetDialog('密碼重設連結尚未通過驗證。');if(password.length<8)return setMessage('resetMessage','密碼至少需要 8 個字元。','error');if(password!==confirmPassword)return setMessage('resetMessage','兩次輸入的密碼不一致。','error');$('resetSubmitBtn').disabled=true;try{await apiJson('/api/auth/reset-password',{method:'POST',body:JSON.stringify({token,password})});activeResetToken='';resetTokenValidated=false;cleanQuery();$('newPassword').value=$('confirmPassword').value='';$('resetPanel').style.display='none';$('resetPanel').dataset.token='';$('guestView').style.display='block';setMode('login');$('mainTitle').textContent='登入或註冊';$('mainIntro').classList.remove('hidden');$('mainIntro').textContent='密碼已更新，請使用新密碼登入。';setMessage('authMessage','密碼更新完成，請重新登入。','ok');notifyAuthChanged()}catch(err){if(err.status===400&&/無效|過期|已使用/.test(err.message||''))showInvalidResetDialog(err.message);else setMessage('resetMessage',err.message,'error')}finally{$('resetSubmitBtn').disabled=false}};
+window.addEventListener('focus',()=>{if(!document.body.classList.contains('modalOpen'))loadSession()});document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!document.body.classList.contains('modalOpen'))loadSession()});
+window.addEventListener('storage',event=>{if(event.key==='achievement_auth_changed_at')loadSession()});authChannel?.addEventListener('message',loadSession);
+(async()=>{const msg=new URLSearchParams(location.search).get('message');if(msg){$('externalMessage').textContent=msg;$('externalMessage').classList.remove('hidden')}setMode('login');if(!await processLinks())await loadSession()})();
+</script>
+</body>
+</html>

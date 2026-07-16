@@ -1,0 +1,608 @@
+.sourceCardGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin:12px 0}.sourceCard{padding:13px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.025)}.sourceCard h4{margin:0 0 6px}.sourceMeta{display:grid;gap:4px;color:var(--muted);font-size:12px;line-height:1.5}.sourceActions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.syncGuide{margin:10px 0;padding:12px;border-left:3px solid var(--a);border-radius:10px;background:rgba(98,219,201,.055);font-size:12px;line-height:1.65}.syncFilterGrid{display:grid;grid-template-columns:minmax(220px,1.4fr) repeat(3,minmax(135px,.6fr));gap:8px;margin:12px 0}.syncChangeItem.blocked{border-color:rgba(255,92,110,.45)}.syncChangeItem.needs_review{border-color:rgba(255,194,94,.38)}.syncReasons{margin:7px 0 0;padding-left:18px;color:#ddc18d;font-size:12px;line-height:1.55}.syncFieldDecision{display:grid;grid-template-columns:auto minmax(110px,.5fr) minmax(0,1fr) minmax(0,1fr);gap:7px;align-items:start;padding:7px 0;border-top:1px dashed var(--line);font-size:12px}.syncValue{min-width:0;padding:7px;border-radius:8px;background:#09111a;white-space:pre-wrap;overflow-wrap:anywhere}.syncHistory{display:grid;gap:7px;margin-top:10px}.syncHistoryItem{padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.02);font-size:12px}.syncPager{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0}.validationToolbar{display:grid;grid-template-columns:minmax(180px,1fr) repeat(2,minmax(135px,.55fr));gap:8px;margin:10px 0}.issueCard{padding:13px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.025)}.issueCard.blocked{border-color:rgba(255,92,110,.43)}.issueCard.needs_review{border-color:rgba(255,194,94,.38)}.issueHead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.issueActionGrid{display:grid;grid-template-columns:auto minmax(190px,.8fr) minmax(160px,1fr);gap:8px;align-items:center;margin-top:10px}.issueExtra{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.auditFilters{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:8px;flex:1}.auditPager{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:12px}@media(max-width:900px){.syncFilterGrid,.validationToolbar,.auditFilters{grid-template-columns:1fr 1fr}.syncFieldDecision{grid-template-columns:auto 1fr}.syncFieldDecision .syncValue{grid-column:2}.issueActionGrid{grid-template-columns:1fr}.issueExtra{grid-column:auto}}@media(max-width:600px){.syncFilterGrid,.validationToolbar,.auditFilters{grid-template-columns:1fr}}
+.sourceDiagnostics{margin:12px 0;padding:14px;border:1px solid rgba(104,196,255,.28);border-radius:14px;background:rgba(61,142,203,.055)}
+.sourceDiagnosticsHead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}.sourceDiagnosticsHead h4{margin:0 0 4px}
+.sourceDiagnosticGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.sourceDiagnosticGrid>div{display:grid;gap:3px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#09111a}.sourceDiagnosticGrid span,.sourceDiagnosticGrid small{color:var(--muted);font-size:11px;overflow-wrap:anywhere}.sourceDiagnosticGrid b{font-size:14px}
+.sourceDiagnosticError{margin-top:10px;padding:10px;border-radius:10px;background:rgba(255,255,255,.025);font-size:12px;line-height:1.6}.sourceDiagnosticError{border-left:3px solid #ff6b7a;color:#ffd0d5}
+.sourceDiagnosticDetails{margin-top:10px}.sourceDiagnosticDetails summary{cursor:pointer;font-weight:700;padding:8px 0}.sourceDiagnosticTable{width:100%;border-collapse:collapse;font-size:12px}.sourceDiagnosticTable th{position:sticky;top:0;z-index:2;background:#101b27;text-align:left}.sourceDiagnosticTable th,.sourceDiagnosticTable td{padding:9px;border-bottom:1px solid var(--line);vertical-align:top}.sourceDiagnosticTable td:nth-child(2),.sourceDiagnosticTable td:nth-child(3){min-width:260px}
+@media(max-width:700px){.sourceDiagnosticsHead{display:grid}.sourceDiagnosticTable td:nth-child(2),.sourceDiagnosticTable td:nth-child(3){min-width:220px}}
+
+/* r9 source diagnosis and side-by-side comparison */
+.sourceDiagnosisSteps{display:grid;grid-template-columns:repeat(4,minmax(190px,1fr));gap:9px}.sourceDiagnosisSteps article{display:flex;gap:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#09111a}.sourceDiagnosisSteps article.ok{border-color:rgba(87,221,165,.38)}.sourceDiagnosisSteps article.warning{border-color:rgba(255,194,94,.42)}.sourceDiagnosisSteps h5,.sourceDiagnosisDetails h5,.sourcePairCard h5,.syncCompareHeader h5{margin:0 0 5px}.sourceDiagnosisSteps strong,.sourceDiagnosisSteps small,.sourceDiagnosisSteps a{display:block}.sourceDiagnosisSteps small{margin-top:4px;color:var(--muted);line-height:1.45}.sourceDiagnosisSteps a{margin-top:4px;font-size:12px;color:var(--a);overflow-wrap:anywhere}.sourceStepNo{display:grid;place-items:center;width:25px;height:25px;flex:0 0 25px;border-radius:999px;background:rgba(98,219,201,.16);font-weight:900}.sourceDiagnosisDetails{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.sourceDiagnosisDetails>section{padding:11px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.02)}.sourceDiagnosisDetails dl,.sourcePairColumns dl{display:grid;grid-template-columns:minmax(90px,.35fr) minmax(0,1fr);gap:5px 9px;margin:8px 0 0}.sourceDiagnosisDetails dt,.sourcePairColumns dt{color:var(--muted);font-size:12px}.sourceDiagnosisDetails dd,.sourcePairColumns dd{margin:0;overflow-wrap:anywhere;font-size:12px}.sourceMethodList{display:grid;gap:6px;margin:8px 0 0;padding:0;list-style:none}.sourceMethodList li{display:flex;justify-content:space-between;gap:10px;padding:6px 8px;border-radius:8px;background:#081018}.sourcePairList{display:grid;gap:10px;margin-top:8px}.sourcePairCard{padding:12px;border:1px solid var(--line);border-radius:12px;background:#081018}.sourcePairIndex{font-size:11px;color:var(--muted);margin-bottom:6px}.sourcePairColumns{display:grid;grid-template-columns:1fr 1fr;gap:10px}.sourcePairColumns section{padding:10px;border:1px solid var(--line);border-radius:10px;background:#0c151f}.sourcePairReason{margin-top:9px;padding:9px;border-left:3px solid #f0b557;border-radius:8px;background:rgba(240,181,87,.07);font-size:12px}.syncChangeTools{display:flex;gap:8px;margin:8px 0}.syncCompareHost{margin:8px 0 10px}.syncCompareHeader{display:grid;grid-template-columns:1fr 1fr;gap:10px}.syncCompareHeader section{padding:11px;border:1px solid var(--line);border-radius:11px;background:#09111a}.syncCompareHeader p{margin:7px 0 0;white-space:pre-wrap;color:var(--muted);font-size:12px}.syncCompareTableWrap{overflow:auto;margin-top:8px;border:1px solid var(--line);border-radius:10px}.syncCompareTable{width:100%;border-collapse:collapse;font-size:12px}.syncCompareTable th,.syncCompareTable td{padding:8px;border-bottom:1px solid var(--line);vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}.syncCompareTable thead th{background:#101b27;text-align:left}.syncCompareTable tbody th{width:130px;text-align:left;color:var(--muted)}.syncCompareTable tr.changed td,.syncCompareTable tr.changed th{background:rgba(255,194,94,.07)}.syncConflictBox{margin-top:8px;padding:10px;border-left:3px solid #f0b557;border-radius:8px;background:rgba(240,181,87,.07);font-size:12px}
+
+/* r9 relation issue context */
+.relationIssueIdentity{display:flex;gap:10px;flex-wrap:wrap;margin:7px 0;color:var(--muted);font-size:12px}.relationIssueRelatedSummary{margin:8px 0;padding:9px;border-radius:9px;background:#081018;font-size:12px}.relationIssueContextHost{display:grid;gap:10px;margin:10px 0}.relationContextGroup{padding:11px;border:1px solid var(--line);border-radius:11px;background:#09111a}.relationContextGroupHead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.relationContextBasis{margin-top:6px}.relationContextMembers{display:grid;gap:7px;margin-top:9px}.relationContextMember{display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px;padding:9px;border:1px solid var(--line);border-radius:9px;background:#081018}.relationContextMember.focus{border-color:rgba(255,194,94,.55);background:rgba(255,194,94,.055)}.relationContextOrder{min-width:56px;color:var(--muted);font-size:11px;font-weight:800}.relationContextMember p{margin:5px 0 0;color:var(--muted);font-size:12px;white-space:pre-wrap}.relationProgressFlag{margin-top:5px;color:#7ee0b0}
+@media(max-width:1000px){.sourceDiagnosisSteps{grid-template-columns:1fr 1fr}}@media(max-width:700px){.sourceDiagnosisSteps,.sourceDiagnosisDetails,.sourcePairColumns,.syncCompareHeader{grid-template-columns:1fr}.relationContextMember{grid-template-columns:1fr}.relationContextOrder{min-width:0}}
+
+/* r10 source parser and administrator usability */
+
+/* 20260626-admin-usability-163 */
+.auditDetailDialog{width:min(1000px,calc(100vw - 24px));max-height:min(90vh,900px);overflow:hidden}.auditDetailDialog .dialogBody{max-height:calc(90vh - 92px);overflow:auto}.auditDetailToolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.auditDetailFull{grid-column:1/-1}@media(max-width:760px){.auditDetailGrid{grid-template-columns:1fr}.auditDetailFull{grid-column:auto}.auditDetailRow{grid-template-columns:1fr}}
+
+
+/* 20260626-governance-lifecycle-183: achievement management redesign */
+.visuallyHidden{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.achievementManagementPanel{display:grid;gap:14px}.achievementManagementToolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px;border:1px solid var(--line);border-radius:15px;background:linear-gradient(180deg,rgba(255,255,255,.025),transparent),#0b151f}.achievementManagementFilters{display:grid;grid-template-columns:minmax(300px,1.8fr) repeat(3,minmax(150px,.65fr));gap:9px;flex:1;min-width:0}.achievementManagementActions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}.achievementManagementMenu,.achievementMoreMenu{position:relative}.achievementManagementMenu>summary,.achievementMoreMenu>summary{list-style:none;user-select:none}.achievementManagementMenu>summary::-webkit-details-marker,.achievementMoreMenu>summary::-webkit-details-marker{display:none}.achievementManagementMenuPanel,.achievementMoreMenuPanel{position:absolute;right:0;top:calc(100% + 8px);z-index:45;display:grid;gap:8px;min-width:270px;padding:11px;border:1px solid var(--line);border-radius:12px;background:#111d28;box-shadow:0 18px 50px rgba(0,0,0,.45)}.achievementManagementMenuPanel p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}.achievementManagementMenuPanel button,.achievementMoreMenuPanel button{width:100%;text-align:left}.achievementSummaryGrid{display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:9px}.achievementSummaryGrid article{padding:13px 14px;border:1px solid var(--line);border-radius:13px;background:#0b151f}.achievementSummaryGrid span{display:block;color:var(--muted);font-size:12px}.achievementSummaryGrid strong{display:block;margin-top:5px;font-size:23px}.achievementSummaryLoading{grid-column:1/-1;padding:14px;color:var(--muted);border:1px dashed var(--line);border-radius:12px}.achievementPager{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:#09131c}.achievementPagerControls{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}.achievementPagerControls label{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px}.achievementPagerControls select{width:auto;min-width:78px;padding:8px 10px}.achievementPagerRange,.achievementPageNumber{color:var(--muted);font-size:13px}.achievementTableWrap{max-height:none;overflow:visible;border:1px solid var(--line);border-radius:14px;background:#08111a}.achievementManagementTable{table-layout:fixed}.achievementManagementTable thead th{position:sticky;top:0;z-index:12;background:#172534;box-shadow:0 1px 0 var(--line)}.achievementManagementTable th:nth-child(1){width:41%}.achievementManagementTable th:nth-child(2){width:20%}.achievementManagementTable th:nth-child(3){width:21%}.achievementManagementTable th:nth-child(4){width:18%}.achievementManagementTable td{vertical-align:middle;padding:14px 12px}.achievementManagementTable tbody tr{height:116px}.achievementManagementTable tbody tr:hover{background:rgba(98,219,201,.035)}.achievementPrimary{display:grid;gap:5px;min-width:0}.achievementPrimary strong{font-size:15px;line-height:1.35}.achievementPrimary p{margin:0;color:#aebdca;font-size:12px;line-height:1.55;white-space:pre-wrap}.achievementPrimary code{width:max-content;max-width:100%;padding:3px 7px;border:1px solid rgba(130,159,184,.18);border-radius:7px;background:#071019;color:#7f96a9;font:11px/1.3 ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.achievementMetaStack,.achievementBadgeStack{display:flex;align-items:flex-start;gap:7px;flex-wrap:wrap}.achievementMetaStack{flex-direction:column}.achievementCategoryBadge,.achievementVersionBadge{display:inline-flex;max-width:100%;padding:5px 8px;border:1px solid var(--line);border-radius:999px;font-size:12px;line-height:1.35}.achievementCategoryBadge{color:#d9e7f2;background:#0d1822}.achievementVersionBadge{color:#a9c4ff;background:rgba(116,150,229,.08)}.achievementRowActions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.achievementRowActions>button,.achievementRowActions summary{padding:7px 9px;font-size:12px}.achievementMoreMenuPanel{min-width:180px}.achievementPagerBottom{margin-bottom:6px}.governanceResult{margin-bottom:12px}.governanceResultCard{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px;border:1px solid rgba(82,214,174,.42);border-radius:14px;background:rgba(82,214,174,.075)}.governanceResultCard>div:first-child{display:flex;align-items:center;gap:12px}.governanceResultIcon{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:999px;background:rgba(82,214,174,.18);color:#aef7e7;font-size:22px;font-weight:900}.governanceResultCard h3{margin:0 0 4px}.governanceResultCard p{margin:0;color:var(--muted);font-size:12px;line-height:1.55}.governanceResultActions,.governanceHistoryNav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.governanceHistoryNav{position:sticky;top:0;z-index:3;justify-content:space-between;padding:10px 0 12px;background:#08111a;border-bottom:1px solid var(--line);margin-bottom:10px}
+.achievementSummaryGrid{grid-template-columns:repeat(5,minmax(120px,1fr))}
+@media(max-width:1180px){.achievementManagementToolbar{align-items:stretch;flex-direction:column}.achievementManagementFilters{grid-template-columns:minmax(260px,1.5fr) repeat(3,minmax(130px,.7fr))}.achievementManagementActions{justify-content:flex-start}.achievementSummaryGrid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:820px){.achievementManagementFilters{grid-template-columns:1fr 1fr}.achievementManagementTable thead{display:none}.achievementManagementTable,.achievementManagementTable tbody,.achievementManagementTable tr,.achievementManagementTable td{display:block;width:100%}.achievementManagementTable tbody{display:grid;gap:10px;padding:10px}.achievementManagementTable tbody tr{height:auto;padding:13px;border:1px solid var(--line);border-radius:13px;background:#0b151f}.achievementManagementTable td{display:grid;grid-template-columns:118px minmax(0,1fr);gap:10px;padding:7px 0;border:0}.achievementManagementTable td::before{content:attr(data-label);color:var(--muted);font-size:12px;font-weight:800}.achievementManagementTable td:first-child{grid-template-columns:1fr}.achievementManagementTable td:first-child::before{display:none}.achievementRowActions{justify-content:flex-start}.achievementPager{align-items:flex-start;flex-direction:column}.achievementPagerControls{justify-content:flex-start}.governanceResultCard{align-items:flex-start;flex-direction:column}}
+@media(max-width:560px){.achievementManagementFilters{grid-template-columns:1fr}.achievementManagementActions{display:grid;grid-template-columns:1fr 1fr}.achievementManagementActions>*{width:100%}.achievementManagementMenu>summary{display:block;text-align:center}.achievementSummaryGrid{grid-template-columns:1fr 1fr}.achievementManagementTable td{grid-template-columns:96px minmax(0,1fr)}.achievementPagerControls{display:grid;grid-template-columns:1fr 1fr;width:100%}.achievementPagerControls label,.achievementPageNumber{grid-column:1/-1}.achievementMoreMenuPanel,.achievementManagementMenuPanel{left:0;right:auto;max-width:calc(100vw - 36px)}}
+
+/* 20260626-governance-lifecycle-183: accepted-current lifecycle and verified repair completion */
+
+/* 20260627-final-governance-191: unified administrator design system */
+:root{
+  --admin-surface:#0b151f;
+  --admin-surface-raised:#101d29;
+  --admin-surface-soft:#08121b;
+  --admin-line:rgba(151,178,201,.16);
+  --admin-text:var(--text,#eef5fb);
+  --admin-muted:var(--muted,#95a9bd);
+  --admin-accent:var(--a,#62dbc9);
+  --admin-shadow:0 18px 50px rgba(0,0,0,.24);
+  --admin-radius:16px;
+  --admin-gap:14px;
+}
+
+/* 20260713-admin-message-split-1225 */
+.syncHistoryItem{min-width:0;max-width:100%;overflow:hidden;overflow-wrap:anywhere;word-break:break-word}
+.syncHistoryItem .small{display:block;min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+.auditActionButtons{min-width:0;max-width:100%}
+.auditLockedState{display:grid;place-items:center;min-width:0;min-height:38px;padding:7px 10px;border:1px solid var(--admin-line);border-radius:10px;background:rgba(151,178,201,.07);color:var(--admin-muted);font-size:12px;font-weight:850;line-height:1.25;text-align:center}
+@media(max-width:620px){
+  #adminUsersBody td:last-child,#adminLogsBody td:last-child{grid-template-columns:1fr!important}
+  #adminUsersBody td:last-child::before,#adminLogsBody td:last-child::before{margin-bottom:2px}
+  #adminUsersBody .adminActions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px!important;width:100%;min-width:0!important;max-width:100%}
+  #adminUsersBody .adminActions button{width:100%;min-width:0;min-height:42px;padding:7px 6px!important;white-space:normal;overflow-wrap:anywhere;line-height:1.3}
+  .syncHistory,.syncHistoryItem,.syncHistoryItem>*{min-width:0;max-width:100%}
+  .syncHistoryItem .sourceActions{display:grid;grid-template-columns:1fr;width:100%}
+  .syncHistoryItem .sourceActions button{width:100%;white-space:normal}
+  .auditActionButtons{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px!important;width:100%}
+  .auditActionButtons button{width:100%;min-width:0;white-space:normal}
+  .auditDetailDialog{position:fixed!important;inset:0!important;display:none;width:100vw!important;max-width:none!important;height:100vh!important;height:100dvh!important;max-height:none!important;margin:0!important;border:0!important;border-radius:0!important}
+  .auditDetailDialog[open]{display:grid!important;grid-template-rows:auto minmax(0,1fr)!important}
+  .auditDetailDialog>.dialogHead{display:grid!important;grid-template-columns:minmax(0,1fr) auto;align-items:start!important;padding:11px 12px!important}
+  .auditDetailDialog>.dialogHead h2{font-size:18px;overflow-wrap:anywhere}
+  .auditDetailDialog>.dialogBody{min-width:0;min-height:0;max-height:none!important;padding:11px 12px calc(18px + env(safe-area-inset-bottom))!important;overflow-x:hidden!important;overflow-y:auto!important}
+  .auditDetailToolbar{display:grid!important;grid-template-columns:1fr;gap:6px!important}
+  .auditDetailToolbar button{width:100%;min-width:76px}
+  .auditDetailGrid{grid-template-columns:1fr!important;min-width:0}
+  .auditDetailRow{grid-template-columns:84px minmax(0,1fr)!important}
+  .auditDetailJson{max-width:100%;max-height:220px!important;overflow:auto!important}
+  .relationValidationDialog{position:fixed!important;inset:0!important;display:none;width:100vw!important;max-width:none!important;height:100vh!important;height:100dvh!important;max-height:none!important;margin:0!important;padding:0!important;border:0!important;border-radius:0!important;overflow:hidden!important}
+  .relationValidationDialog[open]{display:block!important}
+  .relationValidationShell{display:grid!important;grid-template-rows:auto minmax(0,1fr) auto;width:100%;height:100%;height:100dvh;max-height:none!important;overflow:hidden}
+  .relationValidationSticky{position:relative!important;display:grid!important;grid-template-columns:minmax(0,1fr) auto;gap:8px!important;align-items:start!important;padding:11px 12px!important}
+  .relationValidationSticky h2{margin:0;font-size:18px;line-height:1.35;overflow-wrap:anywhere}
+  .relationValidationSticky .small{font-size:10px;overflow-wrap:anywhere}
+  .relationValidationSticky .adminSystemActions{display:grid!important;grid-template-columns:1fr!important;width:auto!important;gap:6px!important}
+  .relationValidationSticky .adminSystemActions button{width:88px!important;min-width:0;padding:7px 6px;white-space:normal}
+  .relationValidationBody{min-width:0;min-height:0;max-width:100%;padding:10px 11px!important;overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain}
+  .relationValidationGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important}
+  .relationValidationMetric{min-width:0;padding:9px!important;border-radius:8px!important}
+  .relationValidationMetric strong{display:block;overflow-wrap:anywhere}
+  .relationValidationBody .adminToolbar{display:grid!important;grid-template-columns:1fr!important;gap:8px!important;margin:10px 0!important}
+  .relationValidationBody .adminFilters{grid-template-columns:1fr!important;min-width:0}
+  .relationValidationBody .adminToolbar>button{width:100%}
+  .relationValidationIssue{min-width:0;max-width:100%;padding:11px!important;border-radius:8px!important;overflow:hidden;overflow-wrap:anywhere}
+  .relationValidationIssueHead{display:flex!important;min-width:0;align-items:flex-start!important}
+  .relationValidationIssueHead strong{flex:1 1 100%;min-width:0;overflow-wrap:anywhere}
+  .relationIssueIdentity{display:grid!important;grid-template-columns:1fr!important;gap:4px!important;min-width:0}
+  .relationIssueIdentity span,.relationIssueRelatedSummary{min-width:0;max-width:100%;overflow-wrap:anywhere;word-break:break-word}
+  .relationValidationIssue details,.relationValidationIssue pre{min-width:0;max-width:100%}
+  .relationValidationIssue pre{max-height:190px!important;overflow:auto!important}
+  .relationValidationActionRow{grid-template-columns:1fr!important;min-width:0}
+  .relationValidationActionRow select,.relationValidationActionRow button,.toggleRelationContextBtn{width:100%;min-width:0;white-space:normal}
+  .relationIssueContextHost,.relationContextGroup,.relationContextMember{min-width:0;max-width:100%;overflow-wrap:anywhere}
+  .relationValidationPlan{min-width:0;max-width:100%;overflow-wrap:anywhere}
+  .relationValidationBottom{position:relative!important;display:grid!important;grid-template-columns:1fr!important;gap:8px!important;padding:9px 11px calc(9px + env(safe-area-inset-bottom))!important}
+  .relationValidationBottom .adminSystemActions{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px!important;width:100%}
+  .relationValidationBottom .adminSystemActions button{width:100%;min-width:0;padding:7px 5px;white-space:normal;line-height:1.25}
+}
+@media(max-width:360px){
+  #adminUsersBody .adminActions{grid-template-columns:1fr}
+  .relationValidationGrid{grid-template-columns:1fr!important}
+}
+
+/* 20260714-achievement-category-management-12315 */
+.categoryManagementTable{table-layout:fixed;min-width:760px}.categoryManagementTable th:nth-child(1){width:150px}.categoryManagementTable th:nth-child(3){width:120px}.categoryManagementTable th:nth-child(4){width:170px}.categoryManagementTable th:nth-child(5){width:260px}.categoryOrderActions{display:grid;grid-template-columns:38px 34px 38px;align-items:center;justify-content:center;gap:6px}.categoryOrderActions button{display:grid;place-items:center;width:38px;height:38px;padding:0!important;font-size:17px}.categoryOrderActions span{text-align:center;color:var(--admin-muted);font-weight:850}.categoryCountBadge{display:inline-grid;place-items:center;min-width:44px;min-height:34px;padding:5px 10px;border:1px solid var(--admin-line);border-radius:8px;background:rgba(98,219,201,.07);font-weight:900}.categoryRowActions{display:grid;grid-template-columns:repeat(3,minmax(66px,1fr));gap:7px}.categoryRowActions button{width:100%;min-width:0;white-space:normal}.categoryManagementPanel .adminDangerNotice{margin:0}.categoryManagementPanel>.adminToolbar>div:first-child{min-width:0}.categoryManagementPanel>.adminToolbar h3{margin:0}.categoryManagementPanel>.adminToolbar .adminSummary{margin-top:3px}
+@media(max-width:620px){
+  .categoryManagementPanel{padding:11px!important}.categoryManagementPanel>.adminToolbar:first-child{margin:-11px -11px 0!important;padding:12px!important}.categoryManagementPanel>.adminToolbar{display:grid!important;grid-template-columns:1fr!important}.categoryManagementPanel>.adminToolbar .adminSystemActions{display:grid!important;grid-template-columns:1fr 1fr!important;width:100%}.categoryManagementPanel>.adminToolbar button{width:100%}.categoryManagementTableWrap{overflow:visible!important;border:0!important;background:transparent!important;box-shadow:none!important}.categoryManagementTable{display:block!important;width:100%!important;min-width:0!important}.categoryManagementTable thead{display:none!important}.categoryManagementTable tbody{display:grid!important;gap:10px!important}.categoryManagementTable tr{display:grid!important;width:100%!important;padding:12px!important;border:1px solid var(--admin-line)!important;border-radius:12px!important;background:var(--admin-surface)!important}.categoryManagementTable td{display:grid!important;grid-template-columns:92px minmax(0,1fr)!important;align-items:center!important;gap:9px!important;width:100%!important;padding:7px 0!important;border:0!important}.categoryManagementTable td::before{content:attr(data-label);color:var(--admin-muted);font-size:12px;font-weight:850}.categoryOrderActions{justify-content:start}.categoryRowActions{grid-template-columns:repeat(3,minmax(0,1fr));width:100%}.categoryRowActions button{min-height:40px;padding:7px 5px!important}.categoryManagementTable .adminEmpty{display:block!important;padding:24px 12px!important}.categoryManagementTable .adminEmpty::before{display:none}
+}
+@media(max-width:360px){.categoryRowActions{grid-template-columns:1fr}.categoryManagementTable td{grid-template-columns:78px minmax(0,1fr)!important}}
+
+/* 20260714-manual-order-editor-1241 */
+.manualOrderHeading{margin:0 0 10px!important}.manualOrderHeading h3{margin:0}.manualOrderToolbar{display:grid;grid-template-columns:minmax(220px,360px) minmax(220px,1fr) auto;align-items:end;gap:12px;margin:12px 0;padding:12px;border:1px solid var(--admin-line);border-radius:8px;background:#0b151f}.manualOrderToolbar[hidden]{display:none!important}.manualOrderToolbar label{display:grid;gap:6px}.manualOrderToolbar label>span,.manualOrderStatus{color:var(--admin-muted);font-size:13px;font-weight:750}.manualOrderActions{display:flex;justify-content:flex-end;gap:8px}.manualOrderActions button{min-width:112px}.manualOrderLead{display:flex;align-items:center;justify-content:center;gap:8px}.manualOrderHandle{display:grid!important;place-items:center;width:42px!important;height:42px!important;min-width:42px!important;padding:0!important;font-size:20px!important;line-height:1;touch-action:none;cursor:grab}.manualOrderHandle:active{cursor:grabbing}.manualOrderNumber{display:inline-grid;place-items:center;min-width:34px;min-height:34px;color:var(--admin-muted);font-weight:900;font-variant-numeric:tabular-nums}.manualOrderPosition{display:grid;grid-template-columns:minmax(72px,94px) 42px 42px;align-items:center;justify-content:end;gap:7px}.manualOrderPosition input{height:42px;padding:7px 9px;text-align:center;font-weight:900;font-variant-numeric:tabular-nums}.manualOrderPosition button{display:grid;place-items:center;width:42px;height:42px;padding:0!important;font-size:19px}.manualOrderItem{transition:background-color .12s,border-color .12s,box-shadow .12s}.manualOrderItem.manualOrderMatch{outline:2px solid var(--admin-accent);outline-offset:-2px;background:rgba(98,219,201,.08)!important}.manualOrderDraggingBody{user-select:none!important;cursor:grabbing!important}.manualOrderList{display:grid!important;gap:0!important;border:1px solid var(--admin-line);border-radius:8px;overflow:hidden}.redeemManualOrderItem{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 12px;border:0;border-bottom:1px solid var(--admin-line);border-radius:0;background:transparent}.redeemManualOrderItem:last-child{border-bottom:0}.redeemManualOrderContent{min-width:0}.redeemManualOrderContent h4{margin:0 0 4px}.redeemManualOrderContent p{margin:0;color:var(--admin-muted);overflow-wrap:anywhere}.categoryManagementTable .manualOrderItem{background:rgba(98,219,201,.025)}
+@media(max-width:620px){
+ .categoryManagementPanel>.adminToolbar .adminSystemActions{grid-template-columns:repeat(3,minmax(0,1fr))!important}.manualOrderToolbar{position:sticky;bottom:86px;z-index:12;grid-template-columns:1fr;margin:10px 0;padding:10px;box-shadow:0 -10px 24px rgba(0,0,0,.3)}.manualOrderStatus{display:none}.manualOrderActions{display:grid;grid-template-columns:1fr 1fr}.manualOrderActions button{width:100%;min-width:0}.categoryManagementTable .manualOrderItem td:first-child{grid-template-columns:92px minmax(0,1fr)!important}.categoryManagementTable .manualOrderItem td:first-child::after{content:"拖曳或指定位置";color:var(--admin-muted);font-size:12px}.manualOrderPosition{grid-template-columns:minmax(0,1fr) 44px 44px;justify-content:stretch;width:100%}.manualOrderPosition input{width:100%}.redeemManualOrderItem{grid-template-columns:auto minmax(0,1fr);align-items:start;padding:12px 10px}.redeemManualOrderItem>.manualOrderPosition{grid-column:1/-1}.redeemManualOrderLead{padding-top:2px}.manualOrderHeading{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px}.manualOrderHeading button{width:auto!important;white-space:nowrap}
+}
+@media(max-width:380px){.categoryManagementPanel>.adminToolbar .adminSystemActions{grid-template-columns:1fr!important}.manualOrderPosition{grid-template-columns:minmax(0,1fr) 42px 42px}.manualOrderToolbar{bottom:82px}}
+
+/* 20260714-mobile-manual-order-autoscroll-1242 */
+.manualOrderDraggingBody{overscroll-behavior:none!important}
+@media(max-width:620px){
+ .categoryManagementTableWrap,.categoryManagementTable,.categoryManagementTable tbody{box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:100%!important}
+ .categoryManagementTable tbody{overflow:hidden!important}
+ .categoryManagementTable tr{box-sizing:border-box!important;width:100%!important;min-width:0!important;max-width:100%!important;padding:10px!important;overflow:hidden}
+ .categoryManagementTable td,.categoryManagementTable td>*{box-sizing:border-box;min-width:0;max-width:100%}
+ .categoryManagementTable td:nth-child(2),.categoryManagementTable td:last-child{grid-template-columns:1fr!important}
+ .categoryManagementTable td:nth-child(2)::before,.categoryManagementTable td:last-child::before{margin-bottom:2px}
+ .categoryManagementTable .manualOrderItem td:first-child{grid-template-columns:72px minmax(0,1fr)!important}
+ .categoryManagementTable .manualOrderItem td:first-child::after{grid-column:2;min-width:0;overflow-wrap:anywhere}
+ .categoryManagementTable .manualOrderLead{justify-content:flex-start;min-width:0}
+ .categoryManagementTable .manualOrderPosition{box-sizing:border-box;width:100%;min-width:0;max-width:100%}
+}
+@media(max-width:380px){
+ .categoryManagementTable tr{padding:9px!important}
+ .categoryManagementTable td{grid-template-columns:70px minmax(0,1fr)!important}
+ .categoryManagementTable .manualOrderItem td:first-child{grid-template-columns:70px minmax(0,1fr)!important}
+}
+
+/* 20260714-live-drag-auto-save-1244 */
+.manualOrderHandle{
+ border:0!important;
+ border-radius:6px!important;
+ background:transparent!important;
+ box-shadow:none!important;
+ color:var(--admin-muted)!important;
+ font-size:28px!important;
+ transition:color .14s ease,background-color .14s ease,transform .14s ease!important;
+}
+.manualOrderHandle:hover,.manualOrderHandle.active{background:rgba(98,219,201,.08)!important;color:var(--admin-text)!important;transform:scale(1.08)}
+.manualOrderHandle:disabled{opacity:.4!important;cursor:wait!important}
+.manualOrderItem{will-change:transform}
+.manualOrderPlaceholder{opacity:.2!important;background:rgba(98,219,201,.05)!important;box-shadow:inset 0 0 0 1px rgba(98,219,201,.4)!important}
+.manualOrderSaving{opacity:.68!important}
+.manualOrderDragGhost{
+ position:fixed!important;
+ z-index:10000!important;
+ margin:0!important;
+ pointer-events:none!important;
+ overflow:hidden!important;
+ opacity:.98;
+ scale:1.015;
+ will-change:transform;
+ border:1px solid var(--admin-accent)!important;
+ border-radius:8px!important;
+ background:#101d29!important;
+ box-shadow:0 18px 46px rgba(0,0,0,.52)!important;
+ animation:manualOrderLiftIn 140ms cubic-bezier(.2,.8,.2,1) both;
+}
+.manualOrderDragGhost *{pointer-events:none!important}
+.manualOrderTableGhost{display:table!important;border-collapse:collapse!important;table-layout:fixed!important}
+.manualOrderTableGhost tbody{display:table-row-group!important}
+.manualOrderTableGhost tr{display:table-row!important;opacity:1!important;background:#101d29!important}
+.manualOrderTableGhost td{display:table-cell!important;vertical-align:middle!important}
+.redeemManualOrderActions{display:flex;justify-content:flex-end;gap:8px;margin:0!important}
+@keyframes manualOrderLiftIn{from{opacity:.64;scale:.985}to{opacity:.98;scale:1.015}}
+@media(max-width:620px){
+ .categoryManagementTable .manualOrderItem td:first-child::after{display:none!important;content:""!important}
+ .redeemManualOrderItem{grid-template-columns:auto minmax(0,1fr)!important;align-items:center!important}
+ .redeemManualOrderActions{grid-column:1/-1;display:grid!important;grid-template-columns:1fr 1fr;width:100%}
+ .redeemManualOrderActions button{width:100%;min-width:0}
+ .manualOrderDragGhost{max-width:calc(100vw - 20px)!important}
+}
+@media(prefers-reduced-motion:reduce){.manualOrderDragGhost{animation:none}.manualOrderItem{transition:none!important}}
+body.standaloneAdminPage #adminDialog>.dialogHead{
+  padding:16px 22px;
+  background:linear-gradient(180deg,rgba(255,255,255,.025),transparent),#0b151f;
+  box-shadow:0 8px 28px rgba(0,0,0,.2);
+}
+
+/* 20260714-mobile-category-compact-list-1245 */
+.categoryManagementTable th:not(:nth-child(2)),.categoryManagementTable td:not(:nth-child(2)){text-align:center}
+.categoryManagementTable td:nth-child(1)>.manualOrderLead,.categoryManagementTable td:nth-child(3)>.categoryCountBadge,.categoryManagementTable td:nth-child(4)>.statusBadge{margin-inline:auto}
+@media(max-width:620px){
+ .categoryManagementPanel>.adminDangerNotice{margin:0 0 10px!important;padding:9px 11px!important;border-radius:6px!important;font-size:12px!important;line-height:1.5!important}
+ .categoryManagementTableWrap{overflow:hidden!important;border:1px solid var(--admin-line)!important;border-radius:8px!important;background:var(--admin-surface)!important}
+ .categoryManagementTable:not(.manualOrderTableGhost) tbody{display:grid!important;gap:0!important;overflow:hidden!important}
+ .categoryManagementTable:not(.manualOrderTableGhost) tr{display:grid!important;grid-template-columns:48px auto minmax(0,1fr)!important;grid-template-rows:auto auto auto!important;column-gap:8px!important;row-gap:5px!important;width:100%!important;padding:10px!important;border:0!important;border-bottom:1px solid var(--admin-line)!important;border-radius:0!important;background:transparent!important;overflow:hidden!important}
+ .categoryManagementTable:not(.manualOrderTableGhost) tr:last-child{border-bottom:0!important}
+ .categoryManagementTable:not(.manualOrderTableGhost) td{display:flex!important;align-items:center!important;gap:6px!important;width:auto!important;min-width:0!important;padding:0!important;border:0!important;grid-template-columns:none!important}
+ .categoryManagementTable:not(.manualOrderTableGhost) td::before,.categoryManagementTable:not(.manualOrderTableGhost) td::after{display:none!important;content:""!important}
+ .categoryManagementTable:not(.manualOrderTableGhost) td:nth-child(1){grid-column:1!important;grid-row:1/4!important;align-self:center!important;justify-content:center!important}
+ .categoryManagementTable:not(.manualOrderTableGhost) td:nth-child(2){grid-column:2/4!important;grid-row:1!important;justify-content:flex-start!important;text-align:left!important;font-size:15px!important;line-height:1.35!important}
+ .categoryManagementTable:not(.manualOrderTableGhost) td:nth-child(2) strong{overflow-wrap:anywhere}
+ .categoryManagementTable:not(.manualOrderTableGhost) td:nth-child(3){grid-column:2!important;grid-row:2!important;justify-content:center!important}
+ .categoryManagementTable:not(.manualOrderTableGhost) td:nth-child(4){grid-column:3!important;grid-row:2!important;justify-content:center!important}
+ .categoryManagementTable:not(.manualOrderTableGhost) td:nth-child(5){grid-column:2/4!important;grid-row:3!important;justify-content:center!important;margin-top:2px!important}
+ .categoryManagementTable .manualOrderLead{flex-direction:column!important;justify-content:center!important;gap:0!important}
+ .categoryManagementTable .manualOrderHandle{width:36px!important;height:36px!important;min-width:36px!important;font-size:24px!important}
+ .categoryManagementTable .manualOrderNumber{min-width:0!important;min-height:18px!important;font-size:11px!important;line-height:18px!important}
+ .categoryManagementTable .categoryCountBadge{display:inline-flex!important;min-width:0!important;min-height:24px!important;padding:2px 8px!important;border-radius:999px!important;font-size:12px!important;line-height:18px!important}
+ .categoryManagementTable .categoryCountBadge::after{content:" 項"}
+ .categoryManagementTable td:nth-child(4) .statusBadge{display:inline-flex!important;width:auto!important;max-width:100%!important;min-height:24px!important;padding:2px 8px!important;border-radius:999px!important;font-size:12px!important;line-height:18px!important;white-space:normal!important}
+ .categoryManagementTable .categoryRowActions{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important;width:100%!important}
+ .categoryManagementTable .categoryRowActions button{width:100%!important;min-width:0!important;min-height:34px!important;padding:4px 6px!important;border-radius:6px!important;font-size:13px!important;line-height:1.2!important}
+}
+body.standaloneAdminPage #adminDialog>.dialogBody{
+  padding:18px 22px 36px;
+  background:linear-gradient(180deg,#07111a 0,#08131d 100%);
+}
+.adminGamePicker{
+  margin:0 0 14px!important;
+  padding:14px 16px!important;
+  border-color:var(--admin-line)!important;
+  border-radius:var(--admin-radius)!important;
+  background:var(--admin-surface)!important;
+  box-shadow:0 8px 26px rgba(0,0,0,.13);
+}
+.adminTabs{
+  position:sticky;
+  top:-18px;
+  z-index:35;
+  gap:6px!important;
+  margin:0 -4px 16px!important;
+  padding:10px 4px 12px!important;
+  border-bottom:1px solid var(--admin-line)!important;
+  background:rgba(7,17,26,.96);
+  backdrop-filter:blur(10px);
+  overflow-x:auto;
+  flex-wrap:nowrap!important;
+  scrollbar-width:thin;
+}
+.adminTabButton{
+  flex:0 0 auto;
+  min-height:38px;
+  padding:8px 12px!important;
+  border-color:transparent!important;
+  border-radius:10px!important;
+  background:transparent!important;
+  color:#9fb0bf!important;
+  box-shadow:none!important;
+}
+.adminTabButton:hover{background:rgba(255,255,255,.05)!important;color:#eef8ff!important}
+.adminTabButton.active{
+  color:#071017!important;
+  background:linear-gradient(135deg,var(--a),var(--b))!important;
+  box-shadow:0 8px 20px rgba(69,203,187,.17)!important;
+}
+.adminPanel{
+  display:grid;
+  gap:var(--admin-gap);
+  min-width:0;
+  padding:16px;
+  border:1px solid var(--admin-line);
+  border-radius:var(--admin-radius);
+  background:linear-gradient(180deg,rgba(255,255,255,.018),transparent),var(--admin-surface-soft);
+  box-shadow:var(--admin-shadow);
+}
+.adminPanel[hidden]{display:none!important}
+.adminPanel>.adminToolbar:first-child,
+.adminPanel>.sectionTitle:first-child{
+  margin:-16px -16px 0!important;
+  padding:15px 16px!important;
+  border-bottom:1px solid var(--admin-line);
+  border-radius:var(--admin-radius) var(--admin-radius) 0 0;
+  background:rgba(16,29,41,.82);
+}
+.adminToolbar{
+  min-height:48px;
+  margin:0!important;
+  padding:12px 14px;
+  border:1px solid var(--admin-line);
+  border-radius:13px;
+  background:var(--admin-surface);
+}
+.adminToolbar h2,.adminToolbar h3,.adminToolbar h4{margin:0}
+.adminFilters,.adminSystemActions,.adminFormActions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.adminFilters{flex:1;min-width:min(100%,320px)}
+.adminFilters>input,.adminFilters>select{min-width:150px;flex:1 1 170px}
+.adminSystemActions{justify-content:flex-end}
+.sectionCard,.issueCard,.sourceCard,.auditDetailCard,.governanceHistoryCard,.relationContextGroup{
+  border-color:var(--admin-line)!important;
+  border-radius:13px!important;
+  background:var(--admin-surface)!important;
+  box-shadow:0 8px 22px rgba(0,0,0,.1);
+}
+.sectionCard{padding:14px}
+.adminSummary,.adminHint,.small{color:#9fb0bf;line-height:1.6}
+.adminTableWrap{
+  width:100%;
+  max-width:100%;
+  border-color:var(--admin-line)!important;
+  border-radius:13px!important;
+  background:var(--admin-surface-soft)!important;
+  box-shadow:0 8px 26px rgba(0,0,0,.12);
+}
+.adminTable{background:transparent!important}
+.adminTable th{
+  height:44px;
+  padding:10px 12px!important;
+  background:#142331!important;
+  color:#cbd9e4!important;
+  border-color:var(--admin-line)!important;
+  font-size:12px!important;
+  letter-spacing:.02em;
+  white-space:nowrap;
+}
+.adminTable td{
+  padding:12px!important;
+  border-color:var(--admin-line)!important;
+  color:#d8e3eb;
+  line-height:1.55;
+}
+.adminTable tbody tr:nth-child(even){background:rgba(255,255,255,.012)}
+.adminTable tbody tr:hover{background:rgba(98,219,201,.045)!important}
+.adminEmpty{
+  padding:30px 18px!important;
+  text-align:center!important;
+  color:#8295a5!important;
+}
+.adminPanel input,.adminPanel select,.adminPanel textarea,
+dialog input,dialog select,dialog textarea{
+  min-height:40px;
+  border:1px solid var(--admin-line)!important;
+  border-radius:10px!important;
+  background:#07111a!important;
+  color:#e7f1f8!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.02);
+}
+.adminPanel input:focus,.adminPanel select:focus,.adminPanel textarea:focus,
+dialog input:focus,dialog select:focus,dialog textarea:focus{
+  outline:2px solid rgba(98,219,201,.2)!important;
+  border-color:rgba(98,219,201,.52)!important;
+}
+.adminPanel button,.adminPanel summary.secondary,
+dialog button,dialog summary.secondary{
+  min-height:38px;
+  border-radius:10px!important;
+  font-weight:800;
+  white-space:nowrap;
+}
+.adminPanel button.primary,dialog button.primary{box-shadow:0 7px 18px rgba(67,201,185,.13)}
+.dangerBtn,.adminPanel .dangerBtn{border-color:rgba(255,92,110,.34)!important;background:rgba(255,92,110,.09)!important;color:#ffb6be!important}
+.dangerBtn:hover,.adminPanel .dangerBtn:hover{background:rgba(255,92,110,.16)!important}
+.statusBadge,.achievementCategoryBadge,.achievementVersionBadge,.announcementLevelBadge{
+  min-height:24px;
+  align-items:center;
+  border-color:var(--admin-line)!important;
+}
+.adminPanel dialog,.authDialog,.governanceDialog,.relationValidationDialog{
+  border-color:var(--admin-line)!important;
+  border-radius:18px!important;
+  background:#08121b!important;
+  box-shadow:0 30px 90px rgba(0,0,0,.56)!important;
+}
+.dialogHead{
+  min-height:64px;
+  padding:14px 16px!important;
+  background:#101d29!important;
+  border-color:var(--admin-line)!important;
+}
+.dialogBody{padding:16px!important;background:#08121b}
+.achievementManagementPanel{padding:0;background:transparent;border:0;box-shadow:none}
+.achievementManagementToolbar{margin:0!important;border-color:var(--admin-line)!important;background:var(--admin-surface)!important}
+.achievementSummaryGrid article,.achievementPager{border-color:var(--admin-line)!important;background:var(--admin-surface)!important}
+.achievementManagementTable tbody tr{height:auto;min-height:104px}
+.governanceStickyHead,.governanceToolbar,.governanceBottomBar{border-color:var(--admin-line)!important}
+.governanceIssue,.governancePlanItem,.governanceCompareCard,.governanceMetric{border-color:var(--admin-line)!important;background:var(--admin-surface)!important}
+.governanceResultCard{box-shadow:0 10px 28px rgba(0,0,0,.16)}
+.auditPager,.syncPager,.governancePager,.achievementPager{gap:9px}
+.auditPager button,.syncPager button,.governancePager button,.achievementPager button{min-width:40px}
+@media(max-width:900px){
+  body.standaloneAdminPage #adminDialog>.dialogBody{padding:12px 10px 26px}
+  .adminTabs{top:-12px;margin:0 0 12px!important}
+  .adminPanel{padding:12px;border-radius:13px}
+  .adminPanel>.adminToolbar:first-child,.adminPanel>.sectionTitle:first-child{margin:-12px -12px 0!important;padding:12px!important}
+  .adminToolbar{align-items:stretch;flex-direction:column}
+  .adminSystemActions{justify-content:flex-start}
+}
+@media(max-width:620px){
+  .adminGamePicker{align-items:stretch;display:grid!important}
+  .adminGamePicker label{min-width:0!important}
+  .adminFilters{display:grid!important;grid-template-columns:1fr;width:100%}
+  .adminFilters>input,.adminFilters>select{width:100%;min-width:0}
+  .adminSystemActions{display:grid!important;grid-template-columns:1fr 1fr;width:100%}
+  .adminSystemActions>*{width:100%}
+  .adminTableWrap:not(.achievementTableWrap){border:0!important;background:transparent!important;box-shadow:none!important}
+}
+
+.mobileAdminSectionPicker{display:none}
+@media(max-width:620px){
+  html.mobileShellProject body.standaloneAdminPage #adminDialog>.dialogHead{display:none!important}
+  html.mobileShellProject body.standaloneAdminPage #adminDialog>.dialogBody{padding:0 10px 24px!important;overflow-x:hidden!important}
+  .mobileAdminSectionPicker{position:sticky;top:0;z-index:35;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:10px;margin:0 -10px 10px;padding:10px 12px;border-bottom:1px solid var(--admin-line);background:rgba(8,18,27,.98);box-shadow:0 8px 22px rgba(0,0,0,.24);color:var(--admin-muted);font-size:12px;font-weight:850}
+  .mobileAdminSectionPicker select{width:100%;min-width:0;min-height:44px;padding:9px 10px;border-radius:8px;background:#101d29;color:var(--admin-text);font-weight:850}
+  .adminTabs{display:none!important}
+  .adminGamePicker{margin:0 0 10px!important;padding:11px!important;border-radius:8px!important}
+  .adminGamePicker .small{font-size:11px;line-height:1.45}
+  .adminPanel{margin:0!important;padding:10px 0 18px!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+  .adminPanel>.adminToolbar:first-child,.adminPanel>.sectionTitle:first-child{margin:0 0 10px!important;padding:0!important;border:0!important;background:transparent!important}
+  .adminMetricGrid,.achievementSummaryGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+  .adminMetric,.achievementSummaryGrid article{padding:11px!important;border-radius:8px!important}
+  .adminMetric .metricValue,.achievementSummaryGrid strong{font-size:20px!important}
+  .adminSystemGrid,.dashboardGameGrid,.dashboardWorkGrid,.messageCenterAdminGrid{grid-template-columns:1fr!important}
+  .adminSystemCard,.sectionCard,.dashboardHealthCard,.dashboardGameCard,.dashboardWorkCard{min-width:0;padding:12px!important;border-radius:8px!important}
+  .dashboardHealthCard,.dashboardWorkCard{align-items:stretch!important;display:grid!important}
+  .dashboardHealthCard button,.dashboardQuickActions button{width:100%}
+  .adminToolbar{gap:9px!important;margin-bottom:10px!important}
+  .adminToolbar>button{width:100%}
+  .adminTableWrap,.achievementTableWrap{max-width:100%;overflow:visible!important;border:0!important;background:transparent!important}
+  .adminTable,.adminTable tbody,.adminTable tr,.adminTable td{display:block!important;width:100%!important;min-width:0!important}
+  .adminTable thead{display:none!important}
+  .adminTable tbody{display:grid!important;gap:9px!important;padding:0!important}
+  .adminTable tbody tr{height:auto!important;min-height:0!important;padding:11px!important;border:1px solid var(--admin-line)!important;border-radius:8px!important;background:var(--admin-surface)!important}
+  .adminTable tbody td{display:grid!important;grid-template-columns:92px minmax(0,1fr)!important;gap:9px!important;align-items:start!important;padding:7px 0!important;border:0!important;overflow-wrap:anywhere!important}
+  .adminTable tbody td::before{content:attr(data-label);display:block!important;color:var(--admin-muted);font-size:11px;font-weight:850}
+  .adminTable tbody td:first-child{grid-template-columns:92px minmax(0,1fr)!important}
+  .adminTable tbody td:first-child::before{display:block!important}
+  .adminTable tbody td.adminEmpty{display:block!important;padding:18px 8px!important;text-align:center!important}
+  .adminTable tbody td.adminEmpty::before{display:none!important}
+  .adminTable input,.adminTable select,.adminTable textarea{width:100%;min-width:0}
+  .achievementPrimary h3,.achievementPrimary strong{padding-right:0!important}
+  .achievementManagementActions{grid-template-columns:1fr 1fr!important}
+  .achievementPager{padding:10px!important;border-radius:8px!important}
+  .achievementPagerControls{grid-template-columns:1fr 1fr!important}
+  .sourceCardGrid{grid-template-columns:1fr!important}
+}
+
+/* 20260714-mobile-achievement-pager-12316 */
+.achievementPagerArrow{display:inline-block;font-size:18px;line-height:1}
+.achievementPagerButtonText{display:inline-block}
+@media(max-width:620px){
+  .achievementPager{display:grid!important;grid-template-columns:1fr!important;gap:8px!important;align-items:center!important;padding:9px 10px!important}
+  .achievementPagerRange{width:100%;font-size:12px!important;line-height:1.4}
+  .achievementPagerControls{display:grid!important;grid-template-columns:minmax(80px,auto) 42px minmax(76px,1fr) 42px!important;align-items:center!important;gap:6px!important;width:100%}
+  .achievementPagerControls label,.achievementPageNumber{grid-column:auto!important;margin:0!important}
+  .achievementPagerControls label{gap:5px!important;white-space:nowrap}
+  .achievementPagerControls select{min-width:52px!important;height:42px!important;padding:6px 8px!important}
+  .achievementPagerControls button{display:grid!important;place-items:center!important;width:42px!important;min-width:42px!important;height:42px!important;min-height:42px!important;padding:0!important;border-radius:8px!important}
+  .achievementPagerButtonText{display:none!important}
+  .achievementPagerArrow{font-size:24px;line-height:1}
+  .achievementPageNumber{text-align:center!important;white-space:nowrap;font-size:12px!important}
+}
+
+/* 20260715-readable-audit-log-12412 */
+.auditReadableDetail{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:12px}
+.auditReadableDetail .auditDetailCard{min-width:0;padding:15px;border:1px solid var(--admin-line);border-radius:10px;background:var(--admin-surface)}
+.auditReadableDetail h4{margin:0 0 12px;color:var(--admin-text);font-size:15px}
+.auditReadableDetail .auditDetailRow{display:grid;grid-template-columns:minmax(110px,.42fr) minmax(0,1fr);gap:12px;padding:8px 0;border-bottom:1px solid rgba(130,159,184,.12)}
+.auditReadableDetail .auditDetailRow:last-child{border-bottom:0}
+.auditReadableDetail .auditDetailRow>span:first-child{color:var(--admin-muted);font-size:12px;font-weight:800}
+.auditReadableDetail .auditDetailRow>span:last-child{min-width:0;overflow-wrap:anywhere;color:var(--admin-text)}
+.auditSummaryCard p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}
+.auditErrorMessage{display:grid;gap:5px;margin-top:12px;padding:10px;border:1px solid rgba(255,92,110,.34);border-radius:8px;background:rgba(255,92,110,.07);color:#ffb6be}
+.auditDiffTable{display:grid;border:1px solid var(--admin-line);border-radius:8px;overflow:hidden}
+.auditDiffHead,.auditDiffRow{display:grid;grid-template-columns:minmax(140px,.55fr) minmax(0,1fr) minmax(0,1fr)}
+.auditDiffHead{background:#142331;color:#cbd9e4;font-size:12px;font-weight:850}
+.auditDiffHead span,.auditDiffRow>strong,.auditDiffRow>div{min-width:0;padding:10px;border-right:1px solid var(--admin-line)}
+.auditDiffHead span:last-child,.auditDiffRow>div:last-child{border-right:0}
+.auditDiffRow{border-top:1px solid var(--admin-line)}
+.auditDiffRow.changed{background:rgba(98,219,201,.035)}
+.auditDiffRow>strong{color:#b8c9d6;font-size:12px}
+.auditDiffRow>div{overflow-wrap:anywhere;color:var(--admin-text)}
+.auditObjectRows{display:grid;gap:0;border:1px solid rgba(130,159,184,.16);border-radius:7px;overflow:hidden}
+.auditObjectRow{display:grid;grid-template-columns:minmax(110px,.45fr) minmax(0,1fr);gap:8px;padding:8px;background:#08121b;border-bottom:1px solid rgba(130,159,184,.12)}
+.auditObjectRow:last-child{border-bottom:0}
+.auditObjectRow>span{color:var(--admin-muted);font-size:12px;font-weight:750}
+.auditStructuredValue>summary,.auditTechnicalDetails>summary{cursor:pointer;color:#a9c4d8;font-weight:750}
+.auditStructuredValue ol{max-height:260px;margin:8px 0 0;padding-left:24px;overflow:auto;color:#c7d5df}
+.auditStructuredValue li{padding:3px 0;overflow-wrap:anywhere}
+.auditEmptyValue{color:var(--admin-muted)}
+.auditTruncatedValue,.auditErrorValue{display:grid;gap:5px;color:var(--admin-muted)}
+.auditTechnicalDetails{padding:12px 15px;border:1px solid var(--admin-line);border-radius:10px;background:#07111a}
+.auditTechnicalBody{display:grid;gap:8px;margin-top:12px}
+.auditTechnicalBody h5{margin:12px 0 0;color:var(--admin-muted);font-size:12px}
+.auditTechnicalBody .auditDetailJson{max-height:260px;margin:0;padding:10px;border:1px solid rgba(130,159,184,.16);border-radius:8px;background:#050c12;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:#a9bdcc;font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
+@media(max-width:760px){
+  .auditReadableDetail{grid-template-columns:1fr}
+  .auditReadableDetail .auditDetailRow{grid-template-columns:108px minmax(0,1fr)}
+  .auditDiffHead{display:none}
+  .auditDiffRow{grid-template-columns:1fr}
+  .auditDiffRow>strong,.auditDiffRow>div{border-right:0;border-bottom:1px solid rgba(130,159,184,.12)}
+  .auditDiffRow>div:before{display:block;margin-bottom:5px;color:var(--admin-muted);font-size:11px;font-weight:850}
+  .auditDiffRow>div:nth-child(2):before{content:'變更前'}
+  .auditDiffRow>div:nth-child(3):before{content:'變更後'}
+  .auditDiffRow>div:last-child{border-bottom:0}
+}
+
+/* 20260715-audit-log-no-ids-12413 */
+
+/* 20260716-sidebar-social-bottom-1267 */
+.syncChangeList{max-height:none!important;overflow:visible!important;gap:12px!important}
+.syncChangeItem{padding:14px!important;border-radius:8px!important}
+.syncChangeHeadSelectable{display:grid!important;grid-template-columns:22px minmax(0,1fr)!important;align-items:start!important;gap:10px!important}
+.syncChangeSelect{margin-top:2px}
+.syncChangeIdentity{display:flex;min-width:0;align-items:flex-start;justify-content:space-between;gap:10px}
+.syncChangeIdentity>strong{min-width:0;overflow-wrap:anywhere;font-size:15px;line-height:1.5}
+.syncChangeBadges{display:flex;flex:0 0 auto;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.syncChangeMeta{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:0;margin:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.syncChangeMeta>div{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;padding:8px 10px;border-right:1px solid var(--line)}
+.syncChangeMeta>div:nth-child(4n){border-right:0}
+.syncChangeMeta dt{color:var(--muted);font-size:11px;font-weight:800}
+.syncChangeMeta dd{min-width:0;margin:0;overflow-wrap:anywhere;color:var(--text);font-size:12px}
+.syncChangeTools{display:grid!important;grid-template-columns:minmax(210px,.8fr) minmax(240px,1fr);align-items:end;gap:10px!important;margin:10px 0!important}
+.syncChangeTools>button{width:100%;min-height:44px;text-align:center}
+.syncChangeTools>label{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:9px;color:var(--muted);font-size:12px;font-weight:800}
+.syncChangeTools select{width:100%;min-width:0}
+.syncFieldList{display:grid;gap:0;margin-top:10px}
+.syncFieldDecision{grid-template-columns:24px minmax(105px,.38fr) minmax(0,1fr) minmax(0,1fr)!important;gap:8px 10px!important;padding:10px 0!important}
+.syncFieldDecision>input{width:20px;height:20px;margin:2px 0 0;accent-color:var(--a)}
+.syncFieldName{min-width:0;overflow-wrap:anywhere;line-height:1.5}
+.syncValue{display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;min-height:38px;padding:8px 10px!important;border:1px solid rgba(130,159,184,.12);border-radius:7px!important}
+.syncValue small{color:var(--muted);font-size:10px;font-weight:850}
+.syncValue>span{min-width:0;overflow-wrap:anywhere}
+.syncSelectionToolbar{display:grid!important;grid-template-columns:repeat(3,max-content) minmax(160px,1fr);align-items:center;gap:8px!important}
+.syncSelectionToolbar .small{justify-self:end;text-align:right;line-height:1.5}
+.syncPager{display:grid!important;grid-template-columns:minmax(100px,150px) minmax(80px,auto) minmax(100px,150px);align-items:center;justify-content:center;gap:10px!important}
+.syncPager button{width:100%;min-height:44px;text-align:center}
+.syncPager .small{text-align:center;white-space:nowrap}
+
+@media(max-width:760px){
+  html.mobileShellProject body.standaloneAdminPage #adminDialog>.dialogBody{padding-bottom:116px!important}
+  .syncSelectionToolbar{grid-template-columns:1fr 1fr!important;margin:12px 0!important}
+  .syncSelectionToolbar button{width:100%;min-height:44px;padding:8px!important;white-space:normal}
+  .syncSelectionToolbar #selectNoSyncChangesBtn,.syncSelectionToolbar .small{grid-column:1/-1}
+  .syncSelectionToolbar .small{justify-self:stretch;padding:8px 0;text-align:left}
+  .syncChangeItem{padding:13px 12px!important}
+  .syncChangeIdentity{display:grid;gap:8px}
+  .syncChangeIdentity>strong{font-size:16px}
+  .syncChangeBadges{justify-content:flex-start}
+  .syncChangeMeta{grid-template-columns:1fr 1fr;margin:11px 0}
+  .syncChangeMeta>div{grid-template-columns:68px minmax(0,1fr);padding:8px;border-right:1px solid var(--line)}
+  .syncChangeMeta>div:nth-child(2n){border-right:0}
+  .syncChangeMeta>div:nth-child(2),.syncChangeMeta>div:nth-child(3){grid-column:1/-1;border-right:0}
+  .syncChangeTools{grid-template-columns:1fr!important;align-items:stretch!important}
+  .syncChangeTools>label{grid-template-columns:1fr;gap:5px}
+  .syncChangeTools select{min-height:44px}
+  .syncReasons{padding-left:20px!important;line-height:1.65!important}
+  .syncFieldDecision{grid-template-columns:24px minmax(0,1fr)!important;padding:12px 0!important}
+  .syncFieldDecision .syncFieldName{grid-column:2}
+  .syncFieldDecision .syncValue{grid-column:1/-1!important;grid-template-columns:52px minmax(0,1fr);min-height:44px}
+  .syncCompareHeader{grid-template-columns:1fr!important}
+  .syncPager{grid-template-columns:1fr auto 1fr!important;gap:7px!important;margin:14px 0!important}
+  .syncPager button{min-width:0!important;padding:9px 6px!important}
+  .syncDecisionReason textarea{width:100%;min-height:86px}
+  .syncPreviewActions{display:grid!important;grid-template-columns:1fr!important}
+  .syncPreviewActions button{width:100%;min-height:46px}
+}
+
+@media(max-width:390px){
+  .syncChangeMeta{grid-template-columns:1fr}
+  .syncChangeMeta>div,.syncChangeMeta>div:nth-child(2n){grid-column:auto;border-right:0}
+  .syncChangeMeta>div:nth-child(2),.syncChangeMeta>div:nth-child(3){grid-column:auto}
+  .syncPager{grid-template-columns:1fr 1fr!important}
+  .syncPager .small{grid-column:1/-1;grid-row:1}
+}
+
+/* 20260716-site-owner-mobile-accounts-1268 */
+.accountIdentity{display:grid;min-width:0;gap:4px}
+.accountIdentityName{display:none}
+.accountIdentityEmail{min-width:0;overflow-wrap:anywhere;font-weight:850}
+.accountIdentityIp{color:var(--admin-muted);font-size:11px;font-weight:650;white-space:nowrap}
+.roleBadge.owner{border-color:rgba(255,203,105,.42);background:rgba(255,203,105,.12);color:#ffd781}
+
+@media(max-width:620px){
+  #adminPanelUsers{padding-bottom:20px!important}
+  #adminUsersBody tr{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:0 8px!important;width:100%!important;padding:12px!important}
+  #adminUsersBody td{grid-column:1/-1;min-width:0!important}
+  #adminUsersBody td:first-child{display:block!important;grid-column:1/-1!important;padding:0 0 11px!important;border-bottom:1px solid var(--admin-line)!important}
+  #adminUsersBody td:first-child::before{display:none!important}
+  #adminUsersBody td:nth-child(2){display:none!important}
+  #adminUsersBody td:nth-child(3),
+  #adminUsersBody td:nth-child(4),
+  #adminUsersBody td:nth-child(5){display:grid!important;grid-column:auto!important;grid-template-columns:1fr!important;align-content:start!important;justify-items:center!important;gap:6px!important;padding:10px 2px!important;text-align:center!important}
+  #adminUsersBody td:nth-child(3)::before,
+  #adminUsersBody td:nth-child(4)::before,
+  #adminUsersBody td:nth-child(5)::before{width:100%;text-align:center}
+  #adminUsersBody td:nth-child(6){padding:11px 0!important;border-top:1px solid var(--admin-line)!important;border-bottom:1px solid var(--admin-line)!important}
+  #adminUsersBody td:nth-child(7),
+  #adminUsersBody td:nth-child(8),
+  #adminUsersBody td:nth-child(9){grid-template-columns:92px minmax(0,1fr)!important;align-items:center!important;padding:7px 0!important}
+  #adminUsersBody td:last-child{padding-top:11px!important}
+  #adminUsersBody .accountIdentity{gap:5px}
+  #adminUsersBody .accountIdentityName{display:block;font-size:17px;line-height:1.4}
+  #adminUsersBody .accountIdentityEmail{color:var(--admin-muted);font-size:13px;line-height:1.45}
+  #adminUsersBody .accountIdentityIp{white-space:normal;overflow-wrap:anywhere;font-size:12px}
+  #adminUsersBody .roleBadge,
+  #adminUsersBody .statusBadge{justify-self:center!important;width:auto!important;min-width:0!important;max-width:100%!important;padding:4px 9px!important;white-space:normal!important;text-align:center}
+  #adminUsersBody .gameProgressBreakdown{display:grid!important;grid-template-columns:1fr!important;width:100%!important;min-width:0!important;gap:0!important}
+  #adminUsersBody .gameProgressItem{padding:8px 0!important;border:0!important;border-bottom:1px solid rgba(130,159,184,.12)!important;border-radius:0!important;background:transparent!important;font-size:13px}
+  #adminUsersBody .gameProgressTotal{grid-column:1!important;padding:9px 0 0!important}
+  #adminUsersBody .adminActions button{text-align:center!important}
+}

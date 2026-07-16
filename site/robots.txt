@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /api/admin/
+Disallow: /api/auth/
+Disallow: /api/message-center/
+Disallow: /api/support/
+Disallow: /_projects/admin/
+Disallow: /_projects/account/
+Disallow: /games/
+
+Sitemap: http://127.0.0.1:817/sitemap.xml
