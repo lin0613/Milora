@@ -204,7 +204,7 @@ document.addEventListener('admin-tab-changed',event=>{const from=String(event.de
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')persistPreviewState()});
 window.addEventListener('pagehide',persistPreviewState);
 window.addEventListener('beforeunload',persistPreviewState);
-function addAssets(){const head=document.head;if(!document.querySelector('link[data-admin-console-style]')){const link=document.createElement('link');link.rel='stylesheet';link.dataset.adminConsoleStyle='20260716-account-role-labels-1269';link.href='/assets/shared/admin-console.css?v=20260716-account-role-labels-1269';head.appendChild(link)}}
+function addAssets(){const head=document.head;if(!document.querySelector('link[data-admin-console-style]')){const link=document.createElement('link');link.rel='stylesheet';link.dataset.adminConsoleStyle='20260716-milora-tool-rename-12610';link.href='/assets/shared/admin-console.css?v=20260716-milora-tool-rename-12610';head.appendChild(link)}}
 addAssets();replaceSyncPanel();replaceValidationDialog();replaceAuditPanel();
 try{runCatalogValidation=runHealthScan}catch{}
 try{loadAdminLogs=loadAuditRecords}catch{}

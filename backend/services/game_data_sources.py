@@ -20,7 +20,7 @@ from backend.services.source_pipeline import PIPELINE_VERSION, adapter_id as sou
 SOURCE_ARCHITECTURE_VERSION = "source-architecture-animegamedata2-bundled-completion-v11"
 DEFAULT_TIMEOUT = 30
 MAX_FILE_BYTES = 160 * 1024 * 1024
-USER_AGENT = "WuwaAchievementTracker-SourceArchitecture/AnimeGameData2Completion"
+USER_AGENT = "Milora_tool-SourceArchitecture/AnimeGameData2Completion"
 
 GENSHIN_COMPLETION_SOURCE_ID = "genshin_db_dist"
 GENSHIN_COMPLETION_SOURCE_NAME = "genshin-db 繁體中文完整成就資料"

@@ -4089,7 +4089,7 @@ def build_redeem_excel_template(game_id: str, game_name: str, server_names: list
         cell.font = Font(bold=True, color="FFFFFF")
         cell.fill = PatternFill("solid", fgColor="276477")
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        cell.comment = Comment(header_notes[title], "WuwaAchievementTracker")
+        cell.comment = Comment(header_notes[title], "Milora_tool")
     for row in range(5, 25):
         worksheet.cell(row=row, column=1, value=game_id)
         worksheet.cell(row=row, column=4).alignment = Alignment(wrap_text=True, vertical="top")

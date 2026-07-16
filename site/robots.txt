@@ -8,4 +8,4 @@ Disallow: /_projects/admin/
 Disallow: /_projects/account/
 Disallow: /games/
 
-Sitemap: http://127.0.0.1:817/sitemap.xml
+Sitemap: http://127.0.0.1:8000/sitemap.xml

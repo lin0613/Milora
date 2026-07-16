@@ -1,6 +1,6 @@
 ﻿param(
  [Parameter(Mandatory=$true)][string]$CertificateThumbprint,
- [string]$SiteName='GameAchievementHub',
+ [string]$SiteName='Milora_tool',
  [Parameter(Mandatory=$true)][string]$HostName,
  [int]$Port=817,
  [switch]$NonInteractive
