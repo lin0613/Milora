@@ -1,0 +1,394 @@
+{
+  "package": "Milora-1.2.6.9-GPL-3.0",
+  "version": "1.2.6.9",
+  "license": "GPL-3.0-only",
+  "file_count": 74,
+  "total_bytes": 2411338,
+  "extension_counts": {
+    ".example": 1,
+    "[none]": 2,
+    ".py": 24,
+    ".md": 4,
+    ".json": 2,
+    ".txt": 2,
+    ".ps1": 13,
+    ".html": 11,
+    ".css": 4,
+    ".js": 4,
+    ".xml": 1,
+    ".config": 1,
+    ".cmd": 5
+  },
+  "files": [
+    {
+      "path": ".env.example",
+      "size": 687,
+      "sha256": "319b0ded9dba8d97b6166a1900089f06ddb9ee7e3f58839d3bd3449157e936ab"
+    },
+    {
+      "path": ".gitignore",
+      "size": 269,
+      "sha256": "4a605381c67f85d0e741c142fb5efdacdca05fbc138d033474d3580d181a8958"
+    },
+    {
+      "path": "backend/__init__.py",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "backend/backup_db.py",
+      "size": 1183,
+      "sha256": "3c329fa2704ef08cd8bbed3e6a61484344a8335215e2c93326468d4500d155eb"
+    },
+    {
+      "path": "backend/core/__init__.py",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "backend/core/game_registry.py",
+      "size": 9756,
+      "sha256": "6c848f74535bad8a7414eec2c50c79c69e4aff83715ccfc8369d8f83a4e684a9"
+    },
+    {
+      "path": "backend/core/paths.py",
+      "size": 3309,
+      "sha256": "3a350b17715488ef93db55faa0377233eabb8b96acbed7f2eacba8e5cb64477a"
+    },
+    {
+      "path": "backend/main.py",
+      "size": 678242,
+      "sha256": "b92350ed2a530da1a7088dc983f6cfe8fb42e9da48c2b9272c2d5706e3572fbf"
+    },
+    {
+      "path": "backend/services/__init__.py",
+      "size": 143,
+      "sha256": "7ce63c303105d49c88e13033608bee7a304147b0985d727ccb3079fc0cd4100b"
+    },
+    {
+      "path": "backend/services/achievement_governance.py",
+      "size": 27679,
+      "sha256": "08812efb4146786e3162a6e8f2d72755ec78369be691a514eeb3d0d9facdcd28"
+    },
+    {
+      "path": "backend/services/catalog_health.py",
+      "size": 16238,
+      "sha256": "a5121fd5451a661aeeb3bc255487df572734b1420170f46a5a2add439b4b076a"
+    },
+    {
+      "path": "backend/services/catalog_repository.py",
+      "size": 4905,
+      "sha256": "32026beae1ef281c4b96d88e30faa8d55ba14ea46493b968bdb24170389bcec4"
+    },
+    {
+      "path": "backend/services/catalog_sorting.py",
+      "size": 3811,
+      "sha256": "0d506002286756e162db7c9bac7ad7da0e03214fd9e1e6b2aa3f777bb634ba24"
+    },
+    {
+      "path": "backend/services/game_data_sources.py",
+      "size": 255102,
+      "sha256": "b5355b1e08bb0072e106b961a32afc94ec0ba636a1fb9fd4dd4685136e035972"
+    },
+    {
+      "path": "backend/services/governance_contract.py",
+      "size": 6131,
+      "sha256": "1831271ad87cd829ca8e1b02fbbf827cbe6dc3429e9f00a967d9e3ed7a400afa"
+    },
+    {
+      "path": "backend/services/official_id_model.py",
+      "size": 34053,
+      "sha256": "89829422ff8b8a8cea69d9db0a14d682c1bdc94aeef66eb3d7d85524d5f94a54"
+    },
+    {
+      "path": "backend/services/relation_governance.py",
+      "size": 20779,
+      "sha256": "b9af9063e3273fe80e85749b8768ad0601b4ba1070e61ed7c2ef2336c3943ed3"
+    },
+    {
+      "path": "backend/services/source_pipeline.py",
+      "size": 2036,
+      "sha256": "b7e1ca89a8ea1416286f3141e095bc9a43395226a6d98d1cf49bf5d26fb02dc7"
+    },
+    {
+      "path": "backend/services/sync_engine.py",
+      "size": 20083,
+      "sha256": "8a969a9c6d80beabfbcc7f66d0f4ebdc331311c9e1f9e7b44db282f896db2ee0"
+    },
+    {
+      "path": "backend/test_mail.py",
+      "size": 624,
+      "sha256": "494a4d42f9efb196886e6e6bacf17b6bb675ec9c5938e77d7b57fb1f3731a449"
+    },
+    {
+      "path": "backend/wuwa_catalog.py",
+      "size": 29038,
+      "sha256": "2a11f04475800df90cc1e6c4d6f36b92659810bdf140c255c6fbc2091b20cc61"
+    },
+    {
+      "path": "backend/wuwa_categories.py",
+      "size": 7320,
+      "sha256": "417995122370284f0991493a924de060ae877205a8fee07506a8f6add8478de3"
+    },
+    {
+      "path": "LICENSE",
+      "size": 35823,
+      "sha256": "230184f60bae2feaf244f10a8bac053c8ff33a183bcc365b4d8b876d2b7f4809"
+    },
+    {
+      "path": "OPEN_SOURCE_SCOPE.md",
+      "size": 1387,
+      "sha256": "3c1ff06e004929ae8710bce6e2309ca53acfc58b7952051c1a7fe5cb4c81a840"
+    },
+    {
+      "path": "README.md",
+      "size": 1321,
+      "sha256": "0d11964e43719581d1ec3c1372008748bf74c332082bb5b61ef79bcfb373031a"
+    },
+    {
+      "path": "release-info.json",
+      "size": 356,
+      "sha256": "1e90d617adcef7ee6c20498179f0e14d1b343f861a3d594a142e751b9bcd373a"
+    },
+    {
+      "path": "requirements.txt",
+      "size": 168,
+      "sha256": "ccba73e8c093f0a191fbce20852a741ccdbb82092fe296c8549e9145ee5ff75f"
+    },
+    {
+      "path": "scripts/check_backend.ps1",
+      "size": 2077,
+      "sha256": "ef1e44679697bbf5be6e4f6eeddb2cf42d0b1561c385401154e20be8bbc4151a"
+    },
+    {
+      "path": "scripts/maintenance/backup_database.ps1",
+      "size": 805,
+      "sha256": "c015458a2468292f72507210b6411480d96e72e4a33baff61f29dac97aa70379"
+    },
+    {
+      "path": "scripts/maintenance/register_daily_backup.ps1",
+      "size": 1077,
+      "sha256": "5a10f9f1a1381d4efdf5a0d8d78ad49966a7b4c09d912955e5e96423d2bd5642"
+    },
+    {
+      "path": "scripts/maintenance/remove_startup.ps1",
+      "size": 2888,
+      "sha256": "cce2487351cb7d802ba493b24ecfe6ea191cdc9afdd0190de94d913ba8dff663"
+    },
+    {
+      "path": "scripts/maintenance/test_email.ps1",
+      "size": 840,
+      "sha256": "4b242995e72ba61cdb616c4d30a9bf99e881796c4eb1ad1adc02a5b2b2e7c97f"
+    },
+    {
+      "path": "scripts/restart_backend.ps1",
+      "size": 2176,
+      "sha256": "bbab19259d2baecffa3835200b012cd1161e82e26cc37184ca7978e7c1d195fc"
+    },
+    {
+      "path": "scripts/run_backend_host.py",
+      "size": 867,
+      "sha256": "f38b568d878659fd38e86772ce594f1f5abd169a648430c4f3f5070adb41447b"
+    },
+    {
+      "path": "scripts/setup/01_install_iis.ps1",
+      "size": 799,
+      "sha256": "9281029330ae1317b6fdb75fc6c6c1d411ff977cdbf55f519d6d90bccbec24e5"
+    },
+    {
+      "path": "scripts/setup/02_install_backend.ps1",
+      "size": 1464,
+      "sha256": "3f7b86c41c877473afd8022ac56c93b8696bc18df3d620720a0c3b705530d67f"
+    },
+    {
+      "path": "scripts/setup/03_configure_iis_site.ps1",
+      "size": 1379,
+      "sha256": "05b6dd51d616d91b67fd7455534ae4aa34f65f691853f4036e2522b929bf83b1"
+    },
+    {
+      "path": "scripts/setup/05_configure_https.ps1",
+      "size": 1272,
+      "sha256": "76febdc57d15c279c964060aefbd850a2bcefbe3779edbcba537600e62c4d25e"
+    },
+    {
+      "path": "scripts/start_backend.ps1",
+      "size": 7874,
+      "sha256": "257f63127c86c920e61231df22cdb30802d9e12f5a91ddfcb7fedd941d0dc947"
+    },
+    {
+      "path": "scripts/stop_backend.ps1",
+      "size": 4461,
+      "sha256": "b7cb32bbd7a09a3b08a3f0facc95f34a2deb77fe696d3f2d6184e6c07ae34e15"
+    },
+    {
+      "path": "scripts/verify_installation.ps1",
+      "size": 2859,
+      "sha256": "a5e855a92e3b9fff12e276ce876585a6963a26ae56772a16c1bca4bee36d0a84"
+    },
+    {
+      "path": "SECURITY.md",
+      "size": 444,
+      "sha256": "b43e00231513f15f6886f5dba4c3a8c221165dde365571fb0c755a5aefe2955b"
+    },
+    {
+      "path": "site/_projects/account/index.html",
+      "size": 38553,
+      "sha256": "77c00718429693671317d81a646f05875b0415bdfd9e87c105e8fc92f00b18b2"
+    },
+    {
+      "path": "site/_projects/admin/index.html",
+      "size": 471527,
+      "sha256": "2a84d14b395b8215461c241887e7399e675f611deea37ff941bd389bfb412327"
+    },
+    {
+      "path": "site/_projects/game-template/index.html",
+      "size": 1412,
+      "sha256": "642b6c469f0fda4c4f163436e30c92f428969d8d8594c5fb7da1c98c56d60e2f"
+    },
+    {
+      "path": "site/_projects/genshin/index.html",
+      "size": 103588,
+      "sha256": "7c626daa88dc32a393e99733542015a06091f514a335bf00e31315df95c8a326"
+    },
+    {
+      "path": "site/_projects/hna/index.html",
+      "size": 1521,
+      "sha256": "c6e18b113124f1cd14e5f24967f04ee97e10a412319284d3103d082c30a54284"
+    },
+    {
+      "path": "site/_projects/home/index.html",
+      "size": 7805,
+      "sha256": "0a90b54ebf1700bf06edb373a15620e29aa1ae649d75c7e7c89c4fe34b3f8912"
+    },
+    {
+      "path": "site/_projects/hsr/index.html",
+      "size": 103366,
+      "sha256": "2eb0e87f4d005febe3e060ac71c57b5a65e021cf4203dea109e38be73011e67f"
+    },
+    {
+      "path": "site/_projects/redeem/index.html",
+      "size": 24939,
+      "sha256": "326b45d83b53bf249d84d86bad1894619ce1a1b18aeb22d3b43c44cb470c5e51"
+    },
+    {
+      "path": "site/_projects/wuwa/index.html",
+      "size": 102359,
+      "sha256": "a94bcf4bc5dcad8b92136dd511454f3b34bfa4743483ce3d7f83492e78c71bd1"
+    },
+    {
+      "path": "site/_projects/zzz/index.html",
+      "size": 103301,
+      "sha256": "85dd48569859c1f4a1663f1f5377426452ff13f9293511ccb0be312dd32426fd"
+    },
+    {
+      "path": "site/assets/shared/admin-console.css",
+      "size": 64349,
+      "sha256": "2a79a338bab2408c44d61ba14c4c26c5902a0de2ea57edc4c4a071c27fa6a250"
+    },
+    {
+      "path": "site/assets/shared/admin-console.js",
+      "size": 86535,
+      "sha256": "402e2f39eb464a775b9c5f9e7d919094b02e5239c6489f0d6fe10387f7657765"
+    },
+    {
+      "path": "site/assets/shared/announcement-reader.css",
+      "size": 5929,
+      "sha256": "db90159cca56ece347fdd62ecfb29903b39182096a4ff625ff8cc9c124967fd0"
+    },
+    {
+      "path": "site/assets/shared/announcement-reader.js",
+      "size": 5479,
+      "sha256": "f6578be41bea0c2e36cdf3cdf0321eabc8cc9edd34fb0a18b142a88751ef4db3"
+    },
+    {
+      "path": "site/assets/shared/common.css",
+      "size": 1176,
+      "sha256": "7364f9ca187ac01216f215b74ebeda13f60a32fe4ea2d3944b0be5e8b605b08e"
+    },
+    {
+      "path": "site/assets/shared/game-app.css",
+      "size": 2004,
+      "sha256": "1987372a9b5b932d9993a702d2f364a8034b5b13b955ed99a591e3abb7618e38"
+    },
+    {
+      "path": "site/assets/shared/game-app.js",
+      "size": 4499,
+      "sha256": "80fe118768586b09df3e94a7dcc55f2801ff62984c510bfe9f017771c15ada8d"
+    },
+    {
+      "path": "site/assets/shared/runtime.js",
+      "size": 2547,
+      "sha256": "787ddd25ff2dc1fbdc1ae264ef2186df6ceeea994f7becd1b92c1098f60e1ba4"
+    },
+    {
+      "path": "site/game-manifest.json",
+      "size": 8607,
+      "sha256": "680631f38526cba71a167d00640729cbfbb03229ad2d105dc343d7abdde9ecff"
+    },
+    {
+      "path": "site/index.html",
+      "size": 62309,
+      "sha256": "1354dc9010973e0bdff546e61078619f928b5787f8426a95f53bd67f9e52c05a"
+    },
+    {
+      "path": "site/robots.txt",
+      "size": 251,
+      "sha256": "58d7c7d8ca9a688b4cb674a86ab4105a5242942cb870c7ae1b11ce94184f2e4a"
+    },
+    {
+      "path": "site/sitemap.xml",
+      "size": 693,
+      "sha256": "3bc702169c6a866d497df49b9b7681127a0b374ed60b63bdf428dd449564eaff"
+    },
+    {
+      "path": "site/web.config",
+      "size": 1680,
+      "sha256": "e48c326601287d0a1ba58f0a299ed8fd6cceda852880bcaad8e48a8c9723a787"
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "size": 659,
+      "sha256": "61e7697f31f50731d79e1b7940647cbb72075dbe0452f0e3aef5b39514217e9f"
+    },
+    {
+      "path": "tools/maintenance/add_game.py",
+      "size": 4957,
+      "sha256": "ab158f550273aa06e5c6198981799cf600b53bb36ca12a299579099126720c7e"
+    },
+    {
+      "path": "tools/maintenance/create_safety_backup.py",
+      "size": 2020,
+      "sha256": "ef37f9a0b6d2ec73f4d88124b148d657a6d19c258519169bf0b4c4b165482ca5"
+    },
+    {
+      "path": "tools/verify_public_source.py",
+      "size": 4136,
+      "sha256": "8240a6d5e282653f6fb6b234aec55a6ef9fb7e9fd5da7d80424144d70a9e8687"
+    },
+    {
+      "path": "verify_installation.cmd",
+      "size": 522,
+      "sha256": "65690c5e2e70f19feb0ebadaa500de7c5fcb60504e57023023a9c1071a0effa3"
+    },
+    {
+      "path": "啟動後端.cmd",
+      "size": 624,
+      "sha256": "3361569b027d06de9185e96939cd17c97fb5ba6d6629ff58fa140624b1b86b9a"
+    },
+    {
+      "path": "檢查後端.cmd",
+      "size": 624,
+      "sha256": "beeba8f92e61ffc92cc1108b73e757b31f5e3daf2bce38f380c428dc0c058168"
+    },
+    {
+      "path": "重啟後端.cmd",
+      "size": 1021,
+      "sha256": "d37b0759b16db7038c1dc70c50bbdc3bf7366f789a2f2edacc6e84b6ce6070ef"
+    },
+    {
+      "path": "關閉後端.cmd",
+      "size": 621,
+      "sha256": "514552f02744c0802195c8ee6534abfbb8a592d089fa1c177346b017f2a2b300"
+    }
+  ]
+}

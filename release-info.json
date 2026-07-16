@@ -1,0 +1,13 @@
+{
+  "version": "1.2.6.9",
+  "release_id": "1.2.6.9-gpl3-pure-source",
+  "channel": "source",
+  "license": "GPL-3.0-only",
+  "private_release": false,
+  "public_release_safe": true,
+  "source_only": true,
+  "images_included": false,
+  "game_data_included": false,
+  "runtime_data_included": false,
+  "derived_from_private_version": "1.2.6.9"
+}
