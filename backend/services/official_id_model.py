@@ -22,6 +22,7 @@ WUWA_OFFICIAL_ID_MIGRATION = "2026-06-26-wuwa-official-id-primary-key-v1"
 OFFICIAL_ID_LIFECYCLE_REPAIR = "2026-06-26-official-id-lifecycle-fix-v1"
 LEGACY_WUWA_ID_PATTERN = re.compile(r"成就-[0-9a-fA-F]+")
 OFFICIAL_ID_PATTERN = re.compile(r"^[0-9]+$")
+ACHIEVEMENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 GAMES = ("wuwa", "hsr", "genshin", "zzz")
 
 
@@ -126,6 +127,35 @@ def official_id_number(value: Any) -> int:
 def official_id_sort_key(value: Any) -> tuple[int, str]:
     text = str(value or "").strip()
     return official_id_number(text), text
+
+
+def validate_achievement_id(value: Any) -> str:
+    """Validate a shared achievement identifier without changing its case."""
+    text = str(value or "").strip()
+    if not text or len(text) > 64 or not ACHIEVEMENT_ID_PATTERN.fullmatch(text):
+        raise ValueError(f"成就 ID 只能使用英文字母、數字、底線或連字號：{text or '空白'}")
+    return text
+
+
+def achievement_source_order(value: Any, fallback: Any = 0) -> int:
+    """Use the numeric official ID when available, otherwise preserve source order."""
+    text = validate_achievement_id(value)
+    if OFFICIAL_ID_PATTERN.fullmatch(text):
+        return int(text)
+    try:
+        order = int(fallback or 0)
+    except (TypeError, ValueError):
+        order = 0
+    return max(0, order)
+
+
+def achievement_id_sort_key(value: Any, source_order: Any = 0) -> tuple[int, int, str]:
+    """Sort numeric IDs numerically and other valid IDs by source order then exact ID."""
+    text = validate_achievement_id(value)
+    if OFFICIAL_ID_PATTERN.fullmatch(text):
+        return 0, int(text), text
+    order = achievement_source_order(text, source_order)
+    return 1, order if order > 0 else 2**63 - 1, text
 
 
 def _json_load(path: Path) -> Any:
@@ -617,14 +647,21 @@ def normalize_all_game_official_order(db: sqlite3.Connection, timestamp: int) ->
             items = payload.get("items") if isinstance(payload, dict) else payload
             if not isinstance(items, list):
                 raise RuntimeError(f"{game_id} 正式目錄缺少 items。")
+            changed = False
             for item in items:
                 if not isinstance(item, dict):
                     continue
                 achievement_id = str(item.get("id") or item.get("achievement_id") or "").strip()
                 official_id_number(achievement_id)
-                item["sourceOrder"] = int(achievement_id)
+                expected_order = int(achievement_id)
+                if item.get("sourceOrder") != expected_order:
+                    item["sourceOrder"] = expected_order
+                    changed = True
+            original_order = [str(item.get("id") or item.get("achievement_id") or "") for item in items if isinstance(item, dict)]
             items.sort(key=lambda item: catalog_sort_key(game_id, item if isinstance(item, dict) else {}))
-            _json_write_atomic(path, payload)
+            sorted_order = [str(item.get("id") or item.get("achievement_id") or "") for item in items if isinstance(item, dict)]
+            if changed or sorted_order != original_order:
+                _json_write_atomic(path, payload)
         counts[game_id] = len(rows)
     return counts
 

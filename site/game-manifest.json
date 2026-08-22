@@ -48,17 +48,6 @@
             "next_link"
           ]
         },
-        "secondary": {
-          "id": "kuro_official_wiki",
-          "name": "鳴潮既有官方來源",
-          "url": "https://wiki.kurobbs.com/mc/item/1220879855033786368",
-          "role": "secondary",
-          "mode": "remote_reference",
-          "purpose": "cross_validation",
-          "trustedFields": [
-            "version"
-          ]
-        },
         "fallback": {
           "id": "verified_catalog_snapshot",
           "name": "目前正式目錄（僅供故障保護）",
@@ -112,17 +101,6 @@
             "hidden",
             "source_order",
             "progress"
-          ]
-        },
-        "secondary": {
-          "id": "stardb_hsr",
-          "name": "StarDB 崩鐵成就資料",
-          "url": "https://stardb.gg/zh-tw/achievement-tracker",
-          "role": "secondary",
-          "mode": "remote_reference",
-          "purpose": "cross_validation",
-          "trustedFields": [
-            "version"
           ]
         },
         "fallback": {
@@ -180,17 +158,6 @@
             "progress"
           ]
         },
-        "secondary": {
-          "id": "stardb_genshin",
-          "name": "StarDB 原神成就資料",
-          "url": "https://stardb.gg/zh-tw/genshin/achievement-tracker",
-          "role": "secondary",
-          "mode": "remote_reference",
-          "purpose": "cross_validation",
-          "trustedFields": [
-            "version"
-          ]
-        },
         "fallback": {
           "id": "verified_catalog_snapshot",
           "name": "目前正式目錄（僅供故障保護）",
@@ -246,15 +213,60 @@
             "progress"
           ]
         },
-        "secondary": {
-          "id": "stardb_zzz",
-          "name": "StarDB 絕區零成就資料",
-          "url": "https://stardb.gg/zh-tw/zzz/achievement-tracker",
-          "role": "secondary",
-          "mode": "remote_reference",
-          "purpose": "cross_validation",
+        "fallback": {
+          "id": "verified_catalog_snapshot",
+          "name": "目前正式目錄（僅供故障保護）",
+          "url": "",
+          "role": "fallback",
+          "mode": "protected_snapshot",
+          "automaticApply": false
+        }
+      }
+    },
+    {
+      "id": "nte",
+      "name": "異環",
+      "subtitle": "成就紀錄器",
+      "route": "/_projects/nte/index.html",
+      "enabled": true,
+      "iconEndpoint": "",
+      "achievementPointLabel": "環石",
+      "minimumCatalogCount": 380,
+      "catalogFile": "data/catalogs/nte/achievements.json",
+      "relationsDir": "data/relations/nte",
+      "features": {
+        "hiddenAchievements": true,
+        "relations": true,
+        "officialSync": true
+      },
+      "sourcePolicy": {
+        "preserveFields": [
+          "hidden",
+          "category",
+          "source_order",
+          "raw"
+        ],
+        "reviewOnConflict": true,
+        "reviewOnRemoval": true,
+        "protectProgress": true,
+        "protectRelations": true,
+        "primary": {
+          "id": "nte_assets",
+          "name": "Waifus-Grace/NTE_Assets",
+          "url": "https://github.com/Waifus-Grace/NTE_Assets",
+          "role": "primary",
+          "mode": "remote_repository",
+          "purpose": "official_catalog",
           "trustedFields": [
-            "version"
+            "achievement_id",
+            "name",
+            "condition",
+            "category",
+            "reward",
+            "hidden",
+            "source_order",
+            "version",
+            "raw"
           ]
         },
         "fallback": {

@@ -534,7 +534,6 @@ dialog button,dialog summary.secondary{
 .syncPager .small{text-align:center;white-space:nowrap}
 
 @media(max-width:760px){
-  html.mobileShellProject body.standaloneAdminPage #adminDialog>.dialogBody{padding-bottom:116px!important}
   .syncSelectionToolbar{grid-template-columns:1fr 1fr!important;margin:12px 0!important}
   .syncSelectionToolbar button{width:100%;min-height:44px;padding:8px!important;white-space:normal}
   .syncSelectionToolbar #selectNoSyncChangesBtn,.syncSelectionToolbar .small{grid-column:1/-1}
@@ -605,4 +604,2001 @@ dialog button,dialog summary.secondary{
   #adminUsersBody .gameProgressItem{padding:8px 0!important;border:0!important;border-bottom:1px solid rgba(130,159,184,.12)!important;border-radius:0!important;background:transparent!important;font-size:13px}
   #adminUsersBody .gameProgressTotal{grid-column:1!important;padding:9px 0 0!important}
   #adminUsersBody .adminActions button{text-align:center!important}
+}
+
+/* 20260807-mobile-admin-fullscreen */
+body.standaloneAdminPage #adminDialog>.dialogBody{
+  padding:0!important;
+  overflow:hidden!important;
+  background:#07111a!important;
+}
+.adminWorkspace{
+  display:grid;
+  grid-template-columns:228px minmax(0,1fr);
+  width:100%;
+  height:100%;
+  min-height:0;
+}
+.adminWorkspaceContent{
+  min-width:0;
+  min-height:0;
+  padding:18px 22px 36px;
+  overflow:auto;
+  overscroll-behavior:contain;
+  background:linear-gradient(180deg,#07111a 0,#08131d 100%);
+}
+.adminTabs{
+  position:relative!important;
+  top:auto!important;
+  z-index:40;
+  display:block!important;
+  min-width:0;
+  margin:0!important;
+  padding:14px 12px 24px!important;
+  border:0!important;
+  border-right:1px solid var(--admin-line)!important;
+  background:#08121b!important;
+  backdrop-filter:none!important;
+  overflow-x:hidden!important;
+  overflow-y:auto!important;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(149,169,189,.45) transparent;
+}
+.adminNavigationHead{display:none}
+.adminNavIconSprite{position:absolute;width:0;height:0;overflow:hidden}
+.adminNavGroup{padding:4px 0 13px;margin-bottom:10px;border-bottom:1px solid var(--admin-line)}
+.adminNavGroup:last-child{margin-bottom:0;border-bottom:0}
+.adminNavGroup>h3{
+  margin:0 10px 7px;
+  color:#7792aa;
+  font-size:11px;
+  font-weight:850;
+  letter-spacing:.09em;
+  line-height:1.4;
+}
+.adminTabButton{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr);
+  align-items:center;
+  width:100%;
+  min-height:40px;
+  margin:2px 0;
+  padding:9px 12px!important;
+  border:0!important;
+  border-radius:8px!important;
+  background:transparent!important;
+  color:#b3c2cf!important;
+  box-shadow:none!important;
+  text-align:left;
+  font-size:13px;
+  font-weight:760;
+  line-height:1.35;
+}
+.adminTabButton:hover{background:rgba(255,255,255,.045)!important;color:#f2f8fc!important}
+.adminTabButton.active{
+  color:#eef9f7!important;
+  background:#112433!important;
+  box-shadow:inset 3px 0 0 var(--admin-accent)!important;
+}
+.adminTabButton[hidden]{display:none!important}
+.adminNavIcon{display:none;width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.adminPageHeader{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  align-items:center;
+  min-height:66px;
+  margin:-4px 0 14px;
+  padding:4px 0 13px;
+  border-bottom:1px solid var(--admin-line);
+}
+.adminPageHeader h2{margin:2px 0 0;color:var(--admin-text);font-size:28px;line-height:1.2}
+.adminPageSection{color:var(--admin-muted);font-size:12px;font-weight:780;letter-spacing:.06em}
+.adminNavigationToggle{display:none}
+.adminNavigationBackdrop{display:none}
+.adminTabCompatibilityPicker{display:none!important}
+
+@media(max-width:1100px) and (min-width:761px){
+  .adminWorkspace{grid-template-columns:208px minmax(0,1fr)}
+  .adminWorkspaceContent{padding-inline:16px}
+  .adminTabs{padding-inline:10px!important}
+  .adminTabButton{padding-inline:10px!important}
+}
+
+@media(max-width:760px){
+  body.standaloneAdminPage #adminDialog>.dialogHead{display:none!important}
+  body.standaloneAdminPage #adminDialog>.dialogBody{padding:0!important}
+  .adminWorkspace{display:block;height:100%}
+  .adminWorkspaceContent{
+    width:100%;
+    height:100%;
+    padding:0 10px 24px;
+    overflow-x:hidden;
+    overflow-y:auto;
+  }
+  html.mobileShellProject body.standaloneAdminPage #adminDialog .adminTabs,
+  body.standaloneAdminPage #adminDialog .adminTabs{
+    position:fixed!important;
+    inset:0!important;
+    z-index:111!important;
+    display:block!important;
+    width:100%!important;
+    max-width:none!important;
+    height:100vh!important;
+    height:100dvh!important;
+    padding:0 12px calc(24px + env(safe-area-inset-bottom))!important;
+    border:0!important;
+    background:#08121b!important;
+    box-shadow:none!important;
+    transform:translateX(-100%);
+    visibility:hidden;
+    transition:transform .2s ease,visibility 0s linear .2s;
+    overscroll-behavior:contain;
+  }
+  html.mobileShellProject body.standaloneAdminPage #adminDialog.adminNavigationOpen .adminTabs,
+  body.standaloneAdminPage #adminDialog.adminNavigationOpen .adminTabs{
+    transform:translateX(0);
+    visibility:visible;
+    transition:transform .2s ease;
+  }
+  .adminNavigationHead{
+    position:sticky;
+    top:0;
+    z-index:2;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    min-height:66px;
+    margin:0 -12px 13px;
+    padding:10px 14px;
+    border-bottom:1px solid var(--admin-line);
+    background:rgba(8,18,27,.98);
+  }
+  .adminNavigationHead strong{font-size:20px}
+  .adminNavigationHead button{display:flex;align-items:center;gap:8px;min-height:40px;padding:7px 9px!important;border:0!important;background:transparent!important;font-size:13px}
+  .adminNavigationHead button span{font-size:20px;line-height:1}
+  .adminNavGroup{padding-bottom:14px;margin-bottom:12px}
+  .adminNavGroup>h3{margin:0 10px 8px;font-size:12px;color:#9cb0c1;letter-spacing:.04em}
+  .adminTabButton{
+    grid-template-columns:22px minmax(0,1fr);
+    gap:12px;
+    min-height:48px;
+    padding:11px 12px!important;
+    border-radius:8px!important;
+    font-size:15px;
+  }
+  .adminNavIcon{display:block;width:21px;height:21px;color:#a9bdce}
+  .adminTabButton.active .adminNavIcon{color:var(--admin-accent)}
+  .adminNavigationBackdrop{display:none!important}
+  .adminPageHeader{
+    position:sticky;
+    top:0;
+    z-index:34;
+    grid-template-columns:44px minmax(0,1fr);
+    gap:11px;
+    min-height:62px;
+    margin:0 -10px 10px;
+    padding:9px 12px;
+    border-bottom:1px solid var(--admin-line);
+    background:rgba(8,18,27,.98);
+    box-shadow:0 8px 22px rgba(0,0,0,.2);
+  }
+  .adminPageHeader h2{margin:0;font-size:19px;line-height:1.3}
+  .adminPageSection{font-size:10px;letter-spacing:.04em}
+  .adminNavigationToggle{
+    display:grid;
+    place-content:center;
+    gap:4px;
+    width:44px;
+    height:44px;
+    min-height:44px;
+    padding:0!important;
+    border:1px solid var(--admin-line)!important;
+    border-radius:8px!important;
+    background:#0c1822!important;
+    box-shadow:none!important;
+  }
+  .adminNavigationToggle span{display:block;width:19px;height:2px;border-radius:2px;background:#c6d4df}
+  .adminGamePicker{margin:0 0 10px!important;padding:11px!important;border-radius:8px!important}
+  .adminTabCompatibilityPicker{display:none!important}
+}
+
+@media(prefers-reduced-motion:reduce){
+  body.standaloneAdminPage #adminDialog .adminTabs,
+  .adminNavigationBackdrop{transition:none!important}
+}
+
+/* 20260807-mobile-admin-native-page */
+.dashboardGameSummary{display:block}
+.dashboardGameDetails{display:contents}
+.dashboardGameIcon,.dashboardGameStatusDot,.dashboardGameAchievementCount,.dashboardGameExpand,
+.achievementMobileFilterToggle,.achievementManagementMenuIcon,.achievementMoreMenuIcon,.mobileValidateCatalogBtn{display:none}
+
+@media(max-width:760px){
+  html.mobileShellProject body.standaloneAdminPage #adminDialog[open],
+  body.standaloneAdminPage #adminDialog[open]{
+    border:0!important;
+    border-radius:0!important;
+    outline:0!important;
+    box-shadow:none!important;
+  }
+  html.mobileShellProject body.standaloneAdminPage #adminDialog>.dialogBody,
+  body.standaloneAdminPage #adminDialog>.dialogBody{
+    padding:0!important;
+    overflow:hidden!important;
+  }
+  .adminWorkspaceContent{
+    width:100%;
+    height:100%;
+    padding:0 16px calc(20px + env(safe-area-inset-bottom))!important;
+    overflow-x:hidden;
+    overflow-y:auto;
+    scrollbar-width:none;
+    background:#07111a!important;
+  }
+  .adminWorkspaceContent::-webkit-scrollbar{width:0;height:0}
+  #adminMessage:empty{display:none}
+  .adminPageHeader{
+    grid-template-columns:44px minmax(0,1fr);
+    gap:12px;
+    min-height:66px;
+    margin:0 -16px 0!important;
+    padding:10px 16px!important;
+    border-bottom:1px solid var(--admin-line);
+    background:rgba(7,17,26,.98)!important;
+    box-shadow:none!important;
+  }
+  .adminPageHeader h2{font-size:20px!important;line-height:1.25}
+  .adminPageSection{font-size:11px!important;letter-spacing:.035em}
+  .adminNavigationToggle{
+    border-radius:10px!important;
+    background:#0c1822!important;
+  }
+  .adminPanel{padding:0 0 28px!important}
+  .adminPanel>.adminToolbar:first-child,.adminPanel>.sectionTitle:first-child{
+    margin:0!important;
+    padding:16px 0 12px!important;
+  }
+  .adminGamePicker{
+    display:block!important;
+    margin:0!important;
+    padding:14px 0!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  .adminGamePicker[hidden]{display:none!important}
+  .adminGamePicker label{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) minmax(145px,1fr);
+    align-items:center;
+    gap:12px;
+    min-width:0!important;
+    color:var(--admin-muted);
+    font-size:13px;
+    font-weight:780;
+  }
+  .adminGamePicker select{min-height:44px;margin:0!important;font-weight:850}
+  .adminGamePicker .small{display:none}
+  .adminToolbar{gap:10px!important;margin:0 0 12px!important}
+  .adminToolbar>button{width:auto}
+  .adminFilters{gap:8px!important}
+  .adminSystemActions{gap:8px!important}
+  .adminTableWrap,.achievementTableWrap{
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  .adminTable tbody{gap:0!important}
+  .adminTable tbody tr{
+    padding:14px 0!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  .adminTable tbody tr:last-child{border-bottom:0!important}
+  .adminTable tbody td{padding:6px 0!important}
+
+  #adminPanelOverview:not([hidden]){display:flex;flex-direction:column}
+  #adminPanelOverview>.adminMetricGrid{order:1}
+  #adminPanelOverview>.dashboardHealthCard{order:2}
+  #adminPanelOverview>.adminSystemGrid>.adminSystemCard:first-child{order:3}
+  #adminPanelOverview>.dashboardGameSection{order:4}
+  #adminPanelOverview>.adminSystemGrid>.adminSystemCard:last-child{order:5}
+  #adminPanelOverview>.sectionCard:not(.dashboardGameSection){order:6}
+  #adminPanelOverview .adminMetricGrid{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:0!important;
+    margin:0!important;
+    border-bottom:1px solid var(--admin-line);
+  }
+  #adminPanelOverview .adminMetric{
+    min-width:0;
+    padding:18px 10px 16px!important;
+    border:0!important;
+    border-right:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  #adminPanelOverview .adminMetric:last-child{border-right:0!important}
+  #adminPanelOverview .adminMetric .label{font-size:11px;line-height:1.35}
+  #adminPanelOverview .adminMetric .metricValue{margin-top:8px;font-size:26px!important;line-height:1}
+  #adminPanelOverview .adminMetric .small{margin-top:8px;font-size:10px;line-height:1.4}
+  #adminPanelOverview .dashboardHealthCard{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:center!important;
+    gap:12px;
+    margin:0!important;
+    padding:17px 4px!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  #adminPanelOverview .dashboardHealthCard h3{margin:0 0 5px;font-size:17px}
+  #adminPanelOverview .dashboardHealthCard p{font-size:12px;line-height:1.5}
+  #adminPanelOverview .dashboardHealthCard button{width:auto;min-height:42px}
+  #adminPanelOverview>.adminSystemGrid{display:contents!important}
+  #adminPanelOverview .adminSystemCard{
+    min-height:0;
+    padding:17px 4px!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  #adminPanelOverview .adminSystemCard h3{margin:0 0 6px;font-size:17px}
+  #adminPanelOverview .adminSystemCard p{min-height:0;margin:0 0 12px;font-size:12px;line-height:1.55}
+  #adminPanelOverview .adminSystemCard .adminSystemActions{display:flex!important;width:auto}
+  #adminPanelOverview .adminSystemCard button{width:auto;min-height:42px}
+  #adminPanelOverview>.sectionCard{
+    padding:18px 0!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  #adminPanelOverview>.sectionCard:last-child{border-bottom:0!important}
+  #adminPanelOverview>.sectionCard>h3{margin:0 0 12px;font-size:18px}
+  #adminPanelOverview .dashboardGameGrid{display:block!important;margin:0!important}
+  #adminPanelOverview .dashboardGameCard{
+    padding:0!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  #adminPanelOverview .dashboardGameCard:last-child{border-bottom:0!important}
+  .dashboardGameSummary{
+    display:grid;
+    grid-template-columns:12px minmax(0,1fr) auto 40px;
+    align-items:center;
+    gap:10px;
+    min-height:64px;
+    padding:10px 0;
+  }
+  .dashboardGameSummary h3{min-width:0;margin:0!important;font-size:16px;overflow-wrap:anywhere}
+  .dashboardGameStatusDot{display:block;width:10px;height:10px;border-radius:50%;background:var(--admin-accent)}
+  .dashboardGameAchievementCount{display:block;color:var(--admin-muted);font-size:12px;white-space:nowrap}
+  .dashboardGameExpand{
+    display:grid!important;
+    place-items:center;
+    width:40px!important;
+    min-width:40px!important;
+    height:40px;
+    min-height:40px!important;
+    padding:0!important;
+    border:0!important;
+    border-radius:8px!important;
+    background:transparent!important;
+    color:#9eb1c1!important;
+    box-shadow:none!important;
+  }
+  .dashboardGameExpand svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .18s ease}
+  .dashboardGameDetails{display:none;padding:0 0 15px 22px}
+  .dashboardGameCard.mobileExpanded .dashboardGameDetails{display:block}
+  .dashboardGameCard.mobileExpanded .dashboardGameExpand svg{transform:rotate(90deg)}
+  .dashboardGameDetails .dashboardGameStats{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:0 0 10px}
+  .dashboardGameDetails .dashboardGameStats span{padding:7px;font-size:11px}
+  .dashboardGameDetails>.small{font-size:11px;line-height:1.55;overflow-wrap:anywhere}
+  .dashboardGameDetails .dashboardSourceLine{align-items:flex-start;font-size:11px;line-height:1.45}
+  .dashboardGameDetails .dashboardSourceLine span:last-child{text-align:right;overflow-wrap:anywhere}
+  .dashboardGameDetails .adminSystemActions{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  .dashboardGameDetails .adminSystemActions button{min-width:0;padding-inline:6px!important}
+  #adminPanelOverview .dashboardRedeemGrid{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:0!important;
+    margin:0!important;
+    border-top:1px solid var(--admin-line);
+  }
+  #adminPanelOverview .dashboardRedeemMetric{
+    min-width:0;
+    padding:11px 8px!important;
+    border:0!important;
+    border-right:1px solid var(--admin-line)!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  #adminPanelOverview .dashboardRedeemMetric:nth-child(3n){border-right:0!important}
+  #adminPanelOverview .dashboardRedeemMetric span{font-size:10px}
+  #adminPanelOverview .dashboardRedeemMetric strong{font-size:19px}
+  #adminPanelOverview .dashboardWorkGrid{display:grid!important;grid-template-columns:1fr!important;gap:0!important;margin:0!important}
+  #adminPanelOverview .dashboardWorkCard{
+    display:flex!important;
+    min-width:0;
+    padding:11px 0!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  #adminPanelOverview .dashboardWorkCard:last-child{border-bottom:0!important}
+  #adminPanelOverview .dashboardWorkCard strong{font-size:19px}
+  #adminPanelOverview .dashboardQuickActions{display:grid!important;grid-template-columns:1fr 1fr;gap:8px}
+  #adminPanelOverview .dashboardQuickActions button{min-width:0;width:100%}
+  #adminPanelOverview .stack .listItem{padding:12px 0!important;border:0!important;border-bottom:1px solid var(--admin-line)!important;border-radius:0!important;background:transparent!important}
+  #adminPanelOverview .stack .listItem:last-child{border-bottom:0!important}
+
+  .achievementManagementToolbar{
+    display:grid!important;
+    gap:12px!important;
+    margin:0!important;
+    padding:14px 0!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  .achievementManagementFilters{display:grid!important;grid-template-columns:1fr!important;gap:8px!important}
+  .achievementSearchField{display:block;width:100%}
+  .achievementManagementFilters>select{display:none}
+  .achievementManagementToolbar.mobileFiltersOpen .achievementManagementFilters>select{display:block}
+  .achievementManagementActions{
+    display:grid!important;
+    grid-template-columns:auto minmax(0,1fr) 44px!important;
+    gap:8px!important;
+    width:100%;
+  }
+  .achievementMobileFilterToggle{
+    order:1;
+    display:flex!important;
+    align-items:center;
+    justify-content:center;
+    gap:7px;
+    width:auto!important;
+    min-height:44px;
+  }
+  .achievementMobileFilterToggle svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+  #addAchievementBtn{order:2;width:100%!important;min-height:44px}
+  .achievementManagementMenu{order:3;width:44px!important;min-width:44px}
+  .achievementManagementMenu>summary{
+    display:grid!important;
+    place-items:center;
+    width:44px!important;
+    height:44px;
+    min-height:44px;
+    padding:0!important;
+  }
+  .achievementManagementMenuLabel{display:none}
+  .achievementManagementMenuIcon{display:block;width:22px;height:22px;fill:currentColor}
+  #validateCatalogBtn{display:none!important}
+  .mobileValidateCatalogBtn{display:block;width:100%}
+  .achievementManagementMenuPanel{right:0!important;left:auto!important;width:min(286px,calc(100vw - 32px));min-width:0!important}
+  .achievementSummaryGrid{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:0!important;
+    margin:0!important;
+    border-bottom:1px solid var(--admin-line);
+  }
+  .achievementSummaryGrid article{
+    min-width:0;
+    padding:11px 8px!important;
+    border:0!important;
+    border-right:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  .achievementSummaryGrid article:nth-child(3n){border-right:0!important}
+  .achievementSummaryGrid span{font-size:10px!important}
+  .achievementSummaryGrid strong{margin-top:4px!important;font-size:18px!important}
+  .achievementPager{
+    gap:7px!important;
+    padding:10px 0!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  .achievementPagerBottom{border-top:1px solid var(--admin-line)!important;border-bottom:0!important}
+  .adminTable.achievementManagementTable tbody{display:block!important;padding:0!important}
+  .adminTable.achievementManagementTable tbody tr{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:0 10px!important;
+    width:100%!important;
+    padding:16px 4px!important;
+  }
+  .adminTable.achievementManagementTable tbody td{
+    display:block!important;
+    width:auto!important;
+    padding:4px 0!important;
+  }
+  .adminTable.achievementManagementTable tbody td::before{display:none!important}
+  .adminTable.achievementManagementTable tbody td:nth-child(1),
+  .adminTable.achievementManagementTable tbody td:nth-child(2),
+  .adminTable.achievementManagementTable tbody td:nth-child(3){grid-column:1}
+  .adminTable.achievementManagementTable tbody td:nth-child(4){grid-column:2;grid-row:1 / span 3;align-self:start;padding-left:4px!important}
+  .achievementPrimary{gap:5px}
+  .achievementPrimary strong{font-size:16px!important;line-height:1.4}
+  .achievementPrimary p{font-size:12px;line-height:1.5}
+  .achievementPrimary code{padding:0;border:0;background:transparent;font-size:11px}
+  .achievementMetaStack{flex-direction:row!important;gap:7px!important;margin-top:2px}
+  .achievementCategoryBadge,.achievementVersionBadge{
+    padding:0!important;
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    color:var(--admin-muted)!important;
+    font-size:11px!important;
+  }
+  .achievementBadgeStack{gap:7px!important}
+  .achievementManagementTable .tag{padding:0;border:0;background:transparent;font-size:11px}
+  .achievementManagementTable .statusBadge{min-height:0;padding:0!important;border:0!important;background:transparent!important;color:var(--admin-accent)!important;font-size:11px}
+  .achievementRowActions{display:grid!important;grid-template-columns:auto 40px;gap:4px!important;align-items:start}
+  .achievementRowActions>.editAchievementBtn{min-height:40px;padding:7px 8px!important;border:0!important;background:transparent!important;color:var(--admin-accent)!important}
+  .achievementMoreMenu{width:40px}
+  .achievementMoreMenu>summary{display:grid!important;place-items:center;width:40px;height:40px;min-height:40px;padding:0!important;border:0!important;background:transparent!important}
+  .achievementMoreMenuLabel{display:none}
+  .achievementMoreMenuIcon{display:block;width:20px;height:20px;fill:currentColor}
+  .achievementMoreMenuPanel{right:0!important;left:auto!important}
+}
+
+@media(max-width:380px){
+  #adminPanelOverview .adminMetric{padding-inline:7px!important}
+  #adminPanelOverview .adminMetric .label{font-size:10px}
+  #adminPanelOverview .adminMetric .metricValue{font-size:23px!important}
+  #adminPanelOverview .adminMetric .small{font-size:9px}
+  .adminGamePicker label{grid-template-columns:1fr}
+  .achievementManagementActions{grid-template-columns:auto minmax(0,1fr) 44px!important}
+}
+
+/* 20260808-desktop-admin-dashboard-12616 */
+.adminPageDescription{display:none}
+
+@media(min-width:761px){
+  :root{
+    --admin-surface:#0b1924;
+    --admin-surface-raised:#102230;
+    --admin-surface-soft:#08151f;
+    --admin-line:rgba(135,171,196,.2);
+    --admin-text:#edf6fb;
+    --admin-muted:#8ea6b8;
+    --admin-accent:#4ddbd0;
+    --admin-shadow:none;
+    --admin-radius:10px;
+    --admin-gap:14px;
+  }
+
+  body.standaloneAdminPage #adminDialog[open]{
+    inset:0!important;
+    width:100%!important;
+    max-width:none!important;
+    height:100vh!important;
+    max-height:none!important;
+    margin:0!important;
+    border:0!important;
+    border-radius:0!important;
+    background:#07131c!important;
+    box-shadow:none!important;
+  }
+  body.standaloneAdminPage #adminDialog>.dialogHead{display:none!important}
+  body.standaloneAdminPage #adminDialog>.dialogBody{
+    width:100%;
+    height:100%;
+    max-height:none!important;
+    padding:0!important;
+    background:#07131c!important;
+  }
+  .adminWorkspace{
+    grid-template-columns:216px minmax(0,1fr)!important;
+    height:100vh!important;
+    background:#07131c;
+  }
+  .adminTabs{
+    padding:20px 12px 28px!important;
+    border-right:1px solid var(--admin-line)!important;
+    background:#091722!important;
+  }
+  .adminTabButton{
+    grid-template-columns:20px minmax(0,1fr);
+    gap:10px;
+  }
+  .adminNavIcon{
+    display:block;
+    width:18px;
+    height:18px;
+    color:#8fa6b5;
+  }
+  .adminTabButton.active .adminNavIcon{color:var(--admin-accent)}
+  .adminNavGroup{
+    margin:0 0 13px!important;
+    padding:0 0 13px!important;
+    border-bottom:1px solid rgba(135,171,196,.13)!important;
+  }
+  .adminNavGroup>h3{
+    margin:0 10px 6px;
+    color:#7794aa;
+    font-size:10px;
+    font-weight:850;
+    letter-spacing:.08em;
+  }
+  .adminTabButton{
+    min-height:38px;
+    margin:1px 0;
+    padding:9px 11px!important;
+    border-radius:7px!important;
+    color:#b7c9d5!important;
+    font-size:13px;
+    font-weight:760;
+  }
+  .adminTabButton:hover{background:#10212e!important;color:#f2f8fb!important}
+  .adminTabButton:focus-visible{outline:1px solid var(--admin-accent);outline-offset:-1px}
+  .adminTabButton.active{
+    color:#f3fffd!important;
+    background:#152a39!important;
+    box-shadow:inset 3px 0 0 var(--admin-accent)!important;
+  }
+
+  .adminWorkspaceContent{
+    padding:0 22px 36px!important;
+    background:#07131c!important;
+    background-image:none!important;
+  }
+  .adminPageHeader{
+    min-height:82px;
+    margin:0 -22px 18px!important;
+    padding:16px 22px 14px!important;
+    border-bottom:1px solid var(--admin-line);
+    background:#081620;
+  }
+  .adminPageSection{
+    color:#718ea4;
+    font-size:10px;
+    letter-spacing:.08em;
+  }
+  .adminPageHeader h2{
+    margin:3px 0 0;
+    color:var(--admin-text);
+    font-size:25px;
+    line-height:1.2;
+  }
+  .adminPageDescription{
+    display:block;
+    margin:4px 0 0;
+    color:var(--admin-muted);
+    font-size:12px;
+    line-height:1.45;
+  }
+  #adminMessage:empty{display:none}
+
+  .adminGamePicker{
+    align-items:center!important;
+    margin:0 0 14px!important;
+    padding:0 0 14px!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  .adminGamePicker label{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    min-width:0!important;
+    color:#c3d2dc;
+    font-size:13px;
+    font-weight:800;
+  }
+  .adminGamePicker select{
+    width:190px;
+    min-height:38px;
+    margin:0!important;
+  }
+  .adminGamePicker .small{max-width:500px;font-size:11px;text-align:right}
+
+  .adminPanel{
+    gap:14px;
+    padding:0!important;
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    background-image:none!important;
+    box-shadow:none!important;
+  }
+  .adminPanel>.adminToolbar:first-child,
+  .adminPanel>.sectionTitle:first-child{
+    margin:0!important;
+    padding:13px 14px!important;
+    border:1px solid var(--admin-line)!important;
+    border-radius:10px!important;
+    background:var(--admin-surface)!important;
+  }
+  .adminToolbar{
+    min-height:50px;
+    padding:11px 13px;
+    border:1px solid var(--admin-line);
+    border-radius:10px;
+    background:var(--admin-surface)!important;
+    background-image:none!important;
+  }
+  .adminToolbar h2,.adminToolbar h3,.adminToolbar h4{font-size:16px}
+  .adminFilters{gap:8px}
+  .adminFilters>input,.adminFilters>select{min-width:140px}
+  .adminSystemActions,.adminFormActions{gap:8px}
+
+  .sectionCard,.issueCard,.sourceCard,.auditDetailCard,.governanceHistoryCard,
+  .relationContextGroup,.relationGroupCard,.notificationCard,.adminFeatureCard{
+    margin:0!important;
+    padding:14px!important;
+    border:1px solid var(--admin-line)!important;
+    border-radius:10px!important;
+    background:var(--admin-surface)!important;
+    background-image:none!important;
+    box-shadow:none!important;
+  }
+  .sectionCard>h3:first-child{margin:0 0 12px;font-size:16px}
+  .adminSummary,.adminHint,.small{color:var(--admin-muted)}
+  .adminDangerNotice{
+    padding:10px 12px;
+    border-color:rgba(255,99,118,.34)!important;
+    border-radius:8px!important;
+    background:rgba(255,99,118,.07)!important;
+  }
+
+  .adminTableWrap{
+    overflow:auto;
+    border:1px solid var(--admin-line)!important;
+    border-radius:10px!important;
+    background:var(--admin-surface-soft)!important;
+    box-shadow:none!important;
+  }
+  .adminTable{border-collapse:collapse!important}
+  .adminTable th{
+    height:42px;
+    padding:9px 11px!important;
+    border-color:var(--admin-line)!important;
+    background:#112331!important;
+    color:#a9becc!important;
+    font-size:11px!important;
+    font-weight:850;
+    letter-spacing:.035em;
+  }
+  .adminTable td{
+    padding:11px!important;
+    border-color:rgba(135,171,196,.16)!important;
+    color:#dbe7ee;
+    font-size:13px;
+    line-height:1.5;
+  }
+  .adminTable tbody tr:nth-child(even){background:rgba(129,176,204,.018)}
+  .adminTable tbody tr:hover{background:rgba(77,219,208,.045)!important}
+  .adminEmpty{padding:34px 18px!important;color:#7c94a7!important}
+
+  .adminPanel input,.adminPanel select,.adminPanel textarea,
+  body.standaloneAdminPage dialog input,body.standaloneAdminPage dialog select,body.standaloneAdminPage dialog textarea{
+    min-height:39px;
+    border:1px solid var(--admin-line)!important;
+    border-radius:7px!important;
+    background:#07131c!important;
+    color:var(--admin-text)!important;
+    box-shadow:none!important;
+  }
+  .adminPanel input:focus,.adminPanel select:focus,.adminPanel textarea:focus,
+  body.standaloneAdminPage dialog input:focus,body.standaloneAdminPage dialog select:focus,body.standaloneAdminPage dialog textarea:focus{
+    outline:2px solid rgba(77,219,208,.17)!important;
+    border-color:rgba(77,219,208,.62)!important;
+  }
+  .adminPanel button,.adminPanel summary.secondary,
+  body.standaloneAdminPage dialog button,body.standaloneAdminPage dialog summary.secondary{
+    min-height:38px;
+    border-radius:7px!important;
+    box-shadow:none!important;
+    font-size:13px;
+    font-weight:850;
+  }
+  .adminPanel button.primary,body.standaloneAdminPage dialog button.primary{
+    border:1px solid #59e4d8!important;
+    background:#4ddbd0!important;
+    background-image:none!important;
+    color:#05201f!important;
+    box-shadow:none!important;
+  }
+  .adminPanel button.primary:hover,body.standaloneAdminPage dialog button.primary:hover{background:#68e7dd!important}
+  .adminPanel button.secondary,.adminPanel summary.secondary,
+  body.standaloneAdminPage dialog button.secondary,body.standaloneAdminPage dialog summary.secondary{
+    border-color:var(--admin-line)!important;
+    background:#102230!important;
+    background-image:none!important;
+    color:#dbe8ef!important;
+  }
+  .adminPanel button.secondary:hover,.adminPanel summary.secondary:hover,
+  body.standaloneAdminPage dialog button.secondary:hover,body.standaloneAdminPage dialog summary.secondary:hover{
+    border-color:rgba(77,219,208,.38)!important;
+    background:#152b3a!important;
+  }
+  .dangerBtn,.adminPanel .dangerBtn{
+    border-color:rgba(255,99,118,.36)!important;
+    background:rgba(255,99,118,.08)!important;
+    color:#ffb8c1!important;
+  }
+  .statusBadge,.achievementCategoryBadge,.achievementVersionBadge,.announcementLevelBadge,
+  .roleBadge,.tag{
+    border-radius:999px!important;
+    box-shadow:none!important;
+  }
+
+  #adminPanelOverview{
+    display:grid;
+    grid-template-columns:repeat(12,minmax(0,1fr));
+    gap:12px;
+  }
+  #adminPanelOverview>*{grid-column:1/-1}
+  #adminPanelOverview>.adminMetricGrid{
+    order:1;
+    grid-column:span 9;
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:10px;
+    margin:0!important;
+  }
+  #adminPanelOverview>.dashboardHealthCard{
+    order:1;
+    grid-column:span 3;
+  }
+  #adminPanelOverview>.dashboardGameSection{order:2}
+  #adminPanelOverview>.sectionCard:nth-last-child(3){order:3;grid-column:span 6}
+  #adminPanelOverview>.sectionCard:nth-last-child(2){order:3;grid-column:span 6}
+  #adminPanelOverview>.sectionCard:last-child{order:4}
+  #adminPanelOverview>.adminSystemGrid{order:5}
+  #adminPanelOverview .adminMetric{
+    min-width:0;
+    min-height:108px;
+    padding:17px 18px!important;
+    border:1px solid var(--admin-line)!important;
+    border-radius:10px!important;
+    background:var(--admin-surface)!important;
+    box-shadow:none!important;
+  }
+  #adminPanelOverview .adminMetric .label{color:#9bb0be;font-size:12px}
+  #adminPanelOverview .adminMetric .metricValue{margin-top:7px;font-size:30px!important;line-height:1}
+  #adminPanelOverview .adminMetric .small{margin-top:8px;font-size:11px}
+  #adminPanelOverview .dashboardHealthCard{
+    display:grid!important;
+    align-content:center;
+    min-height:108px;
+    margin:0!important;
+    padding:15px 16px!important;
+    border:1px solid rgba(89,212,135,.32)!important;
+    border-radius:10px!important;
+    background:var(--admin-surface)!important;
+    box-shadow:none!important;
+  }
+  #adminPanelOverview .dashboardHealthCard h3{margin:0 0 5px;font-size:15px}
+  #adminPanelOverview .dashboardHealthCard p{font-size:11px;line-height:1.5}
+  #adminPanelOverview .dashboardHealthCard button{justify-self:start;margin-top:9px;min-height:34px}
+  #adminPanelOverview .adminSystemGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  #adminPanelOverview .adminSystemCard{
+    padding:14px!important;
+    border:1px solid var(--admin-line)!important;
+    border-radius:10px!important;
+    background:var(--admin-surface)!important;
+    box-shadow:none!important;
+  }
+  #adminPanelOverview .dashboardGameGrid{
+    display:grid!important;
+    grid-template-columns:1fr;
+    gap:0!important;
+    margin:10px 0 0!important;
+    overflow:hidden;
+    border:1px solid var(--admin-line);
+    border-radius:8px;
+  }
+  #adminPanelOverview .dashboardGameCard{
+    display:grid!important;
+    grid-template-columns:minmax(150px,.8fr) minmax(0,2.6fr);
+    gap:14px;
+    margin:0!important;
+    padding:13px!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:#091722!important;
+    box-shadow:none!important;
+  }
+  #adminPanelOverview .dashboardGameCard:last-child{border-bottom:0!important}
+  #adminPanelOverview .dashboardGameSummary{
+    display:grid;
+    grid-template-columns:9px minmax(0,1fr);
+    align-content:start;
+    gap:7px 9px;
+    min-height:0;
+    padding:4px 0;
+  }
+  #adminPanelOverview .dashboardGameStatusDot{display:block;width:8px;height:8px;margin-top:5px;border-radius:50%;background:#55d984}
+  #adminPanelOverview .dashboardGameSummary h3{margin:0!important;font-size:15px}
+  #adminPanelOverview .dashboardGameAchievementCount{display:block;grid-column:2;color:#b9cbd6;font-size:12px}
+  #adminPanelOverview .dashboardGameExpand{display:none!important}
+  #adminPanelOverview .dashboardGameDetails{
+    display:grid!important;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:7px 10px;
+    min-width:0;
+    padding:0;
+  }
+  #adminPanelOverview .dashboardGameStats{
+    grid-column:1/-1;
+    grid-template-columns:repeat(6,minmax(0,1fr));
+    gap:5px;
+    margin:0;
+  }
+  #adminPanelOverview .dashboardGameStats span{
+    padding:6px 7px;
+    border:1px solid rgba(135,171,196,.12);
+    border-radius:6px;
+    background:#07131c;
+    font-size:10px;
+  }
+  #adminPanelOverview .dashboardGameDetails>.small{grid-column:1/-1;margin:0;font-size:10px;line-height:1.4}
+  #adminPanelOverview .dashboardSourceLine{display:grid;gap:3px;padding:5px 0;border-top:1px solid rgba(135,171,196,.12);font-size:10px}
+  #adminPanelOverview .dashboardSourceLine span:last-child{text-align:left}
+  #adminPanelOverview .dashboardGameDetails>.adminSystemActions{grid-column:1/-1;justify-content:flex-start}
+  #adminPanelOverview .dashboardGameDetails>.adminSystemActions button{min-height:32px;padding:6px 9px!important;font-size:11px}
+  #adminPanelOverview .dashboardRedeemGrid{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:0;
+    margin:10px 0 0;
+    overflow:hidden;
+    border:1px solid var(--admin-line);
+    border-radius:8px;
+  }
+  #adminPanelOverview .dashboardRedeemMetric{
+    padding:10px 11px;
+    border:0!important;
+    border-right:1px solid var(--admin-line)!important;
+    border-bottom:1px solid var(--admin-line)!important;
+    border-radius:0!important;
+    background:#091722!important;
+  }
+  #adminPanelOverview .dashboardRedeemMetric:nth-child(4n){border-right:0!important}
+  #adminPanelOverview .dashboardRedeemMetric:nth-last-child(-n+4){border-bottom:0!important}
+  #adminPanelOverview .dashboardRedeemMetric span{font-size:10px}
+  #adminPanelOverview .dashboardRedeemMetric strong{font-size:20px}
+  #adminPanelOverview .dashboardWorkGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:10px 0 0}
+  #adminPanelOverview .dashboardWorkCard{
+    min-width:0;
+    padding:10px!important;
+    border:1px solid var(--admin-line)!important;
+    border-radius:7px!important;
+    background:#091722!important;
+  }
+  #adminPanelOverview .dashboardWorkCard span{font-size:11px}
+  #adminPanelOverview .dashboardWorkCard strong{font-size:20px}
+  #adminPanelOverview .dashboardQuickActions{justify-content:flex-end;margin-top:10px}
+  #adminPanelOverview .stack{gap:0}
+  #adminPanelOverview .stack .listItem{
+    padding:10px 2px!important;
+    border:0!important;
+    border-bottom:1px solid rgba(135,171,196,.13)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  #adminPanelOverview .stack .listItem:last-child{border-bottom:0!important}
+
+  .achievementManagementPanel{gap:12px!important}
+  .achievementManagementToolbar{
+    margin:0!important;
+    padding:12px!important;
+    border:1px solid var(--admin-line)!important;
+    border-radius:10px!important;
+    background:var(--admin-surface)!important;
+    background-image:none!important;
+  }
+  .achievementManagementFilters{grid-template-columns:minmax(250px,1.7fr) repeat(3,minmax(118px,.7fr));gap:8px}
+  .achievementSummaryGrid{grid-template-columns:repeat(5,minmax(100px,1fr));gap:9px}
+  .achievementSummaryGrid article{
+    padding:13px 14px!important;
+    border:1px solid var(--admin-line)!important;
+    border-radius:9px!important;
+    background:var(--admin-surface)!important;
+    box-shadow:none!important;
+  }
+  .achievementSummaryGrid span{font-size:11px!important}
+  .achievementSummaryGrid strong{font-size:22px!important}
+  .achievementPager{
+    min-height:46px;
+    padding:8px 10px!important;
+    border:1px solid var(--admin-line)!important;
+    border-radius:9px!important;
+    background:var(--admin-surface)!important;
+  }
+  .achievementManagementTable tbody tr{height:auto;min-height:88px}
+  .achievementManagementTable td{padding:12px!important}
+  .achievementPrimary strong{font-size:14px}
+  .achievementPrimary p{font-size:11px}
+  .achievementManagementMenuPanel,.achievementMoreMenuPanel{
+    border-color:var(--admin-line)!important;
+    border-radius:8px!important;
+    background:#102230!important;
+    box-shadow:0 18px 48px rgba(0,0,0,.38)!important;
+  }
+
+  .messageCenterAdminGrid{grid-template-columns:minmax(300px,.72fr) minmax(0,1.65fr);gap:12px!important;margin-top:0!important}
+  #adminPanelAnnouncements .messageCenterAdminGrid>.sectionCard:first-child,
+  #adminPanelNotifications .messageCenterAdminGrid>.sectionCard:first-child{position:sticky;top:0;align-self:start}
+  #adminPanelAnnouncements .stack,#adminPanelNotifications .notificationList{gap:0}
+  #adminPanelAnnouncements .listItem,#adminPanelNotifications .notificationCard{
+    padding:13px 2px!important;
+    border:0!important;
+    border-bottom:1px solid rgba(135,171,196,.14)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+
+  #adminPanelRedeem{display:flex;flex-direction:column}
+  #adminPanelRedeem>.adminToolbar:first-child{order:0}
+  #adminPanelRedeem>.adminToolbar:nth-last-child(2){order:1}
+  #adminPanelRedeem>.adminTableWrap:last-child{order:2}
+  #adminPanelRedeem>.redeemAdminGrid{order:3}
+  #adminPanelRedeem>.sectionCard{order:4}
+  #adminPanelRedeem .redeemAdminGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  #adminPanelRedeem .redeemAdminGrid>.sectionCard{padding:14px!important}
+  #adminPanelRedeem .manualOrderHeading{padding:0 0 10px!important;border:0!important;border-bottom:1px solid var(--admin-line)!important;border-radius:0!important;background:transparent!important}
+  #adminPanelRedeem .redeemImportEditor,#adminPanelRedeem .redeemImportAdvancedBody{
+    border-color:var(--admin-line)!important;
+    border-radius:8px!important;
+    background:#08151f!important;
+  }
+  #adminPanelRedeem .redeemImportGridHeader{background:#112331!important}
+
+  #adminPanelRelations .relationGroupList,
+  #adminPanelSupport>.stack,#adminPanelReports>.stack{gap:10px}
+  .relationGroupHead,.healthDetailRow,.sessionCard{border-radius:8px!important}
+  .relationMember,.relationCatalogList,.relationSelectedList,.relationCatalogItem,.relationSelectedItem{
+    border-radius:7px!important;
+    background:#08151f!important;
+  }
+  .sourceCardGrid,.adminFeatureGrid{gap:10px}
+  .sourceDiagnostics,.sourceDiagnosisDetails>section,.sourcePairCard,.sourcePairColumns section,
+  .syncCompareHeader section,.syncCompareTableWrap,.relationIssueRelatedSummary{
+    border-color:var(--admin-line)!important;
+    border-radius:8px!important;
+    background:#08151f!important;
+    box-shadow:none!important;
+  }
+  .sourceDiagnosisSteps article,.sourceDiagnosticGrid>div,.syncHistoryItem,
+  .governanceMetric,.governanceIssue,.governancePlanItem,.governanceCompareCard{
+    border-color:var(--admin-line)!important;
+    border-radius:8px!important;
+    background:var(--admin-surface)!important;
+    box-shadow:none!important;
+  }
+
+  body.standaloneAdminPage dialog:not(#adminDialog){
+    border:1px solid var(--admin-line)!important;
+    border-radius:12px!important;
+    background:#08151f!important;
+    box-shadow:0 28px 80px rgba(0,0,0,.52)!important;
+  }
+  body.standaloneAdminPage dialog:not(#adminDialog)::backdrop{
+    background:rgba(1,7,12,.76)!important;
+    backdrop-filter:none!important;
+  }
+  body.standaloneAdminPage dialog:not(#adminDialog)>.dialogHead,
+  .governanceStickyHead,.relationValidationSticky{
+    min-height:62px;
+    padding:13px 16px!important;
+    border-color:var(--admin-line)!important;
+    background:#102230!important;
+    background-image:none!important;
+    box-shadow:none!important;
+  }
+  body.standaloneAdminPage dialog:not(#adminDialog)>.dialogBody{
+    padding:16px!important;
+    background:#08151f!important;
+  }
+  .governanceShell,.relationValidationShell{background:#08151f!important}
+  .governanceToolbar,.governanceBottomBar,.relationValidationBottom{
+    border-color:var(--admin-line)!important;
+    background:#091923!important;
+    box-shadow:none!important;
+  }
+  .governanceBody,.relationValidationBody{background:#07131c!important}
+  .governanceDialog,.relationValidationDialog{border-radius:12px!important}
+}
+
+@media(min-width:761px) and (max-width:1199px){
+  .adminWorkspace{grid-template-columns:204px minmax(0,1fr)!important}
+  .adminWorkspaceContent{padding-inline:16px!important}
+  .adminPageHeader{margin-inline:-16px!important;padding-inline:16px!important}
+  #adminPanelOverview>.adminMetricGrid{grid-column:1/-1}
+  #adminPanelOverview>.dashboardHealthCard{grid-column:1/-1;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+  #adminPanelOverview .dashboardHealthCard button{justify-self:end;margin-top:0}
+  #adminPanelOverview .dashboardGameCard{grid-template-columns:1fr}
+  #adminPanelOverview>.sectionCard:nth-last-child(3),
+  #adminPanelOverview>.sectionCard:nth-last-child(2){grid-column:1/-1}
+  .achievementManagementToolbar{align-items:stretch;flex-direction:column}
+  .achievementManagementActions{justify-content:flex-start}
+  .achievementSummaryGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+.adminGameDesktopPicker{display:none}
+.achievementSummaryIcon{display:none}
+.authMessage.warning{color:#f0b557}
+.sourcePairCard.excluded{border-style:dashed;opacity:.82}.sourcePairCard.included{border-color:rgba(87,221,165,.42)}.sourcePairActions{display:flex;align-items:center;gap:10px;margin-top:10px}.sourcePairActions .small{flex:1}.sourcePairActions button{flex:0 0 auto}.sourceExclusionNote{display:flex;justify-content:space-between;gap:10px;margin-top:9px;padding:9px;border-left:3px solid var(--a);border-radius:8px;background:rgba(98,219,201,.07);font-size:12px}.sourceExclusionNote span{color:var(--muted)}.sourceUpdatedBadge{color:#f0b557;font-weight:800}.sourceExclusionHelp{margin:8px 0 0}.sourceExcludedDetails>summary{color:var(--muted)}.sourceIncludedDetails>summary{color:#7ee0b0}
+@media(max-width:760px){.sourcePairActions{display:grid;align-items:stretch}.sourcePairActions button{width:100%}.sourceExclusionNote{display:grid}}
+/* 20260813-source-isolation-review-decisions-1290 */
+@media(min-width:761px){
+  body.adminDashboardV2{
+    --admin-v2-bg:#06131d;
+    --admin-v2-rail:#081722;
+    --admin-v2-surface:#0b1a26;
+    --admin-v2-surface-2:#102231;
+    --admin-v2-surface-3:#132838;
+    --admin-v2-line:#263b4a;
+    --admin-v2-line-soft:rgba(123,159,183,.16);
+    --admin-v2-text:#f0f7fb;
+    --admin-v2-muted:#8fa7b9;
+    --admin-v2-accent:#43ddd2;
+    --admin-v2-accent-strong:#63ebe1;
+    --admin-v2-success:#63da83;
+    --admin-v2-warning:#ffc23d;
+    --admin-v2-danger:#ff7388;
+    --admin-v2-radius:10px;
+    color:var(--admin-v2-text);
+    background:var(--admin-v2-bg)!important;
+  }
+
+  body.adminDashboardV2 #adminDialog[open]{background:var(--admin-v2-bg)!important}
+  body.adminDashboardV2 #adminDialog>.dialogBody{background:var(--admin-v2-bg)!important}
+  body.adminDashboardV2 .adminWorkspace{
+    grid-template-columns:190px minmax(0,1fr)!important;
+    height:100vh!important;
+    background:var(--admin-v2-bg)!important;
+  }
+  body.adminDashboardV2 .adminTabs{
+    padding:18px 12px 24px!important;
+    border-right:1px solid var(--admin-v2-line)!important;
+    background:var(--admin-v2-rail)!important;
+    scrollbar-color:#344c5e transparent;
+  }
+  body.adminDashboardV2 .adminNavigationHead{display:none!important}
+  body.adminDashboardV2 .adminNavIcon{display:block!important;width:18px;height:18px;color:#8fa7b9!important}
+  body.adminDashboardV2 .adminNavGroup{
+    margin:0 0 12px!important;
+    padding:0 0 12px!important;
+    border-bottom:1px solid var(--admin-v2-line-soft)!important;
+  }
+  body.adminDashboardV2 .adminNavGroup:last-child{border-bottom:0!important}
+  body.adminDashboardV2 .adminNavGroup>h3{
+    margin:0 9px 7px;
+    color:#7793a7;
+    font-size:10px;
+    font-weight:850;
+    letter-spacing:.08em;
+  }
+  body.adminDashboardV2 .adminTabButton{
+    min-height:39px;
+    margin:1px 0;
+    padding:9px 12px!important;
+    border:1px solid transparent!important;
+    border-radius:8px!important;
+    color:#b8cad6!important;
+    font-size:13px;
+    font-weight:780;
+    transition:background .16s ease,border-color .16s ease,color .16s ease;
+  }
+  body.adminDashboardV2 .adminTabButton:hover{
+    border-color:rgba(93,135,162,.18)!important;
+    background:#102330!important;
+    color:#f6fbfd!important;
+  }
+  body.adminDashboardV2 .adminTabButton.active{
+    border-color:rgba(88,142,171,.2)!important;
+    color:#f6fffe!important;
+    background:#192d3d!important;
+    box-shadow:inset 3px 0 0 var(--admin-v2-accent)!important;
+  }
+  body.adminDashboardV2 .adminTabButton{grid-template-columns:20px minmax(0,1fr);gap:10px}
+  body.adminDashboardV2 .adminTabButton.active .adminNavIcon{color:var(--admin-v2-accent)!important}
+
+  body.adminDashboardV2 .adminWorkspaceContent{
+    min-width:0;
+    padding:0 20px 32px!important;
+    background:var(--admin-v2-bg)!important;
+    scrollbar-color:#344c5e transparent;
+  }
+  body.adminDashboardV2 .adminPageHeader{
+    min-height:78px;
+    margin:0 -20px 18px!important;
+    padding:15px 20px 13px!important;
+    border-bottom:1px solid var(--admin-v2-line)!important;
+    background:#071721!important;
+  }
+  body.adminDashboardV2 .adminPageSection{
+    color:#7896aa;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:.08em;
+  }
+  body.adminDashboardV2 .adminPageHeader h2{
+    margin:2px 0 0;
+    color:var(--admin-v2-text);
+    font-size:25px;
+    font-weight:900;
+    line-height:1.2;
+    letter-spacing:.01em;
+  }
+  body.adminDashboardV2 .adminPageDescription{
+    display:block;
+    margin:3px 0 0;
+    color:var(--admin-v2-muted);
+    font-size:12px;
+    line-height:1.45;
+  }
+  body.adminDashboardV2 #adminMessage:empty{display:none!important}
+
+  body.adminDashboardV2 .adminGamePicker{
+    display:flex!important;
+    align-items:center!important;
+    justify-content:space-between;
+    min-height:48px;
+    margin:0 0 14px!important;
+    padding:0 0 14px!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-v2-line-soft)!important;
+    border-radius:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  body.adminDashboardV2 .adminGamePicker[hidden]{display:none!important}
+  body.adminDashboardV2 .adminGamePicker label{
+    display:flex;
+    align-items:center;
+    gap:11px;
+    color:#c9d8e1;
+    font-size:13px;
+    font-weight:850;
+  }
+  body.adminDashboardV2 .adminGamePicker .adminGameNativePicker{display:none!important}
+  body.adminDashboardV2 .adminGameDesktopPicker{display:flex;align-items:center;gap:11px}
+  body.adminDashboardV2 .adminGamePickerCaption{color:#c9d8e1;font-size:13px;font-weight:850}
+  body.adminDashboardV2 .adminGameMenu{position:relative;z-index:40}
+  body.adminDashboardV2 .adminGameMenuButton{
+    display:grid;
+    grid-template-columns:30px minmax(0,1fr) 18px;
+    align-items:center;
+    gap:10px;
+    width:248px;
+    min-height:44px;
+    padding:6px 10px;
+    border:1px solid var(--admin-v2-line);
+    border-radius:8px;
+    background:#091923;
+    color:var(--admin-v2-text);
+    text-align:left;
+    font-size:13px;
+    font-weight:850;
+  }
+  body.adminDashboardV2 .adminGameMenuButton:hover,
+  body.adminDashboardV2 .adminGameMenuButton[aria-expanded="true"]{border-color:rgba(67,221,210,.55);background:#0d202c}
+  body.adminDashboardV2 .adminGameMenuButton img,
+  body.adminDashboardV2 .adminGameMenuList img{width:30px;height:30px;border-radius:7px;object-fit:cover}
+  body.adminDashboardV2 .adminGameMenuButton svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;transition:transform .16s ease}
+  body.adminDashboardV2 .adminGameMenuButton[aria-expanded="true"] svg{transform:rotate(180deg)}
+  body.adminDashboardV2 .adminGameMenuList{
+    position:absolute;
+    top:calc(100% + 6px);
+    right:0;
+    width:248px;
+    padding:6px;
+    border:1px solid var(--admin-v2-line);
+    border-radius:9px;
+    background:#0a1a26;
+    box-shadow:0 18px 42px rgba(0,0,0,.42);
+  }
+  body.adminDashboardV2 .adminGameMenuList[hidden]{display:none!important}
+  body.adminDashboardV2 .adminGameMenuList button{display:grid;grid-template-columns:30px minmax(0,1fr);align-items:center;gap:10px;width:100%;min-height:44px;padding:6px 8px;border:0;border-radius:7px;background:transparent;color:#c9d8e1;text-align:left;font-size:12px;font-weight:800}
+  body.adminDashboardV2 .adminGameMenuList button:hover,
+  body.adminDashboardV2 .adminGameMenuList button.active{background:#142938;color:#fff}
+  body.adminDashboardV2 .adminGamePicker .small{max-width:540px;font-size:11px;text-align:right}
+
+  body.adminDashboardV2 .adminPanel{
+    min-width:0;
+    gap:12px!important;
+    padding:0 0 4px!important;
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    box-shadow:none!important;
+  }
+  body.adminDashboardV2 .adminPanel[hidden]{display:none!important}
+  body.adminDashboardV2 .adminPanel>.adminSummary:first-child{margin:0 0 2px;color:var(--admin-v2-muted)}
+  body.adminDashboardV2 .sectionCard,
+  body.adminDashboardV2 .adminToolbar,
+  body.adminDashboardV2 .issueCard,
+  body.adminDashboardV2 .sourceCard,
+  body.adminDashboardV2 .relationGroupCard,
+  body.adminDashboardV2 .notificationCard,
+  body.adminDashboardV2 .adminFeatureCard{
+    border:1px solid var(--admin-v2-line)!important;
+    border-radius:var(--admin-v2-radius)!important;
+    background:var(--admin-v2-surface)!important;
+    background-image:none!important;
+    box-shadow:none!important;
+  }
+  body.adminDashboardV2 .sectionCard{padding:14px!important}
+  body.adminDashboardV2 .sectionCard>h3:first-child{margin:0 0 12px;font-size:16px}
+  body.adminDashboardV2 .adminToolbar{
+    min-height:52px;
+    padding:11px 13px!important;
+    gap:10px;
+  }
+  body.adminDashboardV2 .adminToolbar h2,
+  body.adminDashboardV2 .adminToolbar h3,
+  body.adminDashboardV2 .adminToolbar h4{font-size:16px}
+  body.adminDashboardV2 .adminFilters{gap:8px}
+  body.adminDashboardV2 .adminFilters>input{min-width:240px}
+  body.adminDashboardV2 .adminFilters>select{min-width:142px}
+  body.adminDashboardV2 .adminSystemActions,
+  body.adminDashboardV2 .adminFormActions{gap:8px}
+  body.adminDashboardV2 .adminSummary,
+  body.adminDashboardV2 .small,
+  body.adminDashboardV2 .adminHint{color:var(--admin-v2-muted)}
+  body.adminDashboardV2 .adminDangerNotice{
+    margin:0!important;
+    padding:10px 12px!important;
+    border:1px solid rgba(255,115,136,.32)!important;
+    border-radius:8px!important;
+    background:rgba(255,115,136,.07)!important;
+    color:#ffc1ca!important;
+  }
+
+  body.adminDashboardV2 .adminPanel input,
+  body.adminDashboardV2 .adminPanel select,
+  body.adminDashboardV2 .adminPanel textarea,
+  body.adminDashboardV2 dialog input,
+  body.adminDashboardV2 dialog select,
+  body.adminDashboardV2 dialog textarea{
+    min-height:40px;
+    border:1px solid var(--admin-v2-line)!important;
+    border-radius:7px!important;
+    background:#07141e!important;
+    color:var(--admin-v2-text)!important;
+    box-shadow:none!important;
+    font-size:13px;
+  }
+  body.adminDashboardV2 .adminPanel input:focus,
+  body.adminDashboardV2 .adminPanel select:focus,
+  body.adminDashboardV2 .adminPanel textarea:focus,
+  body.adminDashboardV2 dialog input:focus,
+  body.adminDashboardV2 dialog select:focus,
+  body.adminDashboardV2 dialog textarea:focus{
+    outline:2px solid rgba(67,221,210,.16)!important;
+    border-color:rgba(67,221,210,.66)!important;
+  }
+  body.adminDashboardV2 .adminPanel button,
+  body.adminDashboardV2 .adminPanel summary.secondary,
+  body.adminDashboardV2 dialog button,
+  body.adminDashboardV2 dialog summary.secondary{
+    min-height:38px;
+    padding:8px 12px;
+    border-radius:7px!important;
+    box-shadow:none!important;
+    font-size:13px;
+    font-weight:850;
+  }
+  body.adminDashboardV2 .adminPanel button.primary,
+  body.adminDashboardV2 dialog button.primary{
+    border:1px solid var(--admin-v2-accent-strong)!important;
+    background:var(--admin-v2-accent)!important;
+    color:#03201e!important;
+  }
+  body.adminDashboardV2 .adminPanel button.primary:hover,
+  body.adminDashboardV2 dialog button.primary:hover{background:var(--admin-v2-accent-strong)!important}
+  body.adminDashboardV2 .adminPanel button.secondary,
+  body.adminDashboardV2 .adminPanel summary.secondary,
+  body.adminDashboardV2 dialog button.secondary,
+  body.adminDashboardV2 dialog summary.secondary{
+    border-color:var(--admin-v2-line)!important;
+    background:#102332!important;
+    color:#dfebf1!important;
+  }
+  body.adminDashboardV2 .adminPanel button.secondary:hover,
+  body.adminDashboardV2 .adminPanel summary.secondary:hover,
+  body.adminDashboardV2 dialog button.secondary:hover,
+  body.adminDashboardV2 dialog summary.secondary:hover{
+    border-color:rgba(67,221,210,.4)!important;
+    background:#16303f!important;
+  }
+  body.adminDashboardV2 .dangerBtn,
+  body.adminDashboardV2 .adminPanel .dangerBtn{
+    border-color:rgba(255,115,136,.42)!important;
+    background:rgba(255,115,136,.08)!important;
+    color:#ffb8c3!important;
+  }
+
+  body.adminDashboardV2 .adminTableWrap{
+    min-width:0;
+    overflow:auto;
+    border:1px solid var(--admin-v2-line)!important;
+    border-radius:var(--admin-v2-radius)!important;
+    background:#07151f!important;
+    box-shadow:none!important;
+  }
+  body.adminDashboardV2 .adminTable{width:100%;border-collapse:collapse!important}
+  body.adminDashboardV2 .adminTable th{
+    height:42px;
+    padding:9px 11px!important;
+    border-color:var(--admin-v2-line)!important;
+    background:#132636!important;
+    color:#a8becd!important;
+    font-size:11px!important;
+    font-weight:850;
+    letter-spacing:.035em;
+  }
+  body.adminDashboardV2 .adminTable td{
+    padding:10px 11px!important;
+    border-color:var(--admin-v2-line-soft)!important;
+    color:#dce8ee;
+    font-size:12px;
+    line-height:1.45;
+    vertical-align:middle;
+  }
+  body.adminDashboardV2 .adminTable tbody tr{background:#081721}
+  body.adminDashboardV2 .adminTable tbody tr:nth-child(even){background:#091924}
+  body.adminDashboardV2 .adminTable tbody tr:hover{background:rgba(67,221,210,.05)!important}
+  body.adminDashboardV2 .adminEmpty{padding:32px 18px!important;color:#7891a4!important}
+  body.adminDashboardV2 .statusBadge,
+  body.adminDashboardV2 .achievementCategoryBadge,
+  body.adminDashboardV2 .achievementVersionBadge,
+  body.adminDashboardV2 .announcementLevelBadge,
+  body.adminDashboardV2 .roleBadge,
+  body.adminDashboardV2 .tag{border-radius:999px!important;box-shadow:none!important}
+
+  body.adminDashboardV2 #adminPanelOverview:not([hidden]){
+    display:grid;
+    grid-template-columns:repeat(12,minmax(0,1fr));
+    gap:12px!important;
+  }
+  body.adminDashboardV2 #adminPanelOverview>*{grid-column:1/-1}
+  body.adminDashboardV2 #adminPanelOverview>.adminMetricGrid{
+    order:1;
+    grid-column:span 9;
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:10px;
+    margin:0!important;
+  }
+  body.adminDashboardV2 #adminPanelOverview>.dashboardHealthCard{order:1;grid-column:span 3}
+  body.adminDashboardV2 #adminPanelOverview>.dashboardGameSection{order:2}
+  body.adminDashboardV2 #adminPanelOverview>.sectionCard:nth-last-child(3){order:3;grid-column:span 6}
+  body.adminDashboardV2 #adminPanelOverview>.sectionCard:nth-last-child(2){order:3;grid-column:span 6}
+  body.adminDashboardV2 #adminPanelOverview>.sectionCard:last-child{order:4}
+  body.adminDashboardV2 #adminPanelOverview>.adminSystemGrid{order:5}
+  body.adminDashboardV2 #adminPanelOverview .adminMetric,
+  body.adminDashboardV2 #adminPanelOverview .dashboardHealthCard{
+    position:relative;
+    min-width:0;
+    min-height:108px;
+    margin:0!important;
+    padding:17px 16px 15px 68px!important;
+    border:1px solid var(--admin-v2-line)!important;
+    border-radius:10px!important;
+    background:var(--admin-v2-surface)!important;
+    box-shadow:none!important;
+  }
+  body.adminDashboardV2 #adminPanelOverview .adminMetric::before,
+  body.adminDashboardV2 #adminPanelOverview .dashboardHealthCard::before{
+    content:"";
+    position:absolute;
+    top:25px;
+    left:18px;
+    width:34px;
+    height:34px;
+    background-position:center;
+    background-repeat:no-repeat;
+    background-size:contain;
+  }
+  body.adminDashboardV2 #adminPanelOverview .adminMetric:nth-child(1)::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2343ddd2' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='9' cy='8' r='3'/%3E%3Cpath d='M3.5 20v-2.2A4.8 4.8 0 0 1 8.3 13h1.4a4.8 4.8 0 0 1 4.8 4.8V20M16 5.5a3 3 0 0 1 0 5.8M17.5 14a4 4 0 0 1 3 3.8V20'/%3E%3C/svg%3E")}
+  body.adminDashboardV2 #adminPanelOverview .adminMetric:nth-child(2)::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2343ddd2' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3l7 3v5c0 4.4-2.8 7.6-7 9-4.2-1.4-7-4.6-7-9V6l7-3z'/%3E%3Ccircle cx='12' cy='9' r='2'/%3E%3Cpath d='M8.8 15a3.6 3.6 0 0 1 6.4 0'/%3E%3C/svg%3E")}
+  body.adminDashboardV2 #adminPanelOverview .adminMetric:nth-child(3)::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2343ddd2' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 13h4l2-7 4 12 2-6h6'/%3E%3C/svg%3E")}
+  body.adminDashboardV2 #adminPanelOverview .dashboardHealthCard::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2363da83'%3E%3Cpath d='M12 21s-8-4.6-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6.4-8 11-8 11z'/%3E%3Cpath d='M5.5 12h3l1.5-3 2.2 6 1.6-3H19' fill='none' stroke='%2306131d' stroke-width='1.4'/%3E%3C/svg%3E")}
+  body.adminDashboardV2 #adminPanelOverview .adminMetric .label{color:#9fb3c1;font-size:12px}
+  body.adminDashboardV2 #adminPanelOverview .adminMetric .metricValue{margin-top:6px;color:#fff;font-size:30px!important;line-height:1}
+  body.adminDashboardV2 #adminPanelOverview .adminMetric .small{margin-top:7px;font-size:11px}
+  body.adminDashboardV2 #adminPanelOverview .dashboardHealthCard{display:grid!important;align-content:center;border-color:rgba(99,218,131,.34)!important}
+  body.adminDashboardV2 #adminPanelOverview .dashboardHealthCard>div{min-width:0}
+  body.adminDashboardV2 #adminPanelOverview .dashboardHealthCard h3{margin:0 0 4px;font-size:14px}
+  body.adminDashboardV2 #adminPanelOverview .dashboardHealthCard p{font-size:11px;line-height:1.45}
+  body.adminDashboardV2 #adminPanelOverview .dashboardHealthCard button{justify-self:start;min-height:30px;margin-top:7px;padding:5px 8px;font-size:10px}
+  body.adminDashboardV2 #adminPanelOverview>.sectionCard{padding:14px!important}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameGrid{
+    display:grid!important;
+    grid-template-columns:1fr;
+    gap:0!important;
+    margin:10px 0 0!important;
+    overflow:hidden;
+    border:1px solid var(--admin-v2-line);
+    border-radius:8px;
+  }
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameCard{
+    display:grid!important;
+    grid-template-columns:minmax(145px,.72fr) minmax(0,3.2fr);
+    gap:12px;
+    min-height:76px;
+    margin:0!important;
+    padding:11px 12px!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-v2-line-soft)!important;
+    border-radius:0!important;
+    background:#081721!important;
+  }
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameCard:last-child{border-bottom:0!important}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameSummary{
+    display:grid;
+    position:relative;
+    grid-template-columns:38px minmax(0,1fr);
+    grid-template-rows:auto auto;
+    align-content:center;
+    gap:5px 10px;
+    min-height:0;
+    padding:0;
+  }
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameIcon{display:block;grid-column:1;grid-row:1/3;width:38px;height:38px;border-radius:9px;object-fit:cover}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameStatusDot{display:block;z-index:1;grid-column:1;grid-row:1/3;align-self:end;justify-self:end;width:10px;height:10px;border:2px solid #081721;border-radius:50%;background:var(--admin-v2-success)}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameSummary h3{grid-column:2;grid-row:1;margin:0!important;font-size:14px}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameAchievementCount{display:block;grid-column:2;grid-row:2;color:#b7c9d5;font-size:11px}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameExpand{display:none!important}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameDetails{
+    display:grid!important;
+    grid-template-columns:1.4fr repeat(3,minmax(108px,.7fr)) auto;
+    align-items:center;
+    gap:8px 10px;
+    min-width:0;
+    padding:0;
+  }
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameStats{display:none!important}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameDetails>.small{
+    grid-column:auto;
+    margin:0;
+    overflow:hidden;
+    color:#8fa7b9;
+    font-size:10px;
+    line-height:1.4;
+    text-overflow:ellipsis;
+  }
+  body.adminDashboardV2 #adminPanelOverview .dashboardSourceLine{display:grid;gap:3px;padding:0;border:0;font-size:10px}
+  body.adminDashboardV2 #adminPanelOverview .dashboardSourceLine span:first-child{color:#728ea2}
+  body.adminDashboardV2 #adminPanelOverview .dashboardSourceLine span:last-child{text-align:left;color:#c8d7e0}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameDetails>.adminSystemActions{justify-content:flex-end;flex-wrap:nowrap}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameDetails>.adminSystemActions button{min-height:31px;padding:5px 8px!important;font-size:10px;white-space:nowrap}
+  body.adminDashboardV2 #adminPanelOverview .dashboardRedeemGrid{
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:0;
+    margin:10px 0 0;
+    overflow:hidden;
+    border:1px solid var(--admin-v2-line);
+    border-radius:8px;
+  }
+  body.adminDashboardV2 #adminPanelOverview .dashboardRedeemMetric{
+    padding:9px 10px;
+    border:0!important;
+    border-right:1px solid var(--admin-v2-line-soft)!important;
+    border-bottom:1px solid var(--admin-v2-line-soft)!important;
+    border-radius:0!important;
+    background:#081721!important;
+  }
+  body.adminDashboardV2 #adminPanelOverview .dashboardRedeemMetric:nth-child(4n){border-right:0!important}
+  body.adminDashboardV2 #adminPanelOverview .dashboardRedeemMetric:nth-last-child(-n+4){border-bottom:0!important}
+  body.adminDashboardV2 #adminPanelOverview .dashboardRedeemMetric span{font-size:10px}
+  body.adminDashboardV2 #adminPanelOverview .dashboardRedeemMetric strong{font-size:19px}
+  body.adminDashboardV2 #adminPanelOverview .dashboardWorkGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:10px 0 0}
+  body.adminDashboardV2 #adminPanelOverview .dashboardWorkCard{padding:9px 10px!important;border-color:var(--admin-v2-line-soft)!important;border-radius:7px!important;background:#081721!important}
+  body.adminDashboardV2 #adminPanelOverview .dashboardWorkCard span{font-size:10px}
+  body.adminDashboardV2 #adminPanelOverview .dashboardWorkCard strong{font-size:19px}
+  body.adminDashboardV2 #adminPanelOverview .dashboardQuickActions{justify-content:flex-end;margin-top:9px}
+  body.adminDashboardV2 #adminPanelOverview>.adminSystemGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  body.adminDashboardV2 #adminPanelOverview .adminSystemCard{padding:14px!important;border-color:var(--admin-v2-line)!important;border-radius:10px!important;background:var(--admin-v2-surface)!important}
+  body.adminDashboardV2 #adminPanelOverview .stack{gap:0}
+  body.adminDashboardV2 #adminPanelOverview .stack .listItem{padding:9px 2px!important;border:0!important;border-bottom:1px solid var(--admin-v2-line-soft)!important;border-radius:0!important;background:transparent!important}
+
+  body.adminDashboardV2 .achievementManagementPanel{gap:12px!important}
+  body.adminDashboardV2 .achievementManagementToolbar{
+    align-items:center!important;
+    margin:0!important;
+    padding:12px!important;
+    border:1px solid var(--admin-v2-line)!important;
+    border-radius:10px!important;
+    background:var(--admin-v2-surface)!important;
+  }
+  body.adminDashboardV2 .achievementManagementFilters{grid-template-columns:minmax(220px,1.7fr) repeat(3,minmax(112px,.72fr));gap:8px}
+  body.adminDashboardV2 .achievementManagementActions{flex-wrap:nowrap}
+  body.adminDashboardV2 .achievementSummaryGrid{grid-template-columns:repeat(5,minmax(96px,1fr));gap:9px}
+  body.adminDashboardV2 .achievementSummaryGrid article{
+    display:grid;
+    grid-template-columns:27px minmax(0,1fr);
+    grid-template-rows:auto auto;
+    align-content:center;
+    column-gap:11px;
+    min-height:82px;
+    padding:13px 14px!important;
+    border:1px solid var(--admin-v2-line)!important;
+    border-radius:9px!important;
+    background:var(--admin-v2-surface)!important;
+  }
+  body.adminDashboardV2 .achievementSummaryGrid article::before{
+    display:none!important;
+  }
+  body.adminDashboardV2 .achievementSummaryIcon{display:block;grid-row:1/3;align-self:center;width:27px;height:27px;fill:none;stroke:var(--admin-v2-accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  body.adminDashboardV2 .achievementSummaryGrid article:nth-child(4) .achievementSummaryIcon{stroke:#95b8d0}
+  body.adminDashboardV2 .achievementSummaryGrid article:nth-child(5) .achievementSummaryIcon{stroke:var(--admin-v2-danger)}
+  body.adminDashboardV2 .achievementSummaryGrid span{font-size:10px!important}
+  body.adminDashboardV2 .achievementSummaryGrid strong{margin-top:4px!important;font-size:21px!important}
+  body.adminDashboardV2 #adminAchievementPager{display:none!important}
+  body.adminDashboardV2 .achievementPagerBottom{
+    min-height:54px;
+    margin:0 0 4px!important;
+    padding:9px 11px!important;
+    border:1px solid var(--admin-v2-line)!important;
+    border-radius:9px!important;
+    background:var(--admin-v2-surface)!important;
+  }
+  body.adminDashboardV2 .achievementTableWrap{overflow:auto!important;border-radius:9px!important}
+  body.adminDashboardV2 .achievementManagementTable{table-layout:fixed;min-width:780px}
+  body.adminDashboardV2 .achievementManagementTable tbody tr{height:auto;min-height:72px}
+  body.adminDashboardV2 .achievementManagementTable td{padding:10px 11px!important}
+  body.adminDashboardV2 .achievementPrimary{gap:3px}
+  body.adminDashboardV2 .achievementPrimary strong{font-size:13px}
+  body.adminDashboardV2 .achievementPrimary p{font-size:10px;line-height:1.45}
+  body.adminDashboardV2 .achievementPrimary code{font-size:10px}
+  body.adminDashboardV2 .achievementCategoryBadge,
+  body.adminDashboardV2 .achievementVersionBadge{padding:4px 7px;font-size:10px}
+
+  body.adminDashboardV2 #adminPanelUsers>.adminToolbar{margin-bottom:0!important}
+  body.adminDashboardV2 #adminPanelUsers>.adminSummary{padding:0 2px;font-size:12px}
+  body.adminDashboardV2 #adminPanelUsers .adminTable{min-width:1260px}
+  body.adminDashboardV2 #adminPanelUsers .userProgressGrid{gap:4px}
+  body.adminDashboardV2 #adminPanelUsers .userProgressGrid span{padding:4px 6px;border-radius:6px;background:#0c1c28}
+  body.adminDashboardV2 #adminPanelCategories .adminTable{min-width:760px}
+  body.adminDashboardV2 #adminPanelCategories .adminDangerNotice{margin:0!important}
+  body.adminDashboardV2 #adminPanelRelations .relationGroupList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  body.adminDashboardV2 #adminPanelRelations .relationGroupCard{padding:13px!important}
+  body.adminDashboardV2 #adminPanelReports .adminTable{min-width:900px}
+
+  body.adminDashboardV2 #adminPanelSync>.syncCommandCenter{display:grid;gap:12px;padding:15px!important}
+  body.adminDashboardV2 #adminPanelSync .syncGuide{margin:0;padding:9px 11px;border-left:3px solid var(--admin-v2-accent);border-radius:0 7px 7px 0;background:#081923;color:#9fb4c2;font-size:11px;line-height:1.55}
+  body.adminDashboardV2 #adminPanelSync .sourceStatusStrip{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));overflow:hidden;border:1px solid var(--admin-v2-line-soft);border-radius:8px;background:#071721}
+  body.adminDashboardV2 #adminPanelSync .sourceStatusItem{display:grid;grid-template-columns:8px minmax(0,1fr) auto auto;align-items:center;gap:9px;min-width:0;padding:9px 10px;border-right:1px solid var(--admin-v2-line-soft)}
+  body.adminDashboardV2 #adminPanelSync .sourceStatusItem:last-child{border-right:0}
+  body.adminDashboardV2 #adminPanelSync .sourceStatusDot{width:7px;height:7px;border-radius:50%;background:var(--admin-v2-success);box-shadow:0 0 0 3px rgba(99,218,131,.11)}
+  body.adminDashboardV2 #adminPanelSync .sourceStatusItem>div{display:grid;min-width:0}
+  body.adminDashboardV2 #adminPanelSync .sourceStatusItem small{color:#7893a7;font-size:9px}
+  body.adminDashboardV2 #adminPanelSync .sourceStatusItem strong{overflow:hidden;color:#dce8ee;font-size:11px;text-overflow:ellipsis;white-space:nowrap}
+  body.adminDashboardV2 #adminPanelSync .sourceStatusItem>div>span{overflow:hidden;color:#8198a8;font-size:9px;text-overflow:ellipsis;white-space:nowrap}
+  body.adminDashboardV2 #adminPanelSync .sourceStatusItem>a{color:var(--admin-v2-accent);font-size:10px;text-decoration:none}
+  body.adminDashboardV2 #adminPanelSync .sourceStatusItem>button{min-height:30px;padding:5px 8px!important;font-size:10px}
+  body.adminDashboardV2 #adminPanelSync .syncPreviewGrid{grid-template-columns:repeat(8,minmax(72px,1fr));gap:7px;margin:0}
+  body.adminDashboardV2 #adminPanelSync .syncPreviewMetric{min-height:70px;padding:10px!important;border-color:var(--admin-v2-line)!important;border-radius:8px!important;background:#081721!important}
+  body.adminDashboardV2 #adminPanelSync .syncPreviewMetric b{font-size:19px}
+  body.adminDashboardV2 #adminPanelSync .syncFilterGrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;padding:10px;border:1px solid var(--admin-v2-line);border-radius:8px;background:#081721}
+  body.adminDashboardV2 #adminPanelSync .syncWorkspace{display:grid;grid-template-columns:minmax(300px,.72fr) minmax(430px,1.28fr);min-height:540px;overflow:hidden;border:1px solid var(--admin-v2-line);border-radius:9px;background:#07151f}
+  body.adminDashboardV2 #adminPanelSync .syncListPane{display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-width:0;border-right:1px solid var(--admin-v2-line)}
+  body.adminDashboardV2 #adminPanelSync .syncListPane .syncSelectionToolbar{grid-template-columns:repeat(3,auto);margin:0!important;padding:10px;border-bottom:1px solid var(--admin-v2-line-soft)}
+  body.adminDashboardV2 #adminPanelSync .syncListPane .syncSelectionToolbar .small{grid-column:1/-1;justify-self:start;text-align:left}
+  body.adminDashboardV2 #adminPanelSync .syncListPane .syncChangeList{display:block;min-height:0;max-height:620px!important;overflow:auto!important;margin:0;padding:0}
+  body.adminDashboardV2 #adminPanelSync .syncChangeListItem{display:grid;grid-template-columns:20px minmax(0,1fr) 16px;align-items:center;gap:10px;margin:0!important;padding:12px!important;border:0!important;border-bottom:1px solid var(--admin-v2-line-soft)!important;border-left:3px solid transparent!important;border-radius:0!important;background:transparent!important;cursor:pointer}
+  body.adminDashboardV2 #adminPanelSync .syncChangeListItem:hover{background:#0b1d29!important}
+  body.adminDashboardV2 #adminPanelSync .syncChangeListItem.active{border-left-color:var(--admin-v2-accent)!important;background:#112735!important}
+  body.adminDashboardV2 #adminPanelSync .syncChangeListItem>svg{width:16px;height:16px;fill:none;stroke:#6f8798;stroke-width:2}
+  body.adminDashboardV2 #adminPanelSync .syncChangeListTitle{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+  body.adminDashboardV2 #adminPanelSync .syncChangeListTitle strong{min-width:0;font-size:12px;line-height:1.45}
+  body.adminDashboardV2 #adminPanelSync .syncChangeListItem .small{margin-top:4px;color:#8197a7;font-size:9px;line-height:1.45}
+  body.adminDashboardV2 #adminPanelSync .syncListPane .syncPager{margin:0!important;padding:9px;border-top:1px solid var(--admin-v2-line-soft)}
+  body.adminDashboardV2 #adminPanelSync .syncDetailPane{min-width:0;max-height:700px;overflow:auto;padding:14px;background:#091923}
+  body.adminDashboardV2 #adminPanelSync .syncDetailContent{margin:0;padding:0!important;border:0!important;background:transparent!important}
+  body.adminDashboardV2 #adminPanelSync .syncDetailHead{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  body.adminDashboardV2 #adminPanelSync .syncDetailSelect{display:flex;align-items:center;gap:8px;color:#c9d8e1;font-size:11px;font-weight:800}
+  body.adminDashboardV2 #adminPanelSync .syncDetailSelect input{width:18px;height:18px}
+  body.adminDashboardV2 #adminPanelSync .syncDetailContent>h4{margin:12px 0 8px;font-size:18px}
+  body.adminDashboardV2 #adminPanelSync .syncDetailAction{display:grid;grid-template-columns:92px minmax(0,1fr);align-items:center;gap:9px;margin:12px 0;color:#9eb1be;font-size:11px;font-weight:800}
+  body.adminDashboardV2 #adminPanelSync .syncDetailComparison{margin-top:12px}
+  body.adminDashboardV2 #adminPanelSync .syncDetailContent>.syncFieldList>h5{margin:16px 0 6px;color:#cbd8e1;font-size:12px}
+  body.adminDashboardV2 #adminPanelSync .syncDecisionBar{position:sticky;z-index:8;bottom:0;display:grid;grid-template-columns:minmax(260px,1fr) auto;align-items:end;gap:12px;padding:11px;border:1px solid var(--admin-v2-line);border-radius:9px;background:#0a1d29;box-shadow:0 -10px 26px rgba(0,0,0,.2)}
+  body.adminDashboardV2 #adminPanelSync .syncDecisionReason textarea{min-height:58px}
+  body.adminDashboardV2 #adminPanelSync .syncDecisionBar .syncPreviewActions{margin:0}
+  body.adminDashboardV2 #adminPanelSync .syncDiagnosticsPanel,
+  body.adminDashboardV2 #adminPanelSync .syncHistoryPanel{border:1px solid var(--admin-v2-line);border-radius:8px;background:#081721}
+  body.adminDashboardV2 #adminPanelSync .syncDiagnosticsPanel>summary,
+  body.adminDashboardV2 #adminPanelSync .syncHistoryPanel>summary{padding:11px 13px;color:#cbd8e1;font-size:12px;font-weight:850;cursor:pointer}
+  body.adminDashboardV2 #adminPanelSync .syncDiagnosticsPanel>.sourceDiagnostics,
+  body.adminDashboardV2 #adminPanelSync .syncHistoryPanel>.syncHistory{margin:0;padding:12px;border-top:1px solid var(--admin-v2-line-soft)}
+  body.adminDashboardV2 #adminPanelSync .syncHistory{display:grid;gap:8px}
+  body.adminDashboardV2 #adminPanelSync .syncHistoryItem{padding:12px!important;border:1px solid var(--admin-v2-line)!important;border-radius:8px!important;background:#081721!important}
+  body.adminDashboardV2 #adminPanelSync .syncHistoryHead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+  body.adminDashboardV2 #adminPanelSync .syncHistoryHead>div{display:flex;align-items:center;gap:9px}
+  body.adminDashboardV2 #adminPanelSync .syncHistoryHead span{color:var(--admin-v2-muted);font-size:11px}
+  body.adminDashboardV2 #adminPanelSync .syncHistoryMeta{display:flex;gap:6px 14px;flex-wrap:wrap;margin-top:7px;color:#91a9b9;font-size:10px}
+  body.adminDashboardV2 #adminPanelSync .syncHistoryMetrics{display:grid;grid-template-columns:repeat(6,minmax(70px,1fr));gap:6px;margin-top:10px}
+  body.adminDashboardV2 #adminPanelSync .syncHistoryMetrics>span{padding:7px 8px;border:1px solid var(--admin-v2-line-soft);border-radius:6px;background:#06131d}
+  body.adminDashboardV2 #adminPanelSync .syncHistoryMetrics small,
+  body.adminDashboardV2 #adminPanelSync .syncHistoryMetrics strong{display:block}
+  body.adminDashboardV2 #adminPanelSync .syncHistoryMetrics small{color:#7893a7;font-size:9px}
+  body.adminDashboardV2 #adminPanelSync .syncHistoryMetrics strong{margin-top:3px;font-size:15px}
+
+  body.adminDashboardV2 #adminPanelAnnouncements>.adminSummary,
+  body.adminDashboardV2 #adminPanelNotifications>.adminSummary{display:none}
+  body.adminDashboardV2 .messageCenterAdminGrid{grid-template-columns:minmax(300px,.72fr) minmax(0,1.65fr);gap:12px!important;margin-top:0!important;align-items:start}
+  body.adminDashboardV2 #adminPanelAnnouncements .messageCenterAdminGrid>.sectionCard:first-child,
+  body.adminDashboardV2 #adminPanelNotifications .messageCenterAdminGrid>.sectionCard:first-child{position:sticky;top:0;align-self:start}
+  body.adminDashboardV2 #adminPanelAnnouncements textarea{min-height:150px}
+  body.adminDashboardV2 #adminPanelAnnouncements .messageCenterAdminGrid>.sectionCard:first-child .formGrid,
+  body.adminDashboardV2 #adminPanelNotifications .messageCenterAdminGrid>.sectionCard:first-child .formGrid{grid-template-columns:1fr}
+  body.adminDashboardV2 #adminPanelAnnouncements .messageCenterAdminGrid>.sectionCard:first-child .formGrid>* ,
+  body.adminDashboardV2 #adminPanelNotifications .messageCenterAdminGrid>.sectionCard:first-child .formGrid>*{grid-column:1/-1;min-width:0}
+  body.adminDashboardV2 #adminPanelAnnouncements .stack,
+  body.adminDashboardV2 #adminPanelNotifications .notificationList{display:grid;gap:0}
+  body.adminDashboardV2 #adminPanelAnnouncements .listItem,
+  body.adminDashboardV2 #adminPanelNotifications .notificationCard{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:6px 14px;
+    padding:13px 3px!important;
+    border:0!important;
+    border-bottom:1px solid var(--admin-v2-line-soft)!important;
+    border-radius:0!important;
+    background:transparent!important;
+  }
+  body.adminDashboardV2 #adminPanelAnnouncements .listItem>h4,
+  body.adminDashboardV2 #adminPanelAnnouncements .listItem>p,
+  body.adminDashboardV2 #adminPanelAnnouncements .listItem>.scheduleState,
+  body.adminDashboardV2 #adminPanelNotifications .notificationCard>*{grid-column:1}
+  body.adminDashboardV2 #adminPanelAnnouncements .listItem>.listItemActions,
+  body.adminDashboardV2 #adminPanelNotifications .notificationCard>.listItemActions{grid-column:2;grid-row:1/-1;align-self:center}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementListCard{min-width:0;padding:0!important;overflow:hidden}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementListHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 14px;border-bottom:1px solid var(--admin-v2-line-soft)}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementListHeading h3{margin:0 0 3px}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementListFilters{display:grid;grid-template-columns:minmax(190px,1fr) 130px 130px;gap:8px;padding:10px 14px;border-bottom:1px solid var(--admin-v2-line-soft);background:#081721}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementTableHeader,
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementAdminRow{display:grid;grid-template-columns:minmax(180px,1.05fr) minmax(220px,1.45fr) minmax(145px,.8fr) 72px 112px;gap:12px;align-items:center}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementTableHeader{padding:9px 14px;border-bottom:1px solid var(--admin-v2-line);background:#132838;color:#8fa8b9;font-size:10px;font-weight:850}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementAdminList{display:block}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementAdminRow{min-height:84px;padding:11px 14px!important;border:0!important;border-bottom:1px solid var(--admin-v2-line-soft)!important;border-radius:0!important;background:transparent!important}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementAdminRow:last-child{border-bottom:0!important}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementCell{min-width:0}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementTitleLine{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementTitleLine strong{min-width:0;overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementPinned{padding:3px 6px;border:1px solid rgba(255,194,61,.28);border-radius:999px;color:#ffd265;font-size:9px}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementMobileStatus{display:none}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementPreview p{display:-webkit-box;overflow:hidden;margin:0;color:#a8bac6;font-size:11px;line-height:1.55;-webkit-box-orient:vertical;-webkit-line-clamp:3}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementSchedule{display:grid;gap:4px;color:#8da5b5;font-size:10px}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementSchedule span:first-child::before{content:"開始 ";color:#657f91}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementSchedule span:last-child::before{content:"結束 ";color:#657f91}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementState{text-align:center}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementActions{display:flex;grid-column:auto!important;grid-row:auto!important;align-self:center!important;justify-content:flex-end;gap:6px}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementActions button{min-height:34px;padding:6px 9px!important;font-size:10px}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementPager{display:flex;align-items:center;justify-content:flex-end;gap:9px;padding:10px 14px;border-top:1px solid var(--admin-v2-line);background:#081721;color:#8fa7b9;font-size:10px}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementPager button{min-height:34px;padding:6px 10px!important}
+
+  body.adminDashboardV2 #adminPanelRedeem:not([hidden]){display:flex;flex-direction:column;gap:12px!important}
+  body.adminDashboardV2 #adminPanelRedeem>.adminToolbar:first-child{order:0;margin:0!important}
+  body.adminDashboardV2 .redeemWorkspaceTop{
+    order:1;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    min-height:54px;
+    padding:0 4px;
+    border-bottom:1px solid var(--admin-v2-line);
+  }
+  body.adminDashboardV2 .adminSectionTabs{display:flex;align-items:center;gap:24px;min-width:0;overflow:auto}
+  body.adminDashboardV2 .adminSectionTab{
+    position:relative;
+    min-height:52px!important;
+    padding:0 2px!important;
+    border:0!important;
+    border-radius:0!important;
+    background:transparent!important;
+    color:#a9bdca!important;
+    white-space:nowrap;
+  }
+  body.adminDashboardV2 .adminSectionTab::after{content:"";position:absolute;right:0;bottom:0;left:0;height:2px;border-radius:2px;background:transparent}
+  body.adminDashboardV2 .adminSectionTab.active{color:var(--admin-v2-accent)!important}
+  body.adminDashboardV2 .adminSectionTab.active::after{background:var(--admin-v2-accent)}
+  body.adminDashboardV2 .adminSectionTab:focus-visible{outline:2px solid rgba(67,221,210,.65);outline-offset:-3px}
+  body.adminDashboardV2 .redeemWorkspaceActions{display:flex;gap:8px;flex:0 0 auto}
+  body.adminDashboardV2 .redeemWorkspaceSummary{
+    order:2;
+    overflow:hidden;
+    border:1px solid var(--admin-v2-line);
+    border-radius:10px;
+    background:var(--admin-v2-surface);
+  }
+  body.adminDashboardV2 .redeemWorkspaceMetrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
+  body.adminDashboardV2 .redeemWorkspaceMetrics article{padding:14px 18px;border-right:1px solid var(--admin-v2-line-soft)}
+  body.adminDashboardV2 .redeemWorkspaceMetrics article:last-child{border-right:0}
+  body.adminDashboardV2 .redeemWorkspaceMetrics span{display:block;color:#9db2c0;font-size:11px}
+  body.adminDashboardV2 .redeemWorkspaceMetrics strong{display:block;margin-top:5px;color:#f2f8fb;font-size:24px;line-height:1}
+  body.adminDashboardV2 .redeemWorkspaceMetrics article:nth-child(2) strong{color:var(--admin-v2-success)}
+  body.adminDashboardV2 .redeemWorkspaceMetrics article:nth-child(3) strong,
+  body.adminDashboardV2 .redeemWorkspaceMetrics article:nth-child(5) strong{color:var(--admin-v2-warning)}
+  body.adminDashboardV2 .redeemWorkspaceMetrics article:nth-child(4) strong{color:#9fb1bd}
+  body.adminDashboardV2 .redeemWorkspaceWarning{padding:10px 14px;border-top:1px solid rgba(255,194,61,.3);background:rgba(255,194,61,.07);color:#ffd265;font-size:12px}
+  body.adminDashboardV2 .redeemWorkspaceView{order:3;display:grid;gap:12px;min-width:0}
+  body.adminDashboardV2 .redeemWorkspaceView[hidden]{display:none!important}
+  body.adminDashboardV2 .redeemWorkspaceView>.adminToolbar{margin:0!important}
+  body.adminDashboardV2 .redeemWorkspaceView>.adminTableWrap .adminTable{min-width:900px}
+  body.adminDashboardV2 .redeemWorkspaceView[data-redeem-view-panel="codes"]>.adminTableWrap .adminTable{min-width:1080px;table-layout:fixed}
+  body.adminDashboardV2 .redeemWorkspaceView[data-redeem-view-panel="codes"] .adminTable th:nth-child(1){width:74px}
+  body.adminDashboardV2 .redeemWorkspaceView[data-redeem-view-panel="codes"] .adminTable th:nth-child(2){width:170px}
+  body.adminDashboardV2 .redeemWorkspaceView[data-redeem-view-panel="codes"] .adminTable th:nth-child(3){width:150px}
+  body.adminDashboardV2 .redeemWorkspaceView[data-redeem-view-panel="codes"] .adminTable th:nth-child(4){width:260px}
+  body.adminDashboardV2 .redeemWorkspaceView[data-redeem-view-panel="codes"] .adminTable th:nth-child(5){width:145px}
+  body.adminDashboardV2 .redeemWorkspaceView[data-redeem-view-panel="codes"] .adminTable th:nth-child(6){width:160px}
+  body.adminDashboardV2 .redeemWorkspaceView[data-redeem-view-panel="codes"] .adminTable th:nth-child(7){width:120px}
+  body.adminDashboardV2 #adminPanelRedeem .redeemAdminGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  body.adminDashboardV2 #adminPanelRedeem .redeemImportEditor,
+  body.adminDashboardV2 #adminPanelRedeem .redeemImportAdvancedBody{border-color:var(--admin-v2-line)!important;border-radius:8px!important;background:#07151f!important}
+  body.adminDashboardV2 #adminPanelRedeem .redeemImportGridHeader{background:#132636!important}
+
+  body.adminDashboardV2 #adminPanelBackups .adminTable{min-width:760px}
+  body.adminDashboardV2 #adminPanelEmail:not([hidden]){
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    gap:12px!important;
+    align-items:start;
+  }
+  body.adminDashboardV2 #adminPanelEmail>.emailTestToolbar{display:grid;grid-template-columns:auto minmax(320px,640px);align-items:center;justify-content:start;gap:16px;align-self:start;padding:12px 14px!important}
+  body.adminDashboardV2 #adminPanelEmail>.emailTestToolbar h3{margin:0!important;white-space:nowrap}
+  body.adminDashboardV2 #adminPanelEmail>.emailTestToolbar .formGrid{grid-template-columns:minmax(220px,1fr) auto;align-items:end;gap:10px;width:100%}
+  body.adminDashboardV2 #adminPanelEmail>.emailTestToolbar .formGrid>*{grid-column:auto}
+  body.adminDashboardV2 #adminPanelEmail>.emailTestToolbar .adminFormActions{margin-top:0}
+  body.adminDashboardV2 #adminPanelEmail>.emailLogWorkspace{display:grid;gap:12px;min-width:0;align-content:start}
+  body.adminDashboardV2 #adminPanelEmail>.emailLogWorkspace>.adminToolbar{margin:0!important;align-self:start}
+  body.adminDashboardV2 #adminPanelEmail>.emailLogWorkspace>.adminTableWrap{min-width:0}
+  body.adminDashboardV2 #adminPanelEmail .adminTable{min-width:880px}
+  body.adminDashboardV2 #adminPanelHealth:not([hidden]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px!important}
+  body.adminDashboardV2 #adminPanelHealth>.adminToolbar,
+  body.adminDashboardV2 #adminPanelHealth>.adminFeatureGrid{grid-column:1/-1}
+  body.adminDashboardV2 #adminPanelHealth .adminFeatureGrid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  body.adminDashboardV2 #adminPanelHealth .adminFeatureCard{padding:14px!important}
+  body.adminDashboardV2 #adminPanelHealth>.sectionCard{min-width:0}
+  body.adminDashboardV2 #adminPanelSecurity .twoColumn{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+  body.adminDashboardV2 #adminPanelSupport>.stack{display:grid;gap:10px}
+  body.adminDashboardV2 #adminPanelSupport .listItem{border-color:var(--admin-v2-line)!important;border-radius:9px!important;background:var(--admin-v2-surface)!important}
+  body.adminDashboardV2 #adminPanelLogs .adminTable{min-width:980px!important}
+
+  body.adminDashboardV2 dialog:not(#adminDialog){
+    border:1px solid var(--admin-v2-line)!important;
+    border-radius:12px!important;
+    background:#081721!important;
+    box-shadow:0 28px 80px rgba(0,0,0,.55)!important;
+  }
+  body.adminDashboardV2 dialog:not(#adminDialog)::backdrop{background:rgba(1,7,12,.78)!important;backdrop-filter:blur(4px)}
+  body.adminDashboardV2 dialog:not(#adminDialog)>.dialogHead,
+  body.adminDashboardV2 .governanceStickyHead,
+  body.adminDashboardV2 .relationValidationSticky{
+    min-height:64px;
+    padding:13px 16px!important;
+    border-color:var(--admin-v2-line)!important;
+    background:#102332!important;
+    box-shadow:none!important;
+  }
+  body.adminDashboardV2 dialog:not(#adminDialog)>.dialogBody{padding:16px!important;background:#081721!important}
+  body.adminDashboardV2 .governanceShell,
+  body.adminDashboardV2 .relationValidationShell{background:#081721!important}
+  body.adminDashboardV2 .governanceToolbar,
+  body.adminDashboardV2 .governanceBottomBar,
+  body.adminDashboardV2 .relationValidationBottom{border-color:var(--admin-v2-line)!important;background:#0a1a26!important;box-shadow:none!important}
+  body.adminDashboardV2 .governanceBody,
+  body.adminDashboardV2 .relationValidationBody{background:var(--admin-v2-bg)!important}
+}
+
+@media(min-width:761px) and (max-width:1199px){
+  body.adminDashboardV2 .adminWorkspace{grid-template-columns:196px minmax(0,1fr)!important}
+  body.adminDashboardV2 .adminWorkspaceContent{padding-inline:16px!important}
+  body.adminDashboardV2 .adminPageHeader{margin-inline:-16px!important;padding-inline:16px!important}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameDetails{grid-template-columns:1fr repeat(3,minmax(94px,.72fr))}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameDetails>.adminSystemActions{grid-column:1/-1;justify-content:flex-start}
+  body.adminDashboardV2 .achievementManagementToolbar{align-items:stretch!important;flex-direction:column}
+  body.adminDashboardV2 .achievementManagementActions{justify-content:flex-start}
+  body.adminDashboardV2 .achievementSummaryGrid{grid-template-columns:repeat(5,minmax(88px,1fr))}
+  body.adminDashboardV2 .achievementSummaryGrid article{padding-left:14px!important}
+  body.adminDashboardV2 .achievementSummaryGrid article::before{display:none}
+  body.adminDashboardV2 #adminPanelSync .syncPreviewGrid{grid-template-columns:repeat(4,minmax(88px,1fr))}
+  body.adminDashboardV2 #adminPanelSync .syncWorkspace{grid-template-columns:minmax(280px,.7fr) minmax(380px,1.3fr)}
+  body.adminDashboardV2 #adminPanelSync .syncFilterGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+@media(min-width:761px) and (max-width:980px){
+  body.adminDashboardV2 #adminPanelOverview>.adminMetricGrid{grid-column:1/-1}
+  body.adminDashboardV2 #adminPanelOverview>.dashboardHealthCard{grid-column:1/-1}
+  body.adminDashboardV2 #adminPanelOverview>.sectionCard:nth-last-child(3),
+  body.adminDashboardV2 #adminPanelOverview>.sectionCard:nth-last-child(2){grid-column:1/-1}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameCard{grid-template-columns:1fr}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameDetails{grid-template-columns:repeat(3,minmax(0,1fr))}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameDetails>.small,
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameDetails>.adminSystemActions{grid-column:1/-1}
+  body.adminDashboardV2 .messageCenterAdminGrid{grid-template-columns:1fr}
+  body.adminDashboardV2 #adminPanelAnnouncements .messageCenterAdminGrid>.sectionCard:first-child,
+  body.adminDashboardV2 #adminPanelNotifications .messageCenterAdminGrid>.sectionCard:first-child{position:static}
+  body.adminDashboardV2 #adminPanelEmail:not([hidden]){grid-template-columns:1fr}
+  body.adminDashboardV2 #adminPanelEmail>.sectionCard,
+  body.adminDashboardV2 #adminPanelEmail>.emailLogWorkspace{grid-column:auto;grid-row:auto}
+  body.adminDashboardV2 #adminPanelHealth .adminFeatureGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body.adminDashboardV2 #adminPanelHealth:not([hidden]){grid-template-columns:1fr}
+  body.adminDashboardV2 #adminPanelHealth>.adminToolbar,
+  body.adminDashboardV2 #adminPanelHealth>.adminFeatureGrid{grid-column:1}
+  body.adminDashboardV2 #adminPanelRelations .relationGroupList,
+  body.adminDashboardV2 #adminPanelSecurity .twoColumn{grid-template-columns:1fr}
+  body.adminDashboardV2 .redeemWorkspaceTop{align-items:flex-start;flex-direction:column;padding-bottom:10px}
+  body.adminDashboardV2 .redeemWorkspaceMetrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+  body.adminDashboardV2 .redeemWorkspaceMetrics article{border-bottom:1px solid var(--admin-v2-line-soft)}
+  body.adminDashboardV2 #adminPanelSync .sourceCardGrid,
+  body.adminDashboardV2 #adminPanelSync .syncFilterGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body.adminDashboardV2 #adminPanelSync .syncWorkspace{grid-template-columns:1fr}
+  body.adminDashboardV2 #adminPanelSync .syncListPane{border-right:0;border-bottom:1px solid var(--admin-v2-line)}
+  body.adminDashboardV2 #adminPanelSync .syncListPane .syncChangeList{max-height:360px!important}
+  body.adminDashboardV2 #adminPanelSync .syncDetailPane{max-height:none}
+}
+
+@media(min-width:761px){
+  body.adminDashboardV2 #adminPanelOverview .dashboardHealthCard{grid-template-columns:1fr!important}
+  body.adminDashboardV2 #adminPanelOverview .dashboardHealthCard button{display:none!important}
+  body.adminDashboardV2 #adminPanelOverview .dashboardHealthCard h3{white-space:nowrap}
+}
+
+@media(min-width:981px) and (max-width:1199px){
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameDetails{grid-template-columns:repeat(3,minmax(112px,1fr)) auto}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameDetails>.small{display:none}
+  body.adminDashboardV2 #adminPanelOverview .dashboardGameDetails>.adminSystemActions{grid-column:auto;justify-content:flex-end}
+}
+
+@media(max-width:760px){
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementListHeading{display:block;padding:0;border:0}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementListHeading .small,
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementListFilters,
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementTableHeader,
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementPager,
+  body.adminDashboardV2 #adminPanelAnnouncements #refreshAnnouncementsBtn{display:none!important}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementAdminRow{display:block}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementMobileStatus{display:inline-flex}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementState{display:none}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementPreview p{white-space:pre-wrap}
+  body.adminDashboardV2 #adminPanelAnnouncements .announcementSchedule span{display:block}
+  body.adminDashboardV2 #adminPanelSync .sourceStatusStrip{display:grid;grid-template-columns:1fr;gap:12px}
+  body.adminDashboardV2 #adminPanelSync .syncWorkspace,
+  body.adminDashboardV2 #adminPanelSync .syncListPane{display:block}
+  body.adminDashboardV2 #adminPanelSync .syncDetailPane{display:none}
+  body.adminDashboardV2 #adminPanelSync .syncDecisionBar{display:block}
+}
+
+body.adminDashboardV2 .announcementEditDialog{width:min(760px,calc(100vw - 40px))!important;max-width:none}
+body.adminDashboardV2 .announcementEditDialog>.dialogBody{max-height:calc(90vh - 74px);overflow:auto}
+body.adminDashboardV2 .announcementEditDialog textarea{min-height:180px}
+body.adminDashboardV2 .announcementEditNotice{padding:10px 12px;border:1px solid rgba(99,215,199,.22);border-radius:9px;background:rgba(99,215,199,.07);color:#a9c4d4;font-size:11px;line-height:1.55}
+
+@media(max-width:760px){
+  body.adminDashboardV2 .announcementEditDialog{position:fixed;inset:0;width:100vw!important;max-width:none!important;height:100vh;height:100dvh;max-height:none!important;margin:0;padding:0;border:0;border-radius:0!important}
+  body.adminDashboardV2 .announcementEditDialog[open]{display:grid;grid-template-rows:auto minmax(0,1fr)}
+  body.adminDashboardV2 .announcementEditDialog>.dialogBody{max-height:none;overflow:auto;padding-bottom:calc(18px + env(safe-area-inset-bottom))!important}
+  body.adminDashboardV2 .announcementEditDialog textarea{min-height:150px}
+  body.adminDashboardV2 .announcementEditDialog .adminFormActions{display:grid;grid-template-columns:1fr 1fr}
+  body.adminDashboardV2 .announcementEditDialog .adminFormActions button{width:100%}
 }

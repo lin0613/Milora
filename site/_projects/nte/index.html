@@ -1,15 +1,15 @@
 <!DOCTYPE html>
-<!-- 20260622-genshin-stage-exclusive-v1 -->
+<!-- 20260813-source-isolation-review-decisions-1290 -->
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="description" content="鳴潮成就紀錄器，可依分類、版本與完成狀態查詢成就並記錄進度。">
+<meta name="description" content="異環成就紀錄器，可查詢成就條件、分類與版本並記錄完成進度。">
 <meta name="robots" content="noindex,follow">
-<link rel="canonical" href="https://miloratool.tdvr.tw/wuwa/">
+<link rel="canonical" href="https://miloratool.tdvr.tw/nte/">
 <link rel="stylesheet" href="/assets/shared/common.css">
 <script defer src="/assets/shared/runtime.js?v=20260713-responsive-mobile-shell-1220"></script>
-<title>鳴潮成就紀錄器｜遊戲成就紀錄器</title>
+<title>異環成就紀錄器｜遊戲成就紀錄器</title>
 <style>
 :root{--bg:#080d13;--panel:#111a24;--panel2:#182532;--line:#2b3a4d;--text:#eef5fb;--muted:#95a9bd;--a:#62dbc9;--b:#88aaff;--gold:#ffd477;--danger:#ff7f8b;--ok:#76e4a4}
 *{box-sizing:border-box}html{scroll-behavior:smooth;background:var(--bg)}body{margin:0;background:var(--bg);background-image:none;color:var(--text);font-family:"Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif}
@@ -25,7 +25,7 @@ input,select{width:100%;background:#0b121a;color:var(--text);border:1px solid va
 .notice{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:11px 0 14px;padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.02);color:var(--muted);line-height:1.55}.notice strong{color:var(--text)}
 .layout{display:grid;grid-template-columns:300px 1fr;gap:14px}.side{position:sticky;top:99px;max-height:calc(100vh - 116px);overflow:auto}.side h3{margin:0 0 10px}.sideTitle{margin:16px 0 6px;color:#c8d5e1;font-size:14px}
 .groupBtn{width:100%;text-align:left;padding:10px 11px;margin:3px 0;background:transparent;color:var(--text);border:1px solid transparent;border-radius:10px}.groupBtn:hover,.groupBtn.active{background:var(--panel2);border-color:var(--line)}.groupBtn small{float:right;color:var(--muted)}
-.tools{display:flex;gap:7px;flex-wrap:wrap}.tools button{flex:1 1 auto}.list{display:grid;gap:10px}.achievement{display:grid;grid-template-columns:auto 1fr auto;gap:13px;align-items:start;padding:15px;border:1px solid var(--line);border-radius:15px;background:var(--panel)}.achievement.done{opacity:.67}.achievement.done h3{text-decoration:line-through}.achievement.choiceLocked{opacity:.55}.check{width:23px;height:23px;accent-color:var(--a);margin-top:3px}.check:disabled{cursor:not-allowed;filter:grayscale(.45)}.achievement h3{margin:0 0 7px;font-size:17px}.desc{color:#c9d5e0;line-height:1.55;white-space:pre-wrap}.meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.tag{font-size:12px;padding:4px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}.tag.version{color:#9fc0ff}.tag.hiddenTag{color:#ffb0b7;border-color:rgba(255,127,139,.4)}.relatedGroup{position:relative;display:grid;gap:8px;padding:24px 8px 8px;border:1px solid rgba(126,107,255,.72);border-radius:16px;background:linear-gradient(180deg,rgba(91,70,225,.12),rgba(91,70,225,.035))}.relatedGroupLabel{position:absolute;top:-1px;left:16px;padding:4px 13px 5px;border:1px solid rgba(126,107,255,.72);border-top:0;border-radius:0 0 9px 9px;background:#796de5;color:#090b19;font-size:12px;font-weight:950;letter-spacing:.04em}.relatedGroup.stageGroup{border-color:rgba(98,219,201,.72);background:linear-gradient(180deg,rgba(98,219,201,.12),rgba(98,219,201,.035))}.relatedGroup.stageGroup .relatedGroupLabel{border-color:rgba(98,219,201,.72);background:#62dbc9}.relatedGroup .achievement{border-color:rgba(126,107,255,.42);border-radius:11px;background:rgba(8,12,29,.76)}.reward{white-space:nowrap;color:var(--gold);font-weight:900}.empty{text-align:center;color:var(--muted);padding:50px}.pager{display:flex;align-items:center;justify-content:center;gap:10px;margin:16px 0}.pager span{color:var(--muted)}
+.tools{display:flex;gap:7px;flex-wrap:wrap}.tools button{flex:1 1 auto}.list{display:grid;gap:10px}.achievement{display:grid;grid-template-columns:auto 1fr auto;gap:13px;align-items:start;padding:15px;border:1px solid var(--line);border-radius:15px;background:var(--panel)}.achievement.done{opacity:.67}.achievement.done h3{text-decoration:line-through}.achievement.choiceLocked{opacity:.55}.check{width:23px;height:23px;accent-color:var(--a);margin-top:3px}.check:disabled{cursor:not-allowed;filter:grayscale(.45)}.achievement h3{margin:0 0 7px;font-size:17px}.desc{color:#c9d5e0;line-height:1.55;white-space:pre-wrap}.meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.tag{font-size:12px;padding:4px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}.tag.version{color:#9fc0ff}.tag.hiddenTag{color:#ffb0b7;border-color:rgba(255,127,139,.4)}.tag.choiceTag{display:none}.choiceNote{margin-top:7px;font-size:12px;color:#ffe09a}.relatedGroup{position:relative;display:grid;gap:8px;padding:24px 8px 8px;border:1px solid rgba(126,107,255,.72);border-radius:16px;background:linear-gradient(180deg,rgba(91,70,225,.12),rgba(91,70,225,.035))}.relatedGroupLabel{position:absolute;top:-1px;left:16px;padding:4px 13px 5px;border:1px solid rgba(126,107,255,.72);border-top:0;border-radius:0 0 9px 9px;background:#796de5;color:#090b19;font-size:12px;font-weight:950;letter-spacing:.04em}.relatedGroup.stageGroup{border-color:rgba(98,219,201,.72);background:linear-gradient(180deg,rgba(98,219,201,.12),rgba(98,219,201,.035))}.relatedGroup.stageGroup .relatedGroupLabel{border-color:rgba(98,219,201,.72);background:#62dbc9}.relatedGroup .achievement{border-color:rgba(126,107,255,.42);border-radius:11px;background:rgba(8,12,29,.76)}.reward{white-space:nowrap;color:var(--gold);font-weight:900}.empty{text-align:center;color:var(--muted);padding:50px}.pager{display:flex;align-items:center;justify-content:center;gap:10px;margin:16px 0}.pager span{color:var(--muted)}
 dialog{width:min(850px,calc(100% - 22px));border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--text);padding:0;box-shadow:0 30px 90px rgba(0,0,0,.6)}dialog::backdrop{background:rgba(0,0,0,.7);backdrop-filter:blur(3px)}.dialogHead{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}.dialogHead h2{margin:0}.dialogBody{padding:18px}.dialogBody textarea{width:100%;min-height:260px;background:#091018;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;resize:vertical}.diagActions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.small{font-size:13px;color:var(--muted);line-height:1.55}.error{color:#ffadb5}
 @media(max-width:1100px){.pageLayout{grid-template-columns:1fr}.gameSelectorPanel{position:static;display:grid;grid-template-columns:auto minmax(220px,320px) 1fr;align-items:center;gap:12px}.gameSelectorTitle{margin:0}.gameSelectorCurrent{margin:0}.gameSelectorHint{margin:0}.stats{grid-template-columns:repeat(3,1fr)}.controls{grid-template-columns:1fr 1fr}.layout{grid-template-columns:1fr}.side{position:static;max-height:none}}
 @media(max-width:570px){.wrap{padding:11px}.pageLayout{padding:11px}.gameSelectorPanel{display:block}.gameSelectorTitle{margin-bottom:8px}.gameSelectorCurrent{margin-top:10px}.gameSelectorHint{margin-top:9px}.top{align-items:flex-start;flex-direction:column}.stats{grid-template-columns:1fr 1fr}.controls{grid-template-columns:1fr}.notice{align-items:flex-start;flex-direction:column}.achievement{grid-template-columns:auto 1fr}.reward{grid-column:2}.num{font-size:23px}}
@@ -178,19 +178,23 @@ body.gameProjectPage .gameNavToggle,body.gameProjectPage .gameNavBackdrop,body.g
 body.gameProjectPage .pageLayout{max-width:1680px;margin:0 auto;padding:16px}
 body.gameProjectPage header .wrap{padding-left:16px!important}
 @media(max-width:570px){body.gameProjectPage header .wrap{padding-left:10px!important}}
+
+/* 異環頁面不維護獨立登入介面；帳號操作統一由帳號設定處理 */
+#authDialog,#resetDialog{display:none!important}
+
 .notificationBadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--danger);color:#fff;font-size:11px;font-weight:900;margin-left:5px}.notificationBadge[hidden]{display:none}.notificationList{display:grid;gap:10px}.notificationCard{padding:13px;border:1px solid var(--line);border-radius:13px;background:#0b121a}.notificationCard.unread{border-color:rgba(98,219,201,.55)}.notificationCard h4{margin:0 0 7px}.notificationCard p{white-space:pre-wrap;line-height:1.6}.notificationMeta{color:var(--muted);font-size:12px}.notificationActions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.notificationLink{color:var(--a);font-weight:900;text-decoration:none}
 </style>
 </head>
 <body class="gameProjectPage">
-<!-- 20260622-wuwa-related-achievement-v2 -->
 <!-- achievement-search-performance-fix-v2 -->
+<!-- nte-account-center-v1 -->
 
 <div id="appShell">
 <!-- sidebar-tools-v6 -->
 
 
 <header><div class="wrap top">
- <div><h1>鳴潮成就紀錄器</h1><p>目前更新到3.6版本｜有bug請回報</p></div>
+ <div><h1>異環成就紀錄器</h1><p>目前更新到1.3版本｜有bug請回報</p></div>
  <div class="accountActions">
   <button class="secondary" id="notificationBtn" hidden>通知<span class="notificationBadge" id="notificationBadge" hidden>0</span></button>
   <button class="secondary" id="supportBtn" hidden aria-hidden="true" style="display:none!important">問題回報</button>
@@ -222,7 +226,7 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
  </div>
  <nav class="gameNavScroll">
   <div class="gameNavSectionTitle">遊戲</div>
-  <button class="gameNavItem active" type="button" data-game="wuthering-waves" data-game-route="/games/wuwa/index.html" aria-current="page" title="鳴潮">
+  <button class="gameNavItem" type="button" data-game="wuthering-waves" data-game-route="/games/wuwa/index.html" title="鳴潮">
    <span class="gameNavIcon gameNavIconWuwa" id="wuwaLogoFrame" aria-hidden="true" hidden></span>
    <span class="gameNavText" data-mini-label="鳴潮"><strong>鳴潮</strong><small>成就紀錄器</small></span>
   </button>
@@ -230,11 +234,15 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
    <span class="gameNavIcon gameNavIconHsr" aria-hidden="true" style="overflow:hidden;padding:0"></span>
    <span class="gameNavText" data-mini-label="崩鐵"><strong>崩壞：星穹鐵道</strong><small>成就紀錄器</small></span>
   </button>
+  <button class="gameNavItem" type="button" data-game="genshin" data-game-route="/games/genshin/index.html" title="原神">
+   <span class="gameNavIcon gameNavIconGenshin" aria-hidden="true" style="overflow:hidden;padding:0"></span>
+   <span class="gameNavText" data-mini-label="原神"><strong>原神</strong><small>成就紀錄器</small></span>
+  </button>
   <button class="gameNavItem" type="button" data-game="zzz" data-game-route="/games/zzz/index.html" title="絕區零">
    <span class="gameNavIcon gameNavIconZzz" aria-hidden="true" style="overflow:hidden;padding:0"></span>
    <span class="gameNavText" data-mini-label="絕區零"><strong>絕區零</strong><small>成就紀錄器</small></span>
   </button>
-  <button class="gameNavItem" type="button" data-game="nte" data-game-route="/games/nte/index.html" title="異環">
+  <button class="gameNavItem active" type="button" data-game="nte" data-game-route="/games/nte/index.html" aria-current="page" title="異環">
    <span class="gameNavIcon gameNavIconNte" aria-hidden="true" style="overflow:hidden;padding:0"></span>
    <span class="gameNavText" data-mini-label="異環"><strong>異環</strong><small>成就紀錄器</small></span>
   </button>
@@ -250,7 +258,7 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
  <div class="card"><div class="label">成就總數</div><div class="num" id="total">0</div></div>
  <div class="card"><div class="label">已完成</div><div class="num" id="done">0</div></div>
  <div class="card"><div class="label">未完成</div><div class="num" id="todo">0</div></div>
- <div class="card"><div class="label">已獲得星聲</div><div class="num gold" id="astrite">0</div></div>
+ <div class="card"><div class="label">已獲得環石</div><div class="num gold" id="astrite">0</div></div>
  <div class="card"><div class="label">目前顯示</div><div class="num" id="visibleCount">0</div></div>
  <div class="card"><div class="label">完成率</div><div class="num" id="percent">0%</div><div class="progressBox"><div class="progress" id="bar"></div></div></div>
 </section>
@@ -266,7 +274,7 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
  <div class="compactPanelHead">
   <div class="compactPanelText">
    <h3>資料與進度</h3>
-   <p class="small">訪客可以直接查看與勾選成就；請至帳號設定登入後使用個人進度。</p>
+   <p class="small">訪客可以直接查看成就；登入、註冊與登出統一由帳號設定管理。</p>
   </div>
   <div class="tools compactTools">
    <button class="secondary" id="exportBtn">匯出進度</button>
@@ -288,7 +296,7 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
 
 <dialog id="authDialog" class="authDialog">
  <div class="dialogHead">
-  <h2 id="authTitle">共用帳號登入</h2>
+  <h2 id="authTitle">請前往帳號設定</h2>
   <button class="secondary" id="closeAuthBtn" type="button">關閉</button>
  </div>
  <div class="dialogBody">
@@ -308,7 +316,7 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
    <button class="linkBtn" id="registerLink" type="button">註冊</button>
   </div>
   <div class="authMessage" id="authMessage"></div>
-  <div class="accountNote">登入一次即可在鳴潮與崩鐵共用帳號及管理員權限；兩邊的成就進度仍分開保存。</div>
+  <div class="accountNote">登入一次即可在所有遊戲共用帳號及管理員權限；各遊戲的成就進度仍分開保存。</div>
  </div>
 </dialog>
 
@@ -354,35 +362,24 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
 
 <dialog id="sessionNoticeDialog" class="authDialog"><div class="dialogHead"><h2 id="sessionNoticeTitle">登入狀態已更新</h2><button class="secondary" id="closeSessionNoticeBtn" type="button">關閉</button></div><div class="dialogBody"><div class="small" id="sessionNoticeText"></div><div class="diagActions"><button class="primary" id="confirmSessionNoticeBtn" type="button">我知道了</button></div></div></dialog>
 
-<!-- 20260621-admin-username-management-v1 -->
 <dialog id="notificationDialog"><div class="dialogHead"><h2>站內通知</h2><button class="secondary" id="closeNotificationBtn" type="button">關閉</button></div><div class="dialogBody"><div class="notificationActions"><button class="secondary" id="markAllNotificationsBtn" type="button">全部標為已讀</button></div><div id="userNotificationList" class="notificationList"></div></div></dialog>
 
 <dialog id="supportDialog"><div class="dialogHead"><h2>問題回報與客服單</h2><button class="secondary" id="closeSupportBtn">關閉</button></div><div class="dialogBody"><div class="sectionCard"><h3>建立新客服單</h3><form id="supportCreateForm" class="formGrid"><label class="full">主旨<input id="supportSubject" maxlength="200" required></label><label class="full">問題說明<textarea class="compactText" id="supportMessage" maxlength="5000" required></textarea></label><div class="adminFormActions full"><button class="primary" type="submit">送出</button></div></form></div><h3>我的客服單</h3><div id="mySupportList" class="stack"></div></div></dialog>
 
 <script>
-const OFFICIAL_PAGE="https://github.com/Arikatsu/WutheringWaves_Data";
-const GAME_ID="wuwa";
-const DATA_KEY="鳴潮正式成就資料_官方ID_v19";
-const META_KEY="鳴潮正式成就同步資訊_官方ID_v19";
-const GUEST_PROGRESS_KEY="鳴潮官方成就訪客進度_官方ID_v2";
-const RETIRED_WUWA_BROWSER_KEYS=[
- "鳴潮官方成就解析資料_分類官方順序_v18_stage_condition_fix",
- "鳴潮官方成就同步資訊_分類官方順序_v18_stage_condition_fix",
- "鳴潮官方成就訪客進度_v1"
-];
-for(const key of RETIRED_WUWA_BROWSER_KEYS){try{localStorage.removeItem(key)}catch{}}
-const LEGACY_WUWA_CHOICE_REPLACEMENTS=new Map();
-function applyWuwaStageRelations(items){return Array.isArray(items)?items:[]}
+const OFFICIAL_PAGE="https://github.com/Waifus-Grace/NTE_Assets";
+const GAME_ID="nte";
+const GAME_API_BASE="/api/games/nte";
+const NTE_PAGE_BUILD="20260813-source-isolation-review-decisions-1290";
+const SIDEBAR_ACCOUNT_BUILD="20260621-sidebar-tools-v6";
+document.documentElement.dataset.nteBuild=NTE_PAGE_BUILD;
+const DATA_KEY="異環成就資料_v1_官方順序";
+const META_KEY="異環成就同步資訊_v1_官方順序";
+const GUEST_PROGRESS_KEY="異環成就訪客進度_v1";
 let managedCategoryRank=new Map();
 let baseData=readJson(DATA_KEY,[]);
-let data=applyWuwaStageRelations([...baseData]);
+let data=[...baseData];
 let completed=new Set();
-let choiceGroupByAchievement=new Map();
-let choiceMembersByGroup=new Map();
-let relationGroupByAchievement=new Map();
-let relationTypeByAchievement=new Map();
-let relationStageOrderByAchievement=new Map();
-let relationMembersByGroup=new Map();
 let currentUser=null;
 let userNotifications=[];
 let authBusy=false;
@@ -401,7 +398,7 @@ let officialZhTwByCondition=new Map();
 let liveRevisions={};
 let liveTimer=null;
 let livePollRunning=false;
-const TRACKER_PAGE_STATE_KEY="achievement_tracker_page_state_wuwa_r10";
+const TRACKER_PAGE_STATE_KEY="achievement_tracker_page_state_nte_r1";
 const TRACKER_FILTER_IDS=["achievementSearch","state","hidden","version","category","pageSize"];
 let accountFilterState=null;
 let accountFilterLoaded=false;
@@ -465,6 +462,12 @@ let filteredCache=[];
 let achievementSearchIndexSource=null;
 let achievementSearchIndex=[];
 let achievementSearchTimer=null;
+let choiceGroupByAchievement=new Map();
+let choiceMembersByGroup=new Map();
+let relationGroupByAchievement=new Map();
+let relationTypeByAchievement=new Map();
+let relationStageOrderByAchievement=new Map();
+let relationMembersByGroup=new Map();
 let achievementSearchIdleHandle=null;
 let achievementSearchGeneration=0;
 let achievementSearchComposing=false;
@@ -568,7 +571,36 @@ function loadWuwaYouTubeAvatar(delay=350){
  },delay);
 }
 
+function gameApiPath(path){
+ const exact={
+  "/api/live-state":`${GAME_API_BASE}/live-state`,
+  "/api/official-zh-tw-achievements":`${GAME_API_BASE}/official-zh-tw-achievements`,
+  "/api/admin/overview":`${GAME_API_BASE}/admin/overview`,
+  "/api/admin/users":`${GAME_API_BASE}/admin/users`,
+  "/api/achievement-reports":`${GAME_API_BASE}/achievement-reports`,
+  "/api/my/achievement-reports":`${GAME_API_BASE}/my/achievement-reports`,
+  "/api/admin/achievement-reports":`${GAME_API_BASE}/admin/achievement-reports`,
+  "/api/achievement-customizations":`${GAME_API_BASE}/achievement-customizations`,
+  "/api/admin/achievement-overrides":`${GAME_API_BASE}/admin/achievement-overrides`,
+  "/api/admin/featured":`${GAME_API_BASE}/admin/featured`,
+  "/api/admin/catalog/rebuild":`${GAME_API_BASE}/admin/catalog/rebuild`,
+  "/api/admin/catalog/validate":`${GAME_API_BASE}/admin/catalog/validate`,
+  "/api/completion-stats":`${GAME_API_BASE}/completion-stats`,
+  "/api/admin/completion-stats":`${GAME_API_BASE}/admin/completion-stats`,
+  "/api/progress":`${GAME_API_BASE}/progress`,
+  "/api/progress/set":`${GAME_API_BASE}/progress/set`,
+  "/api/progress/batch":`${GAME_API_BASE}/progress/batch`,
+  "/api/progress/replace":`${GAME_API_BASE}/progress/replace`
+ };
+ if(exact[path])return exact[path];
+ if(/^\/api\/admin\/achievement-reports\//.test(path))return path.replace("/api/admin/achievement-reports",`${GAME_API_BASE}/admin/achievement-reports`);
+ if(/^\/api\/admin\/achievements\//.test(path))return path.replace("/api/admin/achievements",`${GAME_API_BASE}/admin/achievements`);
+ if(/^\/api\/admin\/featured\//.test(path))return path.replace("/api/admin/featured",`${GAME_API_BASE}/admin/featured`);
+ if(/^\/api\/admin\/users\/[^/]+\/progress$/.test(path))return path.replace("/api/admin/users",`${GAME_API_BASE}/admin/users`);
+ return path;
+}
 async function apiJson(path,options={}){
+ path=gameApiPath(path);
  const response=await fetch(path,{
   cache:"no-store",
   headers:{"Content-Type":"application/json",...(options.headers||{})},
@@ -603,7 +635,6 @@ function loadGuestProgress(){
 function saveGuestProgress(){
  localStorage.setItem(GUEST_PROGRESS_KEY,JSON.stringify([...completed]));
 }
-
 function rebuildChoiceGroupMaps(){
  choiceGroupByAchievement=new Map();
  choiceMembersByGroup=new Map();
@@ -639,8 +670,7 @@ function stagePrerequisitesDone(item){
  return relationMembersOf(item).filter(member=>Number(member.stageOrder||0)<order).every(member=>completed.has(String(member.id)));
 }
 function normalizeChoiceProgressIds(values){
- const migrated=(values||[]).map(value=>{const id=String(value||"").trim();return LEGACY_WUWA_CHOICE_REPLACEMENTS.get(id)||id});
- const ids=[...new Set(migrated.filter(Boolean))];
+ const ids=[...new Set((values||[]).map(value=>String(value||"").trim()).filter(Boolean))];
  const lastIndexByGroup=new Map();
  ids.forEach((id,index)=>{const group=choiceGroupByAchievement.get(id);if(group)lastIndexByGroup.set(group,index)});
  const exclusiveNormalized=ids.filter((id,index)=>{const group=choiceGroupByAchievement.get(id);return !group||lastIndexByGroup.get(group)===index});
@@ -707,6 +737,21 @@ function effectiveAchievementCount(items=data){return effectiveProgressSummary(i
 
 function readJson(key,fallback){try{return JSON.parse(localStorage.getItem(key)||JSON.stringify(fallback))}catch{return fallback}}
 function clean(v){return String(v??"").replace(/\u00a0/g," ").replace(/\s+/g," ").trim()}
+function setManagedCategoryOrder(rows){managedCategoryRank=new Map((Array.isArray(rows)?rows:[]).map((row,index)=>[normalizeCollectionName(row?.name??row),index]))}
+function managedAchievementId(item){const value=clean(item?.officialId||item?.official_source_id||item?.displayId||item?.display_id||item?.achievement_id||item?.id||"");if(!/^[A-Za-z0-9_-]{1,64}$/.test(value))throw new Error(`成就 ${clean(item?.id||item?.achievement_id)||"（空白）"} 缺少有效的官方 ID，請先至成就資料治理中心處理。`);return value}
+function managedAchievementOrder(item){const value=managedAchievementId(item);if(/^\d+$/.test(value)&&Number.isSafeInteger(Number(value)))return Number(value);const order=Number(item?.sourceOrder??item?.source_order);if(!Number.isFinite(order)||order<0)throw new Error(`成就 ${value} 缺少有效的來源順序，請先至成就資料治理中心處理。`);return order}
+function managedAchievementSort(a,b){if(!managedCategoryRank.size)return 0;const categoryA=normalizeCollectionName(a?.category),categoryB=normalizeCollectionName(b?.category);if(!managedCategoryRank.has(categoryA))throw new Error(`成就 ${clean(a?.id||a?.achievement_id)||"（空白）"} 的分類「${categoryA||"（空白）"}」尚未納入成就類別管理。`);if(!managedCategoryRank.has(categoryB))throw new Error(`成就 ${clean(b?.id||b?.achievement_id)||"（空白）"} 的分類「${categoryB||"（空白）"}」尚未納入成就類別管理。`);return managedCategoryRank.get(categoryA)-managedCategoryRank.get(categoryB)||managedAchievementOrder(a)-managedAchievementOrder(b)||managedAchievementId(a).localeCompare(managedAchievementId(b),"en",{sensitivity:"case"})}
+function managedStageGroup(item){return clean(item?.relationType||item?.relation_type).toLowerCase()==="stage"?clean(item?.relationGroup||item?.relation_group):""}
+function managedStageOrder(item){return Number(item?.stageOrder??item?.stage_order??0)}
+function managedRelationMemberSort(a,b){const groupA=managedStageGroup(a),groupB=managedStageGroup(b);if(groupA&&groupA===groupB){const stageDiff=managedStageOrder(a)-managedStageOrder(b);if(stageDiff)return stageDiff}return managedAchievementSort(a,b)}
+function managedAchievementDisplayOrder(items){
+ if(!managedCategoryRank.size)return [...items];
+ const blocks=[],stageBlocks=new Map();
+ for(const item of items){managedAchievementSort(item,item);const category=normalizeCollectionName(item?.category),group=managedStageGroup(item);if(group){const key=`${category}\u0000${group}`;if(!stageBlocks.has(key))stageBlocks.set(key,{category,group,members:[]});stageBlocks.get(key).members.push(item)}else blocks.push({category,anchor:managedAchievementOrder(item),kind:1,key:managedAchievementId(item),members:[item]})}
+ for(const block of stageBlocks.values()){block.members.sort(managedRelationMemberSort);const orders=block.members.map(managedStageOrder);if(orders.some(order=>!Number.isInteger(order)||order<=0)||new Set(orders).size!==orders.length)throw new Error(`階段型關聯群組 ${block.group} 的可完成順序無效，請先至關聯資料驗證處理。`);blocks.push({...block,anchor:Math.min(...block.members.map(managedAchievementOrder)),kind:0,key:block.group})}
+ blocks.sort((a,b)=>managedCategoryRank.get(a.category)-managedCategoryRank.get(b.category)||a.anchor-b.anchor||a.kind-b.kind||a.key.localeCompare(b.key));
+ return blocks.flatMap(block=>block.members);
+}
 const OFFICIAL_GAME_TEXT_FIXES=new Map([
  ["徒手攀巖","徒手攀岩"],
  ["時間差不多咯","時間差不多囉"],
@@ -844,34 +889,6 @@ function isGenericCollectionLabel(value){
   .replace(/\s+/g,"");
  return /^(?:全部成就|成就合集|官方合集|全部合集|成就一覽|成就一览|成就總覽|成就总览|成就列表|官方成就|合集名稱|合集名称|成就分類|成就分类|全部分類|全部分类|合集|分類|分类|類別|类别|一覽|一览|總覽|总览|列表)$/.test(text);
 }
-const WUWA_CATEGORY_ALIASES=new Map([
- ["漂泊之旅","漂泊之旅·一"],
- ["世間百態","世間百態·一"],
- ["世间百态","世間百態·一"],
- ["聲骸資料","聲骸數據"],
- ["声骸资料","聲骸數據"],
- ["聲骸数据","聲骸數據"],
- ["声骸数据","聲骸數據"],
- ["潮汐永珍","潮汐萬象"],
- ["潮汐万象","潮汐萬象"]
-]);
-function setManagedCategoryOrder(rows){managedCategoryRank=new Map((Array.isArray(rows)?rows:[]).map((row,index)=>[normalizeCollectionName(row?.name??row),index]))}
-function managedOfficialId(item){const value=clean(item?.officialId||item?.official_source_id||item?.displayId||item?.display_id||item?.achievement_id||item?.id||"");const number=Number(value);if(!/^\d+$/.test(value)||!Number.isSafeInteger(number))throw new Error(`鳴潮成就 ${clean(item?.id||item?.achievement_id)||"（空白）"} 缺少有效的 WW_Data 官方數字 ID，請先至成就資料治理中心處理。`);return number}
-function managedAchievementSort(a,b){if(!managedCategoryRank.size)return 0;const categoryA=normalizeCollectionName(a?.category),categoryB=normalizeCollectionName(b?.category);if(!managedCategoryRank.has(categoryA))throw new Error(`鳴潮成就 ${clean(a?.id||a?.achievement_id)||"（空白）"} 的分類「${categoryA||"（空白）"}」尚未納入成就類別管理。`);if(!managedCategoryRank.has(categoryB))throw new Error(`鳴潮成就 ${clean(b?.id||b?.achievement_id)||"（空白）"} 的分類「${categoryB||"（空白）"}」尚未納入成就類別管理。`);return managedCategoryRank.get(categoryA)-managedCategoryRank.get(categoryB)||managedOfficialId(a)-managedOfficialId(b)}
-function managedStageGroup(item){return clean(item?.relationType||item?.relation_type).toLowerCase()==="stage"?clean(item?.relationGroup||item?.relation_group):""}
-function managedStageOrder(item){return Number(item?.stageOrder??item?.stage_order??0)}
-function managedRelationMemberSort(a,b){const groupA=managedStageGroup(a),groupB=managedStageGroup(b);if(groupA&&groupA===groupB){const stageDiff=managedStageOrder(a)-managedStageOrder(b);if(stageDiff)return stageDiff}return managedAchievementSort(a,b)}
-function managedAchievementDisplayOrder(items){
- if(!managedCategoryRank.size)return [...items];
- const blocks=[],stageBlocks=new Map();
- for(const item of items){managedAchievementSort(item,item);const category=normalizeCollectionName(item?.category),group=managedStageGroup(item);if(group){const key=`${category}\u0000${group}`;if(!stageBlocks.has(key))stageBlocks.set(key,{category,group,members:[]});stageBlocks.get(key).members.push(item)}else blocks.push({category,anchor:managedOfficialId(item),kind:1,key:clean(item?.id||item?.achievement_id),members:[item]})}
- for(const block of stageBlocks.values()){block.members.sort(managedRelationMemberSort);const orders=block.members.map(managedStageOrder);if(orders.some(order=>!Number.isInteger(order)||order<=0)||new Set(orders).size!==orders.length)throw new Error(`階段型關聯群組 ${block.group} 的可完成順序無效，請先至關聯資料驗證處理。`);blocks.push({...block,anchor:Math.min(...block.members.map(managedOfficialId)),kind:0,key:block.group})}
- blocks.sort((a,b)=>managedCategoryRank.get(a.category)-managedCategoryRank.get(b.category)||a.anchor-b.anchor||a.kind-b.kind||a.key.localeCompare(b.key));
- return blocks.flatMap(block=>block.members);
-}
-function normalizeWuwaAchievementOrder(items){
- return managedAchievementDisplayOrder(items.map(item=>{const id=String(item.id||item.achievement_id||"").trim();return {...item,id,category:normalizeCollectionName(item.category),sourceOrder:managedOfficialId(item)}}));
-}
 function normalizeCollectionName(value){
  let name=clean(value)
   .replace(/鸣/g,"鳴")
@@ -885,7 +902,7 @@ function normalizeCollectionName(value){
   .replace(/^分类[：:]\s*/,"")
   .trim();
  if(!name||name==="未分類"||isGenericCollectionLabel(name))return "未辨識分類";
- return WUWA_CATEGORY_ALIASES.get(name)||name;
+ return name;
 }
 const PARENT_SECTION_TITLES=new Set(["索拉漫行","長路留跡","长路留迹","鏗鏘刃鳴","铿锵刃鸣","諸音聲軌","诸音声轨","目次","目錄","目录"]);
 function isParentSectionTitle(value){return PARENT_SECTION_TITLES.has(clean(value))}
@@ -911,6 +928,7 @@ function extractExactVersion(v){
  const parts=token.split(".");
  return `${Number(parts[0])}.${Number(parts[1])}`;
 }
+function normVersion(v){return extractExactVersion(v)||"未標示"}
 function majorVersionOf(v){
  const exact=extractExactVersion(v);
  if(!exact)return "未標示";
@@ -918,17 +936,6 @@ function majorVersionOf(v){
 }
 function versionNumber(v){const m=String(v).match(/\d+(?:\.\d+)+/);if(!m)return -1;return m[0].split(".").reduce((n,x,i)=>n+Number(x)/Math.pow(100,i),0)}
 function majorVersionNumber(v){const m=String(v).match(/\d+/);return m?Number(m[0]):-1}
-function validateParsedData(rows){
- if(rows.length<50)throw new Error(`只解析到 ${rows.length} 筆原始成就資料，已停止更新。`);
- const categories=uniq(rows.map(x=>normalizeCollectionName(x.category)).filter(isCollectionCandidate));
- const invalid=categories.filter(x=>isGenericCollectionLabel(x)||isParentSectionTitle(x)||/成就一覽|成就一览|成就合集|成就總覽|成就总览|成就列表/.test(x));
- const recognized=rows.filter(x=>isCollectionCandidate(x.category)).length;
- const rate=recognized/rows.length;
- if(invalid.length)throw new Error(`仍解析到錯誤頁面標題「${invalid.join("、")}」，已拒絕儲存。`);
- if(categories.length<3||rate<0.6)throw new Error(`合集解析不足：辨識到 ${categories.length} 個合集，有效比例 ${Math.round(rate*100)}%，已拒絕儲存。`);
- return {categories,rate};
-}
-
 function fillSelect(id,values,label){
  const el=$(id),cur=el.value;
  let vals=uniq(values);
@@ -947,21 +954,24 @@ function fillSelect(id,values,label){
 }
 function getCategoryProgressRows(){
  const map=new Map();
+ const countedGroups=new Set();
+ const doneGroups=new Set();
  for(const item of data){
   const category=normalizeCollectionName(item.category);
   if(!isCollectionCandidate(category))continue;
-  if(!map.has(category))map.set(category,{name:category,total:0,done:0,countedGroups:new Set(),doneGroups:new Set()});
-  const row=map.get(category),group=relationGroupOf(item),type=relationTypeOf(item);
+  if(!map.has(category))map.set(category,{name:category,total:0,done:0});
+  const row=map.get(category);
+  const group=relationGroupOf(item),type=relationTypeOf(item);
   if(type==="exclusive"&&group){
-   if(!row.countedGroups.has(group)){row.countedGroups.add(group);row.total+=1}
-   if(isChoiceGroupDone(item)&&!row.doneGroups.has(group)){row.doneGroups.add(group);row.done+=1}
+   const key=`${category}\u0000${group}`;
+   if(!countedGroups.has(key)){countedGroups.add(key);row.total+=1}
+   if(completed.has(item.id)&&!doneGroups.has(key)){doneGroups.add(key);row.done+=1}
   }else{
    row.total+=1;
    if(completed.has(item.id))row.done+=1;
   }
  }
- const rows=[...map.values()].map(({countedGroups,doneGroups,...row})=>row);
- return rows;
+ return [...map.values()];
 }
 function renderCategorySelect(){
  const el=$("category"),cur=el.value;
@@ -1069,9 +1079,8 @@ function renderAchievementCard(x){
   const completionTitle=isAdmin?`${Number(stat.completed_count||0)} / ${eligibleUserCount} 位有效帳號完成`:`全站完成度 ${pct.toFixed(2)}%`;
   completionHtml=`<div class="achievementCompletion" title="${completionTitle}"><div class="achievementCompletionFill" style="width:${pct}%"></div><div class="achievementCompletionText"><span>${completionLabel}</span><strong>${pct.toFixed(2)}%</strong></div></div>`;
  }
- return `<article class="achievement ${done?"done":""} ${choiceLocked||stageLocked?"choiceLocked":""}"><input class="check" type="checkbox" data-id="${esc(x.id)}" ${done?"checked":""} ${choiceLocked?'disabled title="此互斥組已有其他成就被選擇；請先取消原選項"':stageLocked?'disabled':""}><div><h3>${esc(achievementDisplayName(x))}</h3><div class="desc">${esc(achievementDisplayConditionForView(x))}</div><div class="meta"><span class="tag version">版本 ${esc(x.version)}</span><span class="tag">分類：${esc(collection)}</span>${x.hidden?'<span class="tag hiddenTag">隱藏成就</span>':""}${tags}</div></div><div class="achievementSide"><div class="reward">${x.reward?`星聲 × ${x.reward}`:"獎勵未標示"}</div><button class="secondary inlineAction achievementReportBtn" data-id="${esc(x.id)}">回報問題</button><a class="secondary inlineAction achievementGuideBtn" href="/wuwa/${encodeURIComponent(x.id)}" target="_blank" rel="noopener">攻略</a></div>${completionHtml}</article>`;
+ return `<article class="achievement ${done?"done":""} ${choiceLocked||stageLocked?"choiceLocked":""}"><input class="check" type="checkbox" data-id="${esc(x.id)}" ${done?"checked":""} ${choiceLocked?'disabled title="此互斥組已有其他成就被選擇；請先取消原選項"':stageLocked?'disabled':""}><div><h3>${esc(achievementDisplayName(x))}</h3><div class="desc">${esc(achievementDisplayConditionForView(x))}</div><div class="meta"><span class="tag version">版本 ${esc(x.version)}</span><span class="tag">分類：${esc(collection)}</span>${x.hidden?'<span class="tag hiddenTag">隱藏成就</span>':""}${tags}</div></div><div class="achievementSide"><div class="reward">${x.reward?`環石 × ${x.reward}`:"獎勵未標示"}</div><button class="secondary inlineAction achievementReportBtn" data-id="${esc(x.id)}">回報問題</button><a class="secondary inlineAction achievementGuideBtn" href="/nte/${encodeURIComponent(x.id)}" target="_blank" rel="noopener">攻略</a></div>${completionHtml}</article>`;
 }
-
 function render(options={}){if(!options.skipFilterOptions)updateDependentFilters();
  restoreTrackerPageControls();
  filteredCache=getFiltered();
@@ -1119,18 +1128,18 @@ function render(options={}){if(!options.skipFilterOptions)updateDependentFilters
 function renderStats(options={}){
  $("visibleCount").textContent=effectiveAchievementCount(filteredCache);
  if(options.searchOnly)return;
+ const doneRows=data.filter(x=>completed.has(x.id));
+ const reward=doneRows.reduce((n,x)=>n+Number(x.reward||0),0);
  const summary=effectiveProgressSummary(data);
  const pct=summary.total?Math.round(summary.done/summary.total*100):0;
  $("total").textContent=summary.total;
  $("done").textContent=summary.done;
  $("todo").textContent=summary.todo;
- $("astrite").textContent=summary.reward;
+ $("astrite").textContent=reward;
  $("percent").textContent=pct+"%";
  $("bar").style.width=pct+"%";
  if(!options.skipCategory)renderCategorySelect();
 }
-
-
 async function loadPublicCompletionStats(shouldRender=true){
  if(!currentUser){
   eligibleUserCount=0;
@@ -1154,21 +1163,22 @@ async function loadPublicCompletionStats(shouldRender=true){
 
 async function loadAccountProgress(){
  const result=await apiJson("/api/progress");
- completed=new Set(result.completed||[]);
- normalizeCurrentChoiceProgress(false);
+ completed=new Set(normalizeChoiceProgressIds(result.completed||[]));
  refreshIncompleteFilterSnapshot();
 }
 async function setManyProgress(ids,value){
+ const normalized=value?normalizeChoiceProgressIds(ids):[...new Set(ids)];
  const result=await apiJson("/api/progress/batch",{
   method:"POST",
-  body:JSON.stringify({achievement_ids:[...new Set(ids)],completed:value})
+  body:JSON.stringify({achievement_ids:normalized,completed:value})
  });
  completed=new Set(result.completed||[]);
 }
 async function replaceProgress(ids){
+ const normalized=normalizeChoiceProgressIds(ids);
  const result=await apiJson("/api/progress/replace",{
   method:"POST",
-  body:JSON.stringify({achievement_ids:[...new Set(ids)]})
+  body:JSON.stringify({achievement_ids:normalized})
  });
  completed=new Set(result.completed||[]);
 }
@@ -1184,7 +1194,7 @@ function applyServerCustomizations(items){
   const name=(hasBase&&(!override.name||override.name===override.achievement_id))?(old.name||override.achievement_id):(override.name||old?.name||override.achievement_id)
   const condition=override.condition||old?.condition||""
   const version=(hasBase&&(!override.version||override.version==="未標示"))?(old.version||"未標示"):(override.version||old?.version||"未標示")
-  const category=normalizeCollectionName((hasBase&&(!override.category||override.category==="未辨識分類"))?(old.category||"未辨識分類"):(override.category||old?.category||"未辨識分類"))
+  const category=(hasBase&&(!override.category||override.category==="未辨識分類"))?(old.category||"未辨識分類"):(override.category||old?.category||"未辨識分類")
   const value={
    ...(old||{}),id:override.achievement_id,name,condition,version,majorVersion:majorVersionOf(version),
    category,subcategory:category,detailCategory:category,
@@ -1194,7 +1204,7 @@ function applyServerCustomizations(items){
   }
   map.set(override.achievement_id,value)
  }
- return applyWuwaStageRelations(normalizeWuwaAchievementOrder([...map.values()]))
+  return managedAchievementDisplayOrder([...map.values()])
 }
 async function loadCustomizations(){
  try{
@@ -1203,16 +1213,27 @@ async function loadCustomizations(){
   data=applyServerCustomizations(baseData);
   rebuildChoiceGroupMaps();
   normalizeCurrentChoiceProgress(!currentUser);
+  refreshIncompleteFilterSnapshot();
 }catch(err){console.warn("讀取成就自訂資料失敗",err)}
 }
 function saveData(meta={}){localStorage.setItem(DATA_KEY,JSON.stringify(baseData));localStorage.setItem(META_KEY,JSON.stringify(meta))}
 async function syncOfficial(){
  try{
-  const obj=await apiJson("/api/games/wuwa/catalog");
+  const obj=await apiJson(`${GAME_API_BASE}/catalog`);
   setManagedCategoryOrder(obj.categories||[]);
-  const parsed=obj.items||[];
-  const validation=validateParsedData(parsed);
-  baseData=parsed;data=applyWuwaStageRelations([...baseData]);await loadCustomizations();refreshIncompleteFilterSnapshot();saveData({source:"shared_catalog",structureReference:"/api/games/wuwa/catalog",syncedAt:new Date().toISOString(),cached:false,count:effectiveAchievementCount(data),categoryCount:validation.categories.length});currentPage=1;render();
+  baseData=(Array.isArray(obj.items)?obj.items:[]).map((item,index)=>{
+   const version=normVersion(item.version||"未標示");
+   const category=normalizeCollectionName(item.category||"未辨識分類");
+   return {...item,id:String(item.id||item.achievement_id||`catalog-${index}`),name:clean(item.name),condition:clean(item.condition),version,majorVersion:majorVersionOf(version),category,subcategory:category,detailCategory:category,reward:Number(item.reward||0),hidden:Boolean(item.hidden),tags:Array.isArray(item.tags)?item.tags:[],sourceOrder:Number(item.sourceOrder??index),relationGroup:clean(item.relationGroup||item.choiceGroup||""),relationType:clean(item.relationType||((item.choiceGroup||"")?"exclusive":"")),stageOrder:Number(item.stageOrder||0),relationGroupSize:Number(item.relationGroupSize||item.choiceGroupSize||0),choiceGroup:clean(item.choiceGroup||""),choiceGroupSize:Number(item.choiceGroupSize||0)};
+  });
+  data=[...baseData];
+  rebuildChoiceGroupMaps();
+  await loadCustomizations();
+  refreshIncompleteFilterSnapshot();
+  rebuildChoiceGroupMaps();
+  normalizeCurrentChoiceProgress(!currentUser);
+  saveData({source:"異環成就專案資料庫",syncedAt:new Date().toISOString(),count:effectiveAchievementCount(data)});
+  currentPage=1;render();
  }catch(err){console.warn("Achievement catalog refresh failed",err)}
 }
 async function pollLiveState(initial=false){
@@ -1284,8 +1305,7 @@ function renderTicketForUser(t){return `<article class="listItem" data-ticket-id
 $("supportCreateForm").onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{await apiJson("/api/support/tickets",{method:"POST",body:JSON.stringify({subject:$("supportSubject").value,message:$("supportMessage").value})});e.target.reset();await loadMySupport()}catch(err){alert(err.message)}finally{b.disabled=false}};
 $("mySupportList").onclick=async e=>{const reply=e.target.closest(".ticketUserReply"),del=e.target.closest(".ticketUserDelete");if(!reply&&!del)return;const card=(reply||del).closest("[data-ticket-id]"),id=card.dataset.ticketId;if(del){if(!confirm("確定永久刪除此客服單及全部對話嗎？"))return;await apiJson(`/api/support/tickets/${encodeURIComponent(id)}`,{method:"DELETE",body:"{}"})}else{const input=card.querySelector(".ticketUserReplyText");if(!input.value.trim())return;await apiJson(`/api/support/tickets/${encodeURIComponent(id)}/reply`,{method:"POST",body:JSON.stringify({message:input.value})})}await loadMySupport()};
 
-// ----- 後台管理：僅成就管理、成就回報與同步可切換遊戲 -----
-// 20260621-admin-game-control-state-v2
+// ----- 管理員：成就編輯與資料檢查 -----
 function setAuthMode(mode){
  authMode=mode==="register"?"register":"login";
  const registering=authMode==="register";
@@ -1295,7 +1315,7 @@ function setAuthMode(mode){
  $("authTitle").textContent=registering?"註冊共用信箱帳號":"共用帳號登入";
  $("authIntro").textContent=registering
   ?"註冊後會寄出驗證信，完成驗證才能登入。"
-  :"登入一次後，鳴潮與崩鐵都會保持登入；目前頁面只載入本遊戲的個人成就進度。";
+  :"登入一次後，所有遊戲都會保持登入；目前頁面只載入本遊戲的個人成就進度。";
  $("authSubmitBtn").textContent=registering?"註冊":"登入";
  $("registerLink").textContent=registering?"返回登入":"註冊";
  $("registerLink").classList.toggle("alignRight",registering);
@@ -1415,7 +1435,6 @@ window.addEventListener("storage",event=>{if(event.key==="achievement_auth_chang
 window.addEventListener("message",async event=>{if(event.origin!==location.origin)return;const type=event.data?.type;if(type==="achievement-hub-auth-changed"||type==="achievement-hub-activate"){await refreshSharedAuthState();if(type==="achievement-hub-activate")requestAnimationFrame(()=>render({skipFilterOptions:true}))}if(type==="achievement-hub-open-support"){await refreshSharedAuthState();if(!currentUser)return openAccountCenter("請先登入後再使用問題回報。");await loadMySupport();if(!$('supportDialog').open)$('supportDialog').showModal()}});
 window.addEventListener("focus",refreshSharedAuthState);
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)refreshSharedAuthState()});window.addEventListener("pageshow",()=>{refreshSharedAuthState().finally(()=>requestAnimationFrame(()=>{updateDependentFilters();restoreTrackerPageControls();if($("state").value==="todo"){if(data.length)refreshIncompleteFilterSnapshot();else incompleteFilterSnapshot=null}render({skipFilterOptions:true})}))});
-
 
 $("closeAuthBtn").onclick=()=>{
  setAuthMode("login");
@@ -1697,12 +1716,12 @@ $("markFilteredBtn").onclick=()=>applyFilteredProgress(true);
 $("resetBtn").onclick=()=>applyFilteredProgress(false);
 $("exportBtn").onclick=()=>{
  downloadJson({
-  format:"鳴潮官方成就進度",
+  format:"異環成就進度",
   version:2,
   account:currentUser?.email||"訪客",
   exportedAt:new Date().toISOString(),
   completed:[...completed]
- },"鳴潮成就進度備份.json");
+ },"異環成就進度備份.json");
 };
 $("importBtn").onclick=()=>$("progressFile").click();
 $("progressFile").onchange=async e=>{
@@ -1713,8 +1732,7 @@ $("progressFile").onchange=async e=>{
    await replaceProgress(ids);
    alert(`進度已匯入帳號「${currentUser.email}」。`);
   }else{
-   completed=new Set(ids);
-   normalizeCurrentChoiceProgress(false);
+   completed=new Set(normalizeChoiceProgressIds(ids));
    saveGuestProgress();
    alert("進度已匯入訪客紀錄；互斥與階段成就已依規則整理後匯入。");
   }
@@ -1727,23 +1745,19 @@ $("progressFile").onchange=async e=>{
 function downloadJson(obj,name){const blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
 
 initGameSelector();
-loadWuwaYouTubeAvatar(500);
+
 (async()=>{
  $("appShell").hidden=false;
- loadGuestProgress();
  rebuildChoiceGroupMaps();
+ loadGuestProgress();
  normalizeCurrentChoiceProgress(true);
  updateAccountHeader();
  render();
  const officialTextPromise=loadOfficialZhTwCatalog();
  await initializeAccountSystem();
  await officialTextPromise;
- rebuildChoiceGroupMaps();
- normalizeCurrentChoiceProgress(!currentUser);
  render();
 })();
-
-
 </script>
 </body>
 </html>

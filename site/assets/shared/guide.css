@@ -1,0 +1,121 @@
+:root{
+ color-scheme:dark;--guide-bg:#080d13;--guide-surface:#0d1720;--guide-surface-2:#111e29;
+ --guide-line:#293a49;--guide-line-soft:#1a2a36;--guide-text:#eef5fb;--guide-muted:#8ea6b9;
+ --guide-accent:#64d9cd;--guide-accent-soft:rgba(100,217,205,.1);--guide-danger:#ff7f96;
+ font-family:Inter,"Noto Sans TC","Microsoft JhengHei",system-ui,sans-serif
+}
+*{box-sizing:border-box}
+html,body{min-height:100%;margin:0;background:var(--guide-bg);color:var(--guide-text)}
+body{line-height:1.65}
+button,input,select,textarea{font:inherit}
+button{color:inherit}
+[hidden]{display:none!important}
+.srOnly{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.guidePage{width:min(1420px,calc(100% - 48px));margin:0 auto;padding:26px 0 64px}
+.guideAchievementHeader{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;padding:30px 32px;border:1px solid var(--guide-line);border-radius:18px;background:linear-gradient(145deg,rgba(17,30,41,.92),rgba(9,17,24,.92))}
+.guideAchievementCopy{min-width:0}
+.guideAchievementCopy h1{margin:0;font-size:clamp(30px,4vw,48px);line-height:1.18;letter-spacing:.01em}
+.guideAchievementCopy>p{max-width:920px;margin:15px 0 0;color:#c6d4df;font-size:17px}
+.guideAchievementMeta{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px;color:var(--guide-muted);font-size:13px}
+.guideAchievementMeta span{padding:4px 10px;border:1px solid var(--guide-line);border-radius:999px;background:rgba(5,10,15,.35)}
+.guideSecondary,.guideDanger{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 15px;border:1px solid var(--guide-line);border-radius:9px;background:#101c26;color:#dbe8f1;cursor:pointer;transition:border-color .18s,color .18s,background .18s,transform .18s;text-decoration:none}
+.guideSecondary:hover,.guideSecondary:focus-visible{border-color:rgba(100,217,205,.55);background:var(--guide-accent-soft);color:#dffffb}
+.guideSecondary:active,.guideDanger:active{transform:translateY(1px)}
+.guideSecondary:disabled,.guideDanger:disabled{opacity:.45;cursor:not-allowed}
+.guideEditButton{flex:0 0 auto;background:rgba(8,16,23,.55);color:#bcd2df}
+.guideDanger{border-color:rgba(255,127,150,.42);background:rgba(255,127,150,.07);color:#ffa2b3}
+.guideDanger:hover,.guideDanger:focus-visible{background:rgba(255,127,150,.13);border-color:rgba(255,127,150,.7)}
+.guideNotice,.guideSubmissionState,.guideReadingSurface,.guideEmptyState,.guideEditorSection{margin-top:20px;border:1px solid var(--guide-line);border-radius:16px;background:var(--guide-surface)}
+.guideNotice{padding:18px 22px;color:var(--guide-muted)}
+.guideNotice.error{border-color:rgba(255,127,150,.42);color:#ffacba}
+.guideNotice.success{border-color:rgba(100,217,205,.42);color:#9eeae3}
+.guideSubmissionState{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 22px}
+.guideSubmissionState strong{display:block;font-size:16px}
+.guideSubmissionState p{margin:3px 0 0;color:var(--guide-muted);font-size:14px}
+.guideStatusBadge{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;padding:4px 10px;border:1px solid var(--guide-line);border-radius:999px;color:var(--guide-muted);font-size:13px}
+.guideStatusBadge.pending{border-color:rgba(242,190,81,.38);background:rgba(242,190,81,.08);color:#f6cc72}
+.guideStatusBadge.approved{border-color:rgba(100,217,205,.36);background:rgba(100,217,205,.08);color:#91e8df}
+.guideStatusBadge.rejected{border-color:rgba(255,127,150,.38);background:rgba(255,127,150,.08);color:#ff9cad}
+.guideReadingSurface{padding:0;overflow:hidden}
+.guideSectionHeader{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:22px 26px;border-bottom:1px solid var(--guide-line-soft)}
+.guideSectionHeader h2{margin:0;font-size:21px}
+.guideSectionHeader p,.guideSectionHeader time{margin:3px 0 0;color:var(--guide-muted);font-size:13px}
+.guideDocument{overflow-wrap:anywhere;color:#dbe7ef;font-size:16px}
+.guideReadingSurface>.guideDocument{max-width:980px;padding:34px 42px 54px}
+.guideDocument h2{margin:1.7em 0 .65em;color:#f2f8fc;font-size:28px;line-height:1.35}
+.guideDocument h3{margin:1.5em 0 .55em;color:#edf5fa;font-size:21px;line-height:1.4}
+.guideDocument p{margin:.8em 0;min-height:1.3em}
+.guideDocument ul,.guideDocument ol{padding-left:1.65em}
+.guideDocument blockquote{margin:1.25em 0;padding:12px 18px;border-left:3px solid rgba(100,217,205,.45);background:rgba(100,217,205,.055);color:#c8d9e3}
+.guideDocument a{color:#7fddd5;text-underline-offset:3px}
+.guideDocument figure{margin:26px 0}
+.guideDocument img{display:block;max-width:100%;height:auto;border:1px solid var(--guide-line);border-radius:12px;background:#050a0e}
+.guideDocument figcaption{margin-top:8px;color:var(--guide-muted);font-size:13px;text-align:center}
+.guideVideoEmbed{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;border:1px solid var(--guide-line);border-radius:12px;background:#05090d}
+.guideVideoEmbed iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.guideSpoiler{display:inline;padding:1px 4px;border-radius:4px;background:#020406;cursor:pointer;outline:none;transition:background .15s}
+.guideSpoiler:not(.revealed),.guideSpoiler:not(.revealed) *{color:transparent!important;text-shadow:0 0 7px rgba(212,226,237,.58);text-decoration-color:transparent!important}
+.guideSpoiler:hover,.guideSpoiler:focus-visible{box-shadow:0 0 0 1px #526373}
+.guideSpoiler.revealed{background:#1a242d}
+.guideEmptyState{padding:58px 28px;text-align:center}
+.guideEmptyState h2{margin:0;font-size:28px}
+.guideEmptyState p{margin:8px 0 24px;color:var(--guide-muted)}
+.guideEditorSection{padding:14px}
+.guideEditorWorkspace{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:14px}
+.guideEditorWorkspace.queueOnly{grid-template-columns:1fr}
+.guideEditorPanel,.guideAdminReview{min-width:0;border:1px solid var(--guide-line);border-radius:13px;background:#0a141c;overflow:hidden}
+.guideEditorHeader{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 20px;border-bottom:1px solid var(--guide-line-soft)}
+.guideEditorHeader h2{margin:0;font-size:20px}
+.guideEditorHeader p{margin:2px 0 0;color:var(--guide-muted);font-size:13px}
+.guideToolbar{position:sticky;top:0;z-index:3;display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding:10px 12px;border-bottom:1px solid var(--guide-line);background:#101c26}
+.guideToolbar select,.guideToolbar button,.guideColorControl{height:36px;border:1px solid #354858;border-radius:7px;background:#0a141c;color:#dbe7ef}
+.guideToolbar select{padding:0 28px 0 9px}
+.guideToolbar button{min-width:36px;padding:0 9px;cursor:pointer}
+.guideToolbar button:hover,.guideToolbar button:focus-visible,.guideColorControl:hover{border-color:rgba(100,217,205,.62);color:#9eeae3}
+.guideToolGroup{display:flex;gap:3px;padding-right:7px;border-right:1px solid var(--guide-line)}
+.guideToolGroup:last-child{border-right:0;padding-right:0}
+.guideToolGroup svg{display:block;width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.guideColorControl{display:flex;align-items:center;gap:5px;padding:0 7px;cursor:pointer}
+.guideColorControl input{width:20px;height:20px;padding:0;border:0;background:transparent;cursor:pointer}
+.guideEditor{min-height:470px;padding:28px 32px;background:#0a1219;outline:0}
+.guideEditor:focus{box-shadow:inset 0 0 0 1px rgba(100,217,205,.24)}
+.guideEditor:empty:before{content:"從這裡開始撰寫攻略……";color:#60798c;pointer-events:none}
+.guideEditor .guideSpoiler:not(.revealed),.guideEditor .guideSpoiler:not(.revealed) *{color:inherit!important;text-shadow:none;text-decoration-color:currentColor!important}
+.guideEditor .guideSpoiler{background:#263039}
+.guideEditorFooter{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px 18px;border-top:1px solid var(--guide-line-soft)}
+.guideEditorFooter p{margin:0;color:var(--guide-muted);font-size:13px}
+.guideEditorFooter>div{display:flex;gap:8px;white-space:nowrap}
+.guideAdminReview{padding:18px}
+.guideAdminReview h2{margin:0 0 14px;font-size:18px}
+.guidePendingList{display:grid;gap:8px}
+.guidePendingButton{width:100%;padding:11px 12px;border:1px solid var(--guide-line);border-radius:8px;background:#0d1922;color:inherit;text-align:left;cursor:pointer}
+.guidePendingButton:hover,.guidePendingButton.active{border-color:rgba(100,217,205,.55);background:var(--guide-accent-soft)}
+.guidePendingButton strong,.guidePendingButton span{display:block}
+.guidePendingButton span{margin-top:2px;color:var(--guide-muted);font-size:12px}
+.guideReviewDetail{display:grid;gap:14px;margin-top:18px;padding-top:18px;border-top:1px solid var(--guide-line)}
+.guideReviewDetail p{margin:0;color:var(--guide-muted);font-size:13px}
+.guideReviewDetail label{display:grid;gap:6px;color:#b9cad6;font-size:13px}
+.guideReviewDetail textarea{min-height:110px;resize:vertical;padding:10px;border:1px solid var(--guide-line);border-radius:8px;background:#071018;color:var(--guide-text)}
+.guideReviewActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.guideDialog{width:min(520px,calc(100% - 28px));padding:0;border:1px solid var(--guide-line);border-radius:14px;background:#0d1720;color:var(--guide-text);box-shadow:0 24px 80px rgba(0,0,0,.55)}
+.guideDialog::backdrop{background:rgba(1,5,8,.76);backdrop-filter:blur(4px)}
+.guideDialog form>header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--guide-line)}
+.guideDialog h2{margin:0;font-size:18px}
+.guideDialog form>header button{width:34px;height:34px;border:0;background:transparent;color:var(--guide-muted);font-size:22px;cursor:pointer}
+.guideDialogBody{display:grid;gap:14px;padding:18px}
+.guideDialogBody label{display:grid;gap:6px;color:#b9cad6;font-size:14px}
+.guideDialogBody input{height:42px;padding:0 11px;border:1px solid var(--guide-line);border-radius:8px;background:#071018;color:var(--guide-text)}
+.guideFieldHint{margin:-5px 0 0;color:var(--guide-muted);font-size:12px}
+.guideDialogActions{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
+@media(max-width:1080px){.guideEditorWorkspace{grid-template-columns:1fr}.guideAdminReview{order:-1}.guidePendingList{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}}
+@media(max-width:760px){
+ .guidePage{width:auto;margin:0;padding:14px 10px 36px}
+ .guideAchievementHeader{align-items:flex-start;flex-direction:column;padding:22px 18px;border-radius:14px}
+ .guideAchievementCopy h1{font-size:29px}.guideAchievementCopy>p{font-size:15px}
+ .guideEditButton{align-self:flex-end}.guideSectionHeader{align-items:flex-start;flex-direction:column;padding:18px}
+ .guideReadingSurface>.guideDocument{padding:24px 18px 36px}
+ .guideSubmissionState{align-items:flex-start}.guideEditorSection{padding:7px}
+ .guideEditorHeader{align-items:flex-start}.guideEditor{min-height:390px;padding:22px 16px}
+ .guideEditorFooter{align-items:flex-start;flex-direction:column}.guideEditorFooter>div{width:100%;justify-content:flex-end}
+}
+@media(max-width:480px){.guideReviewActions{grid-template-columns:1fr}.guideToolbar{max-height:160px;overflow:auto}.guideAchievementMeta{font-size:12px}}

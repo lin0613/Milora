@@ -69,23 +69,30 @@ def achievement_id_value(row: dict[str, Any] | None) -> str:
     )
 
 
-def official_id_sort_key(value: Any) -> tuple[int, int, str]:
+def official_id_sort_key(value: Any, source_order: Any = 0) -> tuple[int, int, str]:
     text = _text(value)
     if _NUMERIC_ID.fullmatch(text):
         return (0, int(text), text)
-    return (1, 2**63 - 1, text.casefold())
+    try:
+        order = int(source_order or 0)
+    except (TypeError, ValueError):
+        order = 0
+    return (1, order if order > 0 else 2**63 - 1, text)
 
 
 def catalog_sort_key(game_id: str, row: dict[str, Any] | None) -> tuple[Any, ...]:
     """Shared achievement ordering.
 
-    All games retain numeric official-ID ordering.  ZZZ adds one leading bucket:
-    normal achievements first, arcade achievements second.  IDs inside each
-    bucket remain ascending numeric official IDs.
+    Numeric official IDs retain numeric ordering. Alphanumeric official IDs use
+    the source order and then the exact case-sensitive ID. ZZZ adds one leading
+    bucket: normal achievements first, arcade achievements second.
     """
     game = _text(game_id).lower()
     bucket = 1 if game == "zzz" and is_zzz_arcade(row) else 0
-    return (bucket, *official_id_sort_key(achievement_id_value(row)))
+    source_order = (row or {}).get("sourceOrder") if isinstance(row, dict) else 0
+    if isinstance(row, dict) and source_order is None:
+        source_order = row.get("source_order", 0)
+    return (bucket, *official_id_sort_key(achievement_id_value(row), source_order))
 
 
 def sort_catalog_rows(game_id: str, rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:

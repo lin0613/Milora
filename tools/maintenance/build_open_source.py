@@ -153,9 +153,10 @@ def patch_site(root: Path) -> None:
             text,
             flags=re.IGNORECASE | re.DOTALL,
         )
-        text = re.sub(r"<img\b[^>]*>", "", text, flags=re.IGNORECASE | re.DOTALL)
-        text = image_path.sub("", text)
         relative = path.relative_to(root).as_posix()
+        if relative != "site/assets/shared/guide.js":
+            text = re.sub(r"<img\b[^>]*>", "", text, flags=re.IGNORECASE | re.DOTALL)
+        text = image_path.sub("", text)
         if relative == "site/index.html":
             text = text.replace(
                 "mobileCurrentIcon.hidden=!project?.iconEndpoint;if(project?.iconEndpoint)mobileCurrentIcon.src=project.iconEndpoint+'?hub=mobile-top';",
@@ -226,7 +227,6 @@ def patch_empty_data_mode(root: Path) -> None:
         _migrate_wuwa_shared_model(db)
         if not OPEN_SOURCE_EMPTY_DATA:
             _verify_wuwa_shared_model(db)
-            _repair_hsr_catalog_rewards(db)
             normalize_all_game_official_order(db,migration_stamp)
             _verify_wuwa_shared_model(db)
             verify_official_id_model(db)
@@ -272,74 +272,6 @@ def public_sitemap():
 '''
     text = text.replace(static_anchor, static_routes + static_anchor, 1)
     write_text(root, relative, text)
-
-
-def strip_embedded_data(root: Path) -> None:
-    relative = "backend/services/game_data_sources.py"
-    text = read_text(root, relative)
-    embedded_name = "GENSHIN_EMBEDDED_" + "COMPLETION_67"
-    text, count = re.subn(
-        rf"{embedded_name}:\s*tuple\[dict\[str, Any\], \.\.\.\]\s*=\s*\(.*?\n\)\n\n\nclass RepositorySourceError",
-        "GENSHIN_EMBEDDED_COMPLETION: tuple[dict[str, Any], ...] = ()\n\n\nclass RepositorySourceError",
-        text,
-        count=1,
-        flags=re.DOTALL,
-    )
-    if count != 1:
-        fail("Embedded achievement data block was not removed")
-    text = text.replace(
-        'GENSHIN_BUNDLED_COMPLETION_FILENAME = "bundled-completion-6.7.json"',
-        'GENSHIN_BUNDLED_COMPLETION_FILENAME = "bundled-completion.json"',
-    )
-    text = re.sub(
-        r'def load_bundled_genshin_completion_catalog\(data_dir: Path\) -> tuple\[list\[dict\[str, Any\]\], dict\[str, Any\]\]:\n\s+""".*?"""',
-        'def load_bundled_genshin_completion_catalog(data_dir: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:\n    """Load an operator-supplied completion catalog; no game records are bundled."""',
-        text,
-        count=1,
-        flags=re.DOTALL,
-    )
-    text, count = re.subn(
-        r"    embedded_used = payload is None\n    if payload is None:\n.*?        selected_path = \"embedded://genshin/6\.7\"\n",
-        '''    embedded_used = False
-    if payload is None:
-        raise RepositorySourceError(
-            "純程式碼公開版未附帶補全目錄；請由管理員提供具有使用權的資料檔。",
-            code="bundled_completion_not_supplied",
-            diagnostics={"searched_paths": [str(path) for path in candidate_paths], "load_error": load_error},
-        )
-''',
-        text,
-        count=1,
-        flags=re.DOTALL,
-    )
-    if count != 1:
-        fail("Embedded completion fallback was not removed")
-    text = re.sub(
-        r"    if len\(rows\) != 38:\n        raise RepositorySourceError\(.*?\n        \)\n",
-        '''    if not rows:
-        raise RepositorySourceError(
-            "管理員提供的補全目錄沒有可用資料。",
-            code="bundled_completion_empty",
-            diagnostics={"path": selected_path},
-        )
-''',
-        text,
-        count=1,
-        flags=re.DOTALL,
-    )
-    if "'id': '804" + "90'" in text or embedded_name in text:
-        fail("Embedded achievement records remain")
-    write_text(root, relative, text)
-
-
-def patch_start_script(root: Path) -> None:
-    relative = "scripts/start_backend.ps1"
-    text = read_text(root, relative)
-    start = text.find("    $RepairMarker = Join-Path $Root")
-    end = text.find("    $Python = Join-Path $Root '.venv\\Scripts\\python.exe'", start)
-    if start < 0 or end < 0:
-        fail("Private startup repair block was not found")
-    write_text(root, relative, text[:start] + text[end:])
 
 
 def public_documents(root: Path, version: str, release_id: str) -> None:
@@ -538,9 +470,14 @@ for path in ROOT.rglob("*.py"):
     except SyntaxError as exc:
         errors.append(f"python syntax: {path.relative_to(ROOT)}:{exc.lineno}:{exc.msg}")
 
+for path in (ROOT / "site").rglob("*"):
+    if not path.is_file():
+        continue
+    relative = path.relative_to(ROOT).as_posix()
+    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    if relative != "site/assets/shared/guide.js" and re.search(r"<img\b", text, flags=re.IGNORECASE):
+        errors.append(f"site still contains an img element: {relative}")
 site_text = "\n".join(path.read_text(encoding="utf-8-sig", errors="replace") for path in (ROOT / "site").rglob("*") if path.is_file())
-if re.search(r"<img\b", site_text, flags=re.IGNORECASE):
-    errors.append("site still contains an img element")
 if re.search(r"(?:/assets/(?:games|social)/|favicon\.(?:png|ico|svg))", site_text, flags=re.IGNORECASE):
     errors.append("site still references removed image assets")
 
@@ -690,8 +627,6 @@ def build(source_root: Path, output: Path, release_root: Path) -> dict[str, Any]
         patch_registry(stage)
         patch_site(stage)
         patch_empty_data_mode(stage)
-        strip_embedded_data(stage)
-        patch_start_script(stage)
         public_documents(stage, version, release_id)
         download_license(stage)
         write_validator(stage)

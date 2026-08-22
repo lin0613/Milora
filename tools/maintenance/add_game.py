@@ -61,7 +61,6 @@ def main() -> int:
             "protectProgress": True,
             "protectRelations": True,
             "primary": {"id": f"{game_id}_official", "name": args.primary_name, "url": args.primary_url, "role": "primary", "mode": "remote_reference", "purpose": "official_reference", "trustedFields": ["name", "condition", "version", "category", "reward", "hidden"]},
-            "secondary": None,
             "fallback": {"id": "bundled_catalog", "name": "已驗證的本機目錄快照", "url": "", "role": "fallback", "mode": "local"},
         },
     }

@@ -1,4 +1,4 @@
-param([switch]$NonInteractive)
+﻿param([switch]$NonInteractive)
 $ErrorActionPreference = 'Stop'
 $Utf8Console = New-Object System.Text.UTF8Encoding($false)
 [Console]::InputEncoding = $Utf8Console

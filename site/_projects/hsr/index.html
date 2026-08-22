@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="崩壞：星穹鐵道成就紀錄器，可查詢成就條件、分類與版本並記錄完成進度。">
 <meta name="robots" content="noindex,follow">
-<link rel="canonical" href="http://127.0.0.1:8000/hsr/">
+<link rel="canonical" href="https://miloratool.tdvr.tw/hsr/">
 <link rel="stylesheet" href="/assets/shared/common.css">
 <script defer src="/assets/shared/runtime.js?v=20260713-responsive-mobile-shell-1220"></script>
 <title>崩壞：星穹鐵道成就紀錄器｜遊戲成就紀錄器</title>
@@ -79,7 +79,7 @@ dialog{width:min(850px,calc(100% - 22px));border:1px solid var(--line);border-ra
 
 
 /* 擴充管理功能 */
-.inlineAction{padding:5px 9px!important;font-size:12px!important}.achievementSide{display:flex;flex-direction:column;align-items:flex-end;gap:8px}.customTag{color:#b8f5e9;border-color:rgba(98,219,201,.35)}.achievementCompletion{grid-column:1/-1;position:relative;height:42px;margin:-2px -15px -15px;border-top:1px solid rgba(136,170,255,.35);overflow:hidden;border-radius:0 0 14px 14px;background:#0b0923}.achievementCompletionFill{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,rgba(98,219,201,.22),rgba(136,170,255,.26));transition:width .45s ease}.achievementCompletionText{position:relative;z-index:1;height:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;font-size:13px;color:#c8d5e1}.achievementCompletionText strong{font-size:16px;color:var(--text)}
+.inlineAction{padding:5px 9px!important;font-size:12px!important}.achievementSide{display:flex;flex-direction:column;align-items:flex-end;align-self:stretch;gap:8px}.achievementGuideBtn{margin-top:auto;border-color:rgba(139,166,187,.28)!important;background:rgba(8,15,22,.46)!important;color:#9eb1bf!important;text-decoration:none}.achievementGuideBtn:hover,.achievementGuideBtn:focus-visible{border-color:rgba(98,219,201,.5)!important;color:#b8f5e9!important;background:rgba(98,219,201,.07)!important}.customTag{color:#b8f5e9;border-color:rgba(98,219,201,.35)}.achievementCompletion{grid-column:1/-1;position:relative;height:42px;margin:-2px -15px -15px;border-top:1px solid rgba(136,170,255,.35);overflow:hidden;border-radius:0 0 14px 14px;background:#0b0923}.achievementCompletionFill{position:absolute;inset:0 auto 0 0;background:linear-gradient(90deg,rgba(98,219,201,.22),rgba(136,170,255,.26));transition:width .45s ease}.achievementCompletionText{position:relative;z-index:1;height:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 16px;font-size:13px;color:#c8d5e1}.achievementCompletionText strong{font-size:16px;color:var(--text)}
 .formGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.formGrid .full{grid-column:1/-1}.formGrid label{display:grid;gap:6px;color:var(--muted)}textarea.compactText{width:100%;min-height:100px;background:#091018;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;resize:vertical}.sectionCard{padding:14px;border:1px solid var(--line);border-radius:14px;background:#0b121a;margin-bottom:13px}.sectionCard h3{margin:0 0 10px}.stack{display:grid;gap:10px}.listItem{padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}.listItem h4{margin:0 0 6px}.listItem p{margin:0;color:var(--muted);white-space:pre-wrap;line-height:1.55}.listItemActions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
 .adminFormActions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:10px}
 .ticketThread{display:grid;gap:8px;margin-top:10px}.ticketMessage{padding:10px;border-radius:12px;background:#091018;border:1px solid var(--line)}.ticketMessage.adminReply{border-color:rgba(98,219,201,.45)}.ticketMessage .sender{font-size:12px;color:var(--muted);margin-bottom:5px}.ticketMessage p{margin:0;white-space:pre-wrap;line-height:1.55}
@@ -194,8 +194,8 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
 
 
 <header><div class="wrap top">
- <div><h1>崩壞：星穹鐵道成就紀錄器</h1><p>公開測試中｜有bug請回報</p></div>
- <div class="accountActions">
+ <div><h1>崩壞：星穹鐵道成就紀錄器</h1><p>目前更新到4.4版本｜有bug請回報</p></div>
+ <div class="accountActions">122
   <button class="secondary" id="notificationBtn" hidden>通知<span class="notificationBadge" id="notificationBadge" hidden>0</span></button>
   <button class="secondary" id="supportBtn" hidden aria-hidden="true" style="display:none!important">問題回報</button>
  </div>
@@ -237,6 +237,10 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
   <button class="gameNavItem" type="button" data-game="zzz" data-game-route="/games/zzz/index.html" title="絕區零">
    <span class="gameNavIcon gameNavIconZzz" aria-hidden="true" style="overflow:hidden;padding:0"></span>
    <span class="gameNavText" data-mini-label="絕區零"><strong>絕區零</strong><small>成就紀錄器</small></span>
+  </button>
+  <button class="gameNavItem" type="button" data-game="nte" data-game-route="/games/nte/index.html" title="異環">
+   <span class="gameNavIcon gameNavIconNte" aria-hidden="true" style="overflow:hidden;padding:0"></span>
+   <span class="gameNavText" data-mini-label="異環"><strong>異環</strong><small>成就紀錄器</small></span>
   </button>
   <button class="gameNavItem" type="button" disabled title="敬請期待">
    <span class="gameNavIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
@@ -359,7 +363,7 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
 <dialog id="supportDialog"><div class="dialogHead"><h2>問題回報與客服單</h2><button class="secondary" id="closeSupportBtn">關閉</button></div><div class="dialogBody"><div class="sectionCard"><h3>建立新客服單</h3><form id="supportCreateForm" class="formGrid"><label class="full">主旨<input id="supportSubject" maxlength="200" required></label><label class="full">問題說明<textarea class="compactText" id="supportMessage" maxlength="5000" required></textarea></label><div class="adminFormActions full"><button class="primary" type="submit">送出</button></div></form></div><h3>我的客服單</h3><div id="mySupportList" class="stack"></div></div></dialog>
 
 <script>
-const OFFICIAL_PAGE="";
+const OFFICIAL_PAGE="https://gitlab.com/Dimbreath/turnbasedgamedata";
 const GAME_ID="hsr";
 const GAME_API_BASE="/api/games/hsr";
 const HSR_PAGE_BUILD="20260622-hsr-official-category-order-v1";
@@ -391,14 +395,65 @@ let liveRevisions={};
 let liveTimer=null;
 let livePollRunning=false;
 const TRACKER_PAGE_STATE_KEY="achievement_tracker_page_state_hsr_r10";
+const TRACKER_FILTER_IDS=["achievementSearch","state","hidden","version","category","pageSize"];
+let accountFilterState=null;
+let accountFilterLoaded=false;
+let accountFilterSaveTimer=null;
+function normalizeTrackerFilterState(value){
+ const raw=value&&typeof value==="object"?value:{};
+ const state=String(raw.state||"");
+ const hidden=String(raw.hidden||"");
+ const parsedPageSize=Number(raw.pageSize);
+ return {
+  achievementSearch:String(raw.achievementSearch||"").slice(0,300),
+  state:["","done","todo"].includes(state)?state:"",
+  hidden:["","hidden","visible"].includes(hidden)?hidden:"",
+  version:String(raw.version||"").slice(0,100),
+  category:String(raw.category||"").slice(0,200),
+  pageSize:Number.isFinite(parsedPageSize)?Math.max(1,Math.min(200,Math.trunc(parsedPageSize))):20
+ };
+}
 function trackerSavedPageState(){try{return JSON.parse(sessionStorage.getItem(TRACKER_PAGE_STATE_KEY)||"{}")}catch{return {}}}
+function trackerActivePageState(){
+ const session=trackerSavedPageState();
+ return currentUser&&accountFilterLoaded&&accountFilterState?{...session,...accountFilterState}:session;
+}
 let currentPage=Math.max(1,Number(trackerSavedPageState().currentPage||1));
-function restoreTrackerPageControls(){const state=trackerSavedPageState();for(const id of ["achievementSearch","state","hidden","version","category","pageSize"]){const el=document.getElementById(id),value=state[id];if(!el||value===undefined)continue;if(el.tagName!=="SELECT"||[...el.options].some(option=>option.value===String(value)))el.value=String(value)}}
-function saveTrackerPageState(){const state={currentPage,scrollY:window.scrollY};for(const id of ["achievementSearch","state","hidden","version","category","pageSize"]){const el=document.getElementById(id);if(el)state[id]=el.value}sessionStorage.setItem(TRACKER_PAGE_STATE_KEY,JSON.stringify(state))}
+function restoreTrackerPageControls(){const state=trackerActivePageState();for(const id of TRACKER_FILTER_IDS){const el=document.getElementById(id),value=state[id];if(!el||value===undefined)continue;if(el.tagName!=="SELECT"||[...el.options].some(option=>option.value===String(value)))el.value=String(value)}}
+async function persistAccountFilterState(state){
+ try{
+  await apiJson(`/api/games/${encodeURIComponent(GAME_ID)}/preferences/achievement-filter`,{method:"PUT",body:JSON.stringify(normalizeTrackerFilterState(state))});
+ }catch(err){console.warn("儲存成就篩選條件失敗",err)}
+}
+function saveTrackerPageState(){
+ const state={currentPage,scrollY:window.scrollY};
+ for(const id of TRACKER_FILTER_IDS){const el=document.getElementById(id);if(el)state[id]=el.value}
+ sessionStorage.setItem(TRACKER_PAGE_STATE_KEY,JSON.stringify(state));
+ if(currentUser&&accountFilterLoaded){
+  accountFilterState=normalizeTrackerFilterState(state);
+  clearTimeout(accountFilterSaveTimer);
+  accountFilterSaveTimer=setTimeout(()=>persistAccountFilterState(accountFilterState),300);
+ }
+}
+async function loadAccountFilterState(){
+ accountFilterLoaded=false;
+ accountFilterState=null;
+ try{
+  const result=await apiJson(`/api/games/${encodeURIComponent(GAME_ID)}/preferences/achievement-filter`);
+  accountFilterState=normalizeTrackerFilterState(result.state);
+  accountFilterLoaded=true;
+  const session=trackerSavedPageState();
+  sessionStorage.setItem(TRACKER_PAGE_STATE_KEY,JSON.stringify({...session,...accountFilterState}));
+  restoreTrackerPageControls();
+ }catch(err){
+  accountFilterLoaded=true;
+  console.warn("讀取帳號成就篩選條件失敗",err);
+ }
+}
 restoreTrackerPageControls();
-document.addEventListener("input",event=>{if(["achievementSearch","state","hidden","version","category","pageSize"].includes(event.target?.id))saveTrackerPageState()},true);
-document.addEventListener("change",event=>{if(["achievementSearch","state","hidden","version","category","pageSize"].includes(event.target?.id))saveTrackerPageState()},true);
-window.addEventListener("pagehide",saveTrackerPageState);window.addEventListener("beforeunload",saveTrackerPageState);window.addEventListener("pageshow",()=>{restoreTrackerPageControls();const state=trackerSavedPageState();requestAnimationFrame(()=>window.scrollTo(0,Number(state.scrollY||0)))});
+document.addEventListener("input",event=>{if(TRACKER_FILTER_IDS.includes(event.target?.id))saveTrackerPageState()},true);
+document.addEventListener("change",event=>{if(TRACKER_FILTER_IDS.includes(event.target?.id))saveTrackerPageState()},true);
+window.addEventListener("pagehide",saveTrackerPageState);window.addEventListener("beforeunload",saveTrackerPageState);window.addEventListener("pageshow",()=>{restoreTrackerPageControls();const state=trackerActivePageState();requestAnimationFrame(()=>window.scrollTo(0,Number(state.scrollY||0)))});
 let filteredCache=[];
 let achievementSearchIndexSource=null;
 let achievementSearchIndex=[];
@@ -929,7 +984,7 @@ function updateDependentFilters(){
  renderCategorySelect();
 }
 function refreshIncompleteFilterSnapshot(){
- incompleteFilterSnapshot=$("state").value==="todo"
+ incompleteFilterSnapshot=$("state").value==="todo"&&data.length
   ?new Set(data.filter(item=>!isChoiceGroupDone(item)).map(item=>item.id))
   :null;
 }
@@ -1019,10 +1074,10 @@ function renderAchievementCard(x){
   const completionTitle=isAdmin?`${Number(stat.completed_count||0)} / ${eligibleUserCount} 位有效帳號完成`:`全站完成度 ${pct.toFixed(2)}%`;
   completionHtml=`<div class="achievementCompletion" title="${completionTitle}"><div class="achievementCompletionFill" style="width:${pct}%"></div><div class="achievementCompletionText"><span>${completionLabel}</span><strong>${pct.toFixed(2)}%</strong></div></div>`;
  }
- return `<article class="achievement ${done?"done":""} ${choiceLocked||stageLocked?"choiceLocked":""}"><input class="check" type="checkbox" data-id="${esc(x.id)}" ${done?"checked":""} ${choiceLocked?'disabled title="此互斥組已有其他成就被選擇；請先取消原選項"':stageLocked?'disabled':""}><div><h3>${esc(achievementDisplayName(x))}</h3><div class="desc">${esc(achievementDisplayConditionForView(x))}</div><div class="meta"><span class="tag version">版本 ${esc(x.version)}</span><span class="tag">分類：${esc(collection)}</span>${x.hidden?'<span class="tag hiddenTag">隱藏成就</span>':""}${tags}</div></div><div class="achievementSide"><div class="reward">${x.reward?`星瓊 × ${x.reward}`:"獎勵未標示"}</div><button class="secondary inlineAction achievementReportBtn" data-id="${esc(x.id)}">回報問題</button></div>${completionHtml}</article>`;
+ return `<article class="achievement ${done?"done":""} ${choiceLocked||stageLocked?"choiceLocked":""}"><input class="check" type="checkbox" data-id="${esc(x.id)}" ${done?"checked":""} ${choiceLocked?'disabled title="此互斥組已有其他成就被選擇；請先取消原選項"':stageLocked?'disabled':""}><div><h3>${esc(achievementDisplayName(x))}</h3><div class="desc">${esc(achievementDisplayConditionForView(x))}</div><div class="meta"><span class="tag version">版本 ${esc(x.version)}</span><span class="tag">分類：${esc(collection)}</span>${x.hidden?'<span class="tag hiddenTag">隱藏成就</span>':""}${tags}</div></div><div class="achievementSide"><div class="reward">${x.reward?`星瓊 × ${x.reward}`:"獎勵未標示"}</div><button class="secondary inlineAction achievementReportBtn" data-id="${esc(x.id)}">回報問題</button><a class="secondary inlineAction achievementGuideBtn" href="/hsr/${encodeURIComponent(x.id)}" target="_blank" rel="noopener">攻略</a></div>${completionHtml}</article>`;
 }
-function render(options={}){restoreTrackerPageControls();
- if(!options.skipFilterOptions)updateDependentFilters();
+function render(options={}){if(!options.skipFilterOptions)updateDependentFilters();
+ restoreTrackerPageControls();
  filteredCache=getFiltered();
  $("markFilteredBtn").disabled=filteredCache.length===0;
  $("resetBtn").disabled=filteredCache.length===0;
@@ -1104,6 +1159,7 @@ async function loadPublicCompletionStats(shouldRender=true){
 async function loadAccountProgress(){
  const result=await apiJson("/api/progress");
  completed=new Set(normalizeChoiceProgressIds(result.completed||[]));
+ refreshIncompleteFilterSnapshot();
 }
 async function setManyProgress(ids,value){
  const normalized=value?normalizeChoiceProgressIds(ids):[...new Set(ids)];
@@ -1152,6 +1208,7 @@ async function loadCustomizations(){
   data=applyServerCustomizations(baseData);
   rebuildChoiceGroupMaps();
   normalizeCurrentChoiceProgress(!currentUser);
+  refreshIncompleteFilterSnapshot();
 }catch(err){console.warn("讀取成就自訂資料失敗",err)}
 }
 function saveData(meta={}){localStorage.setItem(DATA_KEY,JSON.stringify(baseData));localStorage.setItem(META_KEY,JSON.stringify(meta))}
@@ -1167,6 +1224,7 @@ async function syncOfficial(){
   data=[...baseData];
   rebuildChoiceGroupMaps();
   await loadCustomizations();
+  refreshIncompleteFilterSnapshot();
   rebuildChoiceGroupMaps();
   normalizeCurrentChoiceProgress(!currentUser);
   saveData({source:"崩鐵成就專案資料庫",syncedAt:new Date().toISOString(),count:effectiveAchievementCount(data)});
@@ -1224,9 +1282,10 @@ function formatAdminDate(value){
 }
 
 function renderNotificationBadge(){const unread=userNotifications.filter(item=>!item.is_read).length;$("notificationBadge").hidden=!unread;$("notificationBadge").textContent=unread>99?"99+":String(unread)}
-async function loadUserNotifications(silent=false){if(!currentUser){userNotifications=[];renderNotificationBadge();return}try{const result=await apiJson("/api/notifications");userNotifications=result.notifications||[];renderNotificationBadge();if($("notificationDialog").open)renderUserNotifications()}catch(err){if(!silent)alert(err.message)}}
-function renderUserNotifications(){$("userNotificationList").innerHTML=userNotifications.length?userNotifications.map(item=>`<article class="notificationCard ${item.is_read?'':'unread'}"><h4>${esc(item.title)} ${item.is_read?'':'<span class="statusBadge pending">未讀</span>'}</h4><p>${esc(item.body)}</p><div class="notificationMeta">${esc(formatAdminDate(item.created_at))}｜${esc(item.kind||'info')}</div><div class="listItemActions">${item.link?`<a class="notificationLink" href="${esc(item.link)}">前往</a>`:''}${item.is_read?'':`<button class="secondary readNotificationBtn" data-id="${esc(item.id)}">標為已讀</button>`}</div></article>`).join(""):'<div class="adminEmpty">目前沒有通知。</div>'}
-$("notificationBtn").onclick=async()=>{await loadUserNotifications();renderUserNotifications();$("notificationDialog").showModal()};$("closeNotificationBtn").onclick=()=>$("notificationDialog").close();$("markAllNotificationsBtn").onclick=async()=>{await apiJson("/api/notifications/read-all",{method:"POST",body:"{}"});await loadUserNotifications()};$("userNotificationList").onclick=async e=>{const read=e.target.closest(".readNotificationBtn"),id=read?.dataset.id;if(!id)return;await apiJson(`/api/notifications/${encodeURIComponent(id)}/read`,{method:"POST",body:"{}"});await loadUserNotifications()};
+function isSafeNotificationLink(value){return typeof value==="string"&&/^(?:#[^\u0000-\u001F\u007F-\u009F\\]*|\/(?!\/)[^\u0000-\u001F\u007F-\u009F\\]*)$/.test(value)}
+async function loadUserNotifications(silent=false){if(!currentUser){userNotifications=[];renderNotificationBadge();return}try{const result=await apiJson("/api/message-center?item_type=notification");userNotifications=result.items||[];renderNotificationBadge();if($("notificationDialog").open)renderUserNotifications()}catch(err){if(!silent)alert(err.message)}}
+function renderUserNotifications(){$("userNotificationList").innerHTML=userNotifications.length?userNotifications.map(item=>`<article class="notificationCard ${item.is_read?'':'unread'}"><h4>${esc(item.title)} ${item.is_read?'':'<span class="statusBadge pending">未讀</span>'}</h4><p>${esc(item.body)}</p><div class="notificationMeta">${esc(formatAdminDate(item.created_at))}｜${esc(item.kind||'info')}</div><div class="listItemActions">${isSafeNotificationLink(item.link)?`<a class="notificationLink" href="${esc(item.link)}">前往</a>`:''}${item.is_read?'':`<button class="secondary readNotificationBtn" data-id="${esc(item.id)}">標為已讀</button>`}</div></article>`).join(""):'<div class="adminEmpty">目前沒有通知。</div>'}
+$("notificationBtn").onclick=async()=>{await loadUserNotifications();renderUserNotifications();$("notificationDialog").showModal()};$("closeNotificationBtn").onclick=()=>$("notificationDialog").close();$("markAllNotificationsBtn").onclick=async()=>{await apiJson("/api/message-center/read-all?item_type=notification",{method:"POST",body:"{}"});await loadUserNotifications()};$("userNotificationList").onclick=async e=>{const read=e.target.closest(".readNotificationBtn"),id=read?.dataset.id;if(!id)return;await apiJson(`/api/message-center/${encodeURIComponent(id)}/read`,{method:"POST",body:"{}"});await loadUserNotifications()};
 
 // ----- 使用者通知、客服與成就回報 -----
 
@@ -1296,7 +1355,11 @@ function notifyHubAuthChanged(){
 
 async function enterGuest(){
  currentUser=null;
+ clearTimeout(accountFilterSaveTimer);
+ accountFilterState=null;
+ accountFilterLoaded=false;
  loadGuestProgress();
+ refreshIncompleteFilterSnapshot();
  updateAccountHeader();
  notifyHubAuthChanged();
  render();
@@ -1311,6 +1374,7 @@ async function enterAccount(user){
  updateAccountHeader();
  notifyHubAuthChanged();
  await loadAccountProgress();
+ await loadAccountFilterState();
  render();
  if($("authDialog").open)$("authDialog").close();
  $("authPassword").value="";
@@ -1365,7 +1429,7 @@ sharedAuthChannel?.addEventListener("message",refreshSharedAuthState);
 window.addEventListener("storage",event=>{if(event.key==="achievement_auth_changed_at")refreshSharedAuthState()});
 window.addEventListener("message",async event=>{if(event.origin!==location.origin)return;const type=event.data?.type;if(type==="achievement-hub-auth-changed"||type==="achievement-hub-activate"){await refreshSharedAuthState();if(type==="achievement-hub-activate")requestAnimationFrame(()=>render({skipFilterOptions:true}))}if(type==="achievement-hub-open-support"){await refreshSharedAuthState();if(!currentUser)return openAccountCenter("請先登入後再使用問題回報。");await loadMySupport();if(!$('supportDialog').open)$('supportDialog').showModal()}});
 window.addEventListener("focus",refreshSharedAuthState);
-document.addEventListener("visibilitychange",()=>{if(!document.hidden)refreshSharedAuthState()});window.addEventListener("pageshow",()=>{refreshSharedAuthState();requestAnimationFrame(()=>render({skipFilterOptions:true}))});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)refreshSharedAuthState()});window.addEventListener("pageshow",()=>{refreshSharedAuthState().finally(()=>requestAnimationFrame(()=>{updateDependentFilters();restoreTrackerPageControls();if($("state").value==="todo"){if(data.length)refreshIncompleteFilterSnapshot();else incompleteFilterSnapshot=null}render({skipFilterOptions:true})}))});
 
 $("closeAuthBtn").onclick=()=>{
  setAuthMode("login");

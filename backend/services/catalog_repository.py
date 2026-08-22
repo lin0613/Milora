@@ -5,6 +5,8 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+from backend.services.official_id_model import achievement_source_order, validate_achievement_id
+
 CatalogRow = dict[str, Any]
 RowTransform = Callable[[dict[str, Any], int], dict[str, Any]]
 RowsTransform = Callable[[list[CatalogRow]], list[CatalogRow]]
@@ -46,9 +48,7 @@ def normalize_catalog_rows(
     rows: list[CatalogRow] = []
     for index, source in enumerate(raw_rows):
         item = row_transform(dict(source), index) if row_transform else dict(source)
-        achievement_id = str(item.get("id") or item.get("achievement_id") or "").strip()
-        if not achievement_id.isdigit():
-            raise ValueError(f"{game_id} achievement id must be a numeric official id: {achievement_id or 'empty'}")
+        achievement_id = validate_achievement_id(item.get("id") or item.get("achievement_id"))
         name = str(item.get("title") or item.get("name") or "").strip()
         condition = str(item.get("condition") or item.get("description") or item.get("desc") or item.get("hide_desc") or "").strip()
         if not achievement_id or not name or (require_condition and not condition):
@@ -69,7 +69,10 @@ def normalize_catalog_rows(
                 "hidden": 1 if item.get("hidden") or item.get("hide") else 0,
                 "tags_json": json.dumps(tags, ensure_ascii=False),
                 "source": str(item.get("source") or payload_source or default_source).strip(),
-                "source_order": int(achievement_id),
+                "source_order": achievement_source_order(
+                    achievement_id,
+                    item.get("sourceOrder") if item.get("sourceOrder") is not None else item.get("source_order", index + 1),
+                ),
             }
         )
     if rows_transform:

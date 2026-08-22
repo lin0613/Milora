@@ -26,7 +26,7 @@
   };
   hideLegacyMessageEntries();
   document.addEventListener('DOMContentLoaded',hideLegacyMessageEntries,{once:true});
-  if(!['wuwa','hsr','genshin','zzz'].includes(gameId))return;
+  if(!['wuwa','hsr','genshin','zzz','nte'].includes(gameId))return;
   const button=document.getElementById('syncBtn');
   if(!button)return;
   const replacement=button.cloneNode(true);

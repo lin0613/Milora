@@ -69,29 +69,29 @@ from backend.services.sync_engine import apply_decisions as apply_sync_decisions
 from backend.services.catalog_repository import normalize_catalog_rows, replace_catalog_rows
 from backend.services.catalog_sorting import catalog_sort_key, sort_catalog_rows, sync_change_sort_key
 from backend.services.official_id_model import (
+    achievement_id_sort_key,
+    achievement_source_order,
     migrate_wuwa_to_official_ids,
     normalize_all_game_official_order,
     official_id_number,
     sanitize_legacy_id_display,
+    validate_achievement_id,
     verify_official_id_model,
 )
 from backend.services.source_pipeline import PIPELINE_VERSION as SOURCE_PIPELINE_VERSION, adapter_id as source_adapter_id, common_metadata as source_common_metadata, source_error_code
-from backend.services.game_data_sources import RepositorySourceError, prepare_repository_candidate, test_repository_source, source_cache_path
+from backend.services.game_data_sources import RepositorySourceError, is_nte_playstation_achievement_id, prepare_repository_candidate, test_repository_source, source_cache_path
 from backend.services.relation_governance import DERIVED_RELATION_FIELDS, expected_relation_state, validate_relation_state
 from backend.core.paths import (
     ACCOUNT_INDEX,
     ADMIN_INDEX,
-    CACHE_FILE,
     DATA_DIR,
     GAME_ICON_FILES,
     GENSHIN_CATALOG_FILE,
-    HSR_ACHIEVEMENTS_METADATA_CACHE_FILE,
+    GUIDE_INDEX,
+    GUIDE_MEDIA_DIR,
     HSR_CATALOG_FILE,
-    HSR_OFFICIAL_REWARD_FILE,
     HUB_INDEX,
     LOG_DIR,
-    META_FILE,
-    OFFICIAL_ZH_TW_FILE,
     OUTBOX_DIR,
     PROJECTS_DIR,
     ROOT,
@@ -103,8 +103,14 @@ from backend.core.paths import (
     game_catalog_file,
     game_relation_file,
 )
-from backend.wuwa_catalog import build_wuwa_catalog_file
 from backend.wuwa_categories import canonicalize_wuwa_category, sort_wuwa_achievement_rows
+from backend.services.guide_content import (
+    guide_has_content,
+    guide_plain_text,
+    normalize_video_url,
+    sanitize_guide_html,
+    video_embed_url,
+)
 
 load_dotenv(ROOT / ".env")
 ensure_runtime_directories()
@@ -154,14 +160,13 @@ ADMIN_EMAILS = {normalize.strip().casefold() for normalize in os.getenv("ADMIN_E
 if SITE_OWNER_EMAIL:
     ADMIN_EMAILS.add(SITE_OWNER_EMAIL)
 
-ENTRY_ID = "1220879855033786368"
-OFFICIAL_PAGE = f"https://wiki.kurobbs.com/mc/item/{ENTRY_ID}"
 WUWA_SHARED_MODEL_MIGRATION = "20260624-wuwa-shared-model-v1"
 GAME_ICON_LABELS = {
     "wuwa": "Wuthering Waves",
     "hsr": "Honkai: Star Rail",
     "genshin": "Genshin Impact",
     "zzz": "Zenless Zone Zero",
+    "nte": "Neverness to Everness",
     "hna": "Honkai: Nexus Anima",
 }
 
@@ -210,6 +215,14 @@ class ProgressBatch(BaseModel):
 class ProgressReplace(BaseModel):
     achievement_ids: list[str]
 
+class AchievementFilterPreferencePayload(BaseModel):
+    achievementSearch: str = Field(default="", max_length=300)
+    state: str = Field(default="", max_length=20)
+    hidden: str = Field(default="", max_length=20)
+    version: str = Field(default="", max_length=100)
+    category: str = Field(default="", max_length=200)
+    pageSize: int = Field(default=20, ge=1, le=200)
+
 class AdminRoleUpdate(BaseModel):
     role: str = Field(min_length=4, max_length=10)
 
@@ -230,6 +243,9 @@ class AdminSyncApplyPayload(BaseModel):
     selected_change_ids: list[str] | None = None
     decisions: dict[str, Any] = Field(default_factory=dict)
     reason: str = Field(default="", max_length=1000)
+
+class SourceIsolationDecisionPayload(BaseModel):
+    reason: str = Field(min_length=3, max_length=1000)
 
 class SyncHistoryRollbackPayload(BaseModel):
     reason: str = Field(min_length=3, max_length=2000)
@@ -401,6 +417,24 @@ class AchievementCategoryReorderPayload(BaseModel):
     category_ids: list[str] = Field(min_length=1, max_length=500)
 
 
+class GuideSubmissionPayload(BaseModel):
+    content_html: str = Field(min_length=1, max_length=250_000)
+
+
+class GuideImageUploadPayload(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content_base64: str = Field(min_length=4, max_length=7_100_000)
+
+
+class GuideSubmissionReviewPayload(BaseModel):
+    action: str = Field(min_length=6, max_length=20)
+    review_note: str = Field(default="", max_length=2000)
+
+
+class GuideVideoValidatePayload(BaseModel):
+    url: str = Field(min_length=8, max_length=2000)
+
+
 class TicketCreatePayload(BaseModel):
     subject: str = Field(min_length=2, max_length=200)
     message: str = Field(min_length=3, max_length=5000)
@@ -458,6 +492,38 @@ def digest_token(token: str) -> str:
 
 def normalize_email(value: str) -> str:
     return str(value).strip().casefold()
+
+
+def normalize_message_link(value: str) -> str:
+    """Return a safe same-origin notification link or reject it.
+
+    Message links intentionally support only a same-page fragment or an
+    absolute path on this site.  External and protocol-relative URLs are not
+    needed by the product and would make stored notifications an execution or
+    phishing boundary.
+    """
+    link = str(value or "").strip()
+    if not link:
+        return ""
+    if len(link) > 500 or re.search(r"[\x00-\x1f\x7f-\x9f]", link) or "\\" in link:
+        raise HTTPException(status_code=422, detail="通知連結只能使用本站路徑或頁面錨點。")
+    decoded = link
+    for _ in range(3):
+        expanded = urllib.parse.unquote(decoded)
+        if expanded == decoded:
+            break
+        decoded = expanded
+    if re.search(r"[\x00-\x1f\x7f-\x9f]", decoded) or "\\" in decoded:
+        raise HTTPException(status_code=422, detail="通知連結只能使用本站路徑或頁面錨點。")
+    if link.startswith("#"):
+        return link
+    if not link.startswith("/") or link.startswith("//") or decoded.startswith("//"):
+        raise HTTPException(status_code=422, detail="通知連結只能使用本站路徑或頁面錨點。")
+    parsed = urllib.parse.urlsplit(link)
+    if parsed.scheme or parsed.netloc:
+        raise HTTPException(status_code=422, detail="通知連結只能使用本站路徑或頁面錨點。")
+    return link
+
 
 def normalize_username(value: str) -> str:
     return str(value).strip().casefold()
@@ -555,67 +621,6 @@ def _sync_relation_groups(db: sqlite3.Connection, game_id: str, path: Path, rela
         )
     return len({row[1] for row in rows}),len(rows)
 
-
-
-def _refresh_wuwa_catalog_file() -> dict[str,Any]:
-    if not CACHE_FILE.exists():
-        raise ValueError("尚未建立鳴潮官方成就快取。")
-    return build_wuwa_catalog_file(
-        CACHE_FILE,
-        WUWA_CATALOG_FILE,
-        OFFICIAL_ZH_TW_FILE if OFFICIAL_ZH_TW_FILE.exists() else None,
-        OFFICIAL_PAGE,
-    )
-
-
-def _load_wuwa_catalog_rows(catalog_path: Path | None = None) -> list[dict[str,Any]]:
-    path=catalog_path or WUWA_CATALOG_FILE
-    if not path.exists():
-        if catalog_path is not None:
-            raise ValueError(f"鳴潮成就目錄不存在：{path}")
-        _refresh_wuwa_catalog_file()
-    payload=json.loads(path.read_text(encoding="utf-8-sig"))
-    raw=payload.get("items") if isinstance(payload,dict) else payload
-    if not isinstance(raw,list):
-        raise ValueError("鳴潮成就資料格式錯誤：缺少 items。")
-    rows=[]
-    for index,item in enumerate(raw):
-        if not isinstance(item,dict):
-            continue
-        achievement_id=str(item.get("id") or item.get("achievement_id") or "").strip()
-        name=str(item.get("name") or "").strip()
-        condition=str(item.get("condition") or "").strip()
-        if not achievement_id or not name or not condition:
-            continue
-        rows.append({
-            "achievement_id":achievement_id,
-            "name":name,
-            "condition":condition,
-            "version":str(item.get("version") or "未標示").strip(),
-            "category":canonicalize_wuwa_category(item.get("category") or "未辨識分類"),
-            "reward":int(item.get("reward") or 0),
-            "hidden":1 if item.get("hidden") else 0,
-            "tags_json":json.dumps(item.get("tags") if isinstance(item.get("tags"),list) else [],ensure_ascii=False),
-            "source":str(item.get("source") or "kuro-official-wiki").strip(),
-            "source_order":int(item.get("sourceOrder") if item.get("sourceOrder") is not None else index),
-        })
-    rows=sort_wuwa_achievement_rows(rows)
-    if len(rows)<1000:
-        raise ValueError(f"鳴潮成就資料筆數異常：{len(rows)}")
-    return rows
-
-
-def _sync_wuwa_catalog(db: sqlite3.Connection) -> tuple[int,int]:
-    rows=_load_wuwa_catalog_rows()
-    stamp=now()
-    db.execute("delete from game_catalog_items where game_id='wuwa' and lower(source) not in ('manual','admin')")
-    db.executemany(
-        """insert into game_catalog_items(game_id,achievement_id,name,condition,version,category,reward,hidden,tags_json,source,source_order,updated_at)
-        values('wuwa',?,?,?,?,?,?,?,?,?,?,?)
-        on conflict(game_id,achievement_id) do nothing""",
-        [(r["achievement_id"],r["name"],r["condition"],r["version"],r["category"],r["reward"],r["hidden"],r["tags_json"],r["source"],r["source_order"],stamp) for r in rows],
-    )
-    return len(rows),len({r["achievement_id"] for r in rows})
 
 
 def _migrate_wuwa_shared_model(db: sqlite3.Connection) -> dict[str,int]:
@@ -753,82 +758,6 @@ def _verify_wuwa_shared_model(db: sqlite3.Connection) -> dict[str,int]:
     }
 
 
-def _load_hsr_catalog_version_map() -> dict[str,str]:
-    """Load the persisted HSR release-version map used by the normalized catalog.
-
-    The HSR catalog stores official Traditional Chinese text and order, while release
-    versions are derived from the preserved achievement history metadata.  Keeping
-    this lookup here prevents startup catalog synchronization from replacing every
-    version with ``未標示``.
-    """
-    try:
-        if not HSR_ACHIEVEMENTS_METADATA_CACHE_FILE.exists():
-            return {}
-        payload=json.loads(HSR_ACHIEVEMENTS_METADATA_CACHE_FILE.read_text(encoding="utf-8-sig"))
-        raw=payload.get("version_by_id") if isinstance(payload,dict) else None
-        if not isinstance(raw,dict):
-            return {}
-        result={}
-        for key,value in raw.items():
-            achievement_id=str(key or "").strip()
-            version=str(value or "").strip()
-            if achievement_id and version:
-                result[achievement_id]=version
-        return result
-    except Exception:
-        return {}
-
-
-def _load_hsr_catalog_rows() -> list[dict[str,Any]]:
-    if not HSR_CATALOG_FILE.exists():
-        return []
-    payload=json.loads(HSR_CATALOG_FILE.read_text(encoding="utf-8-sig"))
-    raw=payload.get("items") if isinstance(payload,dict) else payload
-    version_by_id=_load_hsr_catalog_version_map()
-    catalog_source=str(payload.get("source") or "").strip() if isinstance(payload,dict) else ""
-    if not isinstance(raw,list):
-        raise ValueError("崩鐵成就資料格式錯誤：缺少 items。")
-    rows=[]
-    for index,item in enumerate(raw):
-        if not isinstance(item,dict):
-            continue
-        achievement_id=str(item.get("id") or item.get("achievement_id") or "").strip()
-        name=str(item.get("title") or item.get("name") or "").strip()
-        condition=str(item.get("desc") or item.get("condition") or item.get("description") or item.get("hide_desc") or "").strip()
-        if not achievement_id or not name:
-            continue
-        rows.append({
-            "achievement_id":achievement_id,
-            "name":name,
-            "condition":condition,
-            "version":str(item.get("version") or version_by_id.get(achievement_id) or "未標示").strip(),
-            "category":str(item.get("category") or "未辨識分類").strip(),
-            "reward":int(item.get("reward") or 0),
-            "hidden":1 if item.get("hide") or item.get("hidden") else 0,
-            "tags_json":json.dumps(item.get("tags") if isinstance(item.get("tags"),list) else [],ensure_ascii=False),
-            "source":str(item.get("source") or ("hoyolab-official-zh-tw" if version_by_id else catalog_source) or "hsr-local-catalog").strip(),
-            "source_order":int(item.get("sourceOrder") if item.get("sourceOrder") is not None else index),
-        })
-    if len(rows)<1000:
-        raise ValueError(f"崩鐵成就資料筆數異常：{len(rows)}")
-    return rows
-
-
-def _sync_hsr_catalog(db: sqlite3.Connection) -> tuple[int,int]:
-    rows=_load_hsr_catalog_rows()
-    if not rows:
-        return 0,0
-    stamp=now()
-    db.execute("delete from game_catalog_items where game_id='hsr' and lower(source) not in ('manual','admin')")
-    db.executemany(
-        """insert into game_catalog_items(game_id,achievement_id,name,condition,version,category,reward,hidden,tags_json,source,source_order,updated_at)
-        values('hsr',?,?,?,?,?,?,?,?,?,?,?)
-        on conflict(game_id,achievement_id) do nothing""",
-        [(r["achievement_id"],r["name"],r["condition"],r["version"],r["category"],r["reward"],r["hidden"],r["tags_json"],r["source"],r["source_order"],stamp) for r in rows],
-    )
-    return len(rows),len({r["achievement_id"] for r in rows})
-
-
 def _load_genshin_catalog_rows() -> list[dict[str,Any]]:
     if not GENSHIN_CATALOG_FILE.exists():
         return []
@@ -900,7 +829,7 @@ def _load_zzz_catalog_rows() -> list[dict[str,Any]]:
             "version":str(item.get("version") or "未標示").strip(),"category":category,
             "reward":int(item.get("reward") or 0),"hidden":1 if item.get("hidden") else 0,
             "tags_json":json.dumps(item.get("tags") if isinstance(item.get("tags"),list) else [],ensure_ascii=False),
-            "source":str(item.get("source") or "stardb-zzz-zh-tw").strip(),
+            "source":str(item.get("source") or "zenless_data").strip(),
             "source_order":int(item.get("sourceOrder") if item.get("sourceOrder") is not None else index),
         })
     if len(rows)<400:
@@ -937,8 +866,6 @@ def _load_registered_catalog_rows(game_id: str) -> list[dict[str,Any]]:
 
 
 def _sync_registered_catalog(db: sqlite3.Connection, game_id: str) -> tuple[int,int]:
-    if game_id=="wuwa": return _sync_wuwa_catalog(db)
-    if game_id=="hsr": return _sync_hsr_catalog(db)
     if game_id=="genshin": return _sync_genshin_catalog(db)
     if game_id=="zzz": return _sync_zzz_catalog(db)
     rows=_load_registered_catalog_rows(game_id)
@@ -994,6 +921,87 @@ def _migrate_orphan_identity_cleanup(db: sqlite3.Connection) -> int:
     return len(removed)
 
 
+NTE_PLAYSTATION_CLEANUP_MIGRATION = "2026-08-11-nte-playstation-achievement-exclusion-v1"
+
+
+def _migrate_nte_playstation_achievement_cleanup(db: sqlite3.Connection) -> dict[str, Any]:
+    if db.execute(
+        "select 1 from schema_migrations where name=?",
+        (NTE_PLAYSTATION_CLEANUP_MIGRATION,),
+    ).fetchone():
+        return {"already_applied": True}
+
+    candidate_ids: set[str] = set()
+    for table, column in (
+        ("game_catalog_items", "achievement_id"),
+        ("game_catalog_source_records", "achievement_id"),
+        ("achievement_identities", "internal_id"),
+        ("achievement_source_ids", "internal_id"),
+    ):
+        candidate_ids.update(
+            str(row[0])
+            for row in db.execute(
+                f"select distinct {column} from {table} where game_id='nte'"
+            ).fetchall()
+            if is_nte_playstation_achievement_id(row[0])
+        )
+    excluded_ids = sorted(candidate_ids)
+
+    active_references: dict[str, int] = {}
+    if excluded_ids:
+        placeholders = ",".join("?" for _ in excluded_ids)
+        for table in (
+            "game_progress",
+            "game_achievement_choice_groups",
+            "game_achievement_reports",
+            "game_achievement_overrides",
+            "game_deleted_achievements",
+            "game_featured_achievements",
+            "achievement_guide_submissions",
+            "achievement_guides",
+        ):
+            count = int(db.execute(
+                f"select count(*) from {table} where game_id='nte' and achievement_id in ({placeholders})",
+                excluded_ids,
+            ).fetchone()[0])
+            if count:
+                active_references[table] = count
+    if active_references:
+        raise RuntimeError(
+            "異環 PlayStation 專屬成就仍有使用者或管理內容，已停止自動排除："
+            + json.dumps(active_references, ensure_ascii=False, sort_keys=True)
+        )
+
+    removed: dict[str, int] = {}
+    if excluded_ids:
+        placeholders = ",".join("?" for _ in excluded_ids)
+        for table, column in (
+            ("achievement_source_ids", "internal_id"),
+            ("game_catalog_source_records", "achievement_id"),
+            ("achievement_identities", "internal_id"),
+            ("game_catalog_items", "achievement_id"),
+        ):
+            cursor = db.execute(
+                f"delete from {table} where game_id='nte' and {column} in ({placeholders})",
+                excluded_ids,
+            )
+            removed[table] = int(cursor.rowcount or 0)
+    preview_cursor = db.execute("delete from game_sync_previews where game_id='nte'")
+    removed["game_sync_previews"] = int(preview_cursor.rowcount or 0)
+    details = {
+        "rule": "exact_playstation_id_with_bIsHost_cross_validation",
+        "excluded_count": len(excluded_ids),
+        "excluded_ids": excluded_ids,
+        "active_references": active_references,
+        "removed": removed,
+    }
+    db.execute(
+        "insert into schema_migrations(name,applied_at,details_json) values(?,?,?)",
+        (NTE_PLAYSTATION_CLEANUP_MIGRATION, now(), json.dumps(details, ensure_ascii=False)),
+    )
+    return details
+
+
 def _sync_registered_relations(db: sqlite3.Connection, game_id: str) -> None:
     for relation_type in ("exclusive","stage"):
         _sync_relation_groups(db,game_id,game_relation_file(game_id,relation_type),relation_type)
@@ -1029,51 +1037,6 @@ def _migrate_wuwa_legacy_choice_progress(db: sqlite3.Connection) -> int:
                 migrated+=1
         db.execute("delete from progress where achievement_id=?",(legacy_id,))
     return migrated
-
-
-def _load_hsr_official_reward_metadata() -> dict[str, int]:
-    """讀取遊戲資料中的官方星瓊獎勵；與排序檔分開保存，避免重建排序時遺失。"""
-    if not HSR_OFFICIAL_REWARD_FILE.exists():
-        return {}
-    try:
-        payload=json.loads(HSR_OFFICIAL_REWARD_FILE.read_text(encoding="utf-8-sig"))
-    except Exception:
-        return {}
-    raw_items=payload.get("items") if isinstance(payload,dict) else None
-    if not isinstance(raw_items,list):
-        return {}
-    result: dict[str,int]={}
-    for item in raw_items:
-        if not isinstance(item,dict):
-            continue
-        achievement_id=str(item.get("achievement_id") or item.get("id") or "").strip()
-        try:
-            reward=int(item.get("reward") or 0)
-        except (TypeError,ValueError):
-            reward=0
-        if achievement_id and reward in {5,10,20}:
-            result[achievement_id]=reward
-    return result
-
-
-
-
-def _repair_hsr_catalog_rewards(db: sqlite3.Connection) -> int:
-    """依獨立官方獎勵檔回填崩鐵成就，避免同步或舊快取把獎勵寫回 0。"""
-    rewards=_load_hsr_official_reward_metadata()
-    if len(rewards)<1500:
-        return 0
-    changed=0
-    stamp=now()
-    for achievement_id,reward in rewards.items():
-        cursor=db.execute(
-            """update game_catalog_items
-            set reward=?,updated_at=?
-            where game_id='hsr' and achievement_id=? and reward<>?""",
-            (reward,stamp,achievement_id,reward),
-        )
-        changed+=max(0,int(cursor.rowcount or 0))
-    return changed
 
 
 def _repair_choice_group_progress(db: sqlite3.Connection, game_id: str="hsr") -> int:
@@ -1361,13 +1324,16 @@ def _apply_managed_category_aliases(db: sqlite3.Connection, game_id: str, rows: 
     return normalized
 
 
-def _achievement_display_official_id(row: dict[str,Any]) -> int:
+def _achievement_display_id_sort_key(row: dict[str,Any]) -> tuple[int,int,str]:
     raw=next((row.get(key) for key in ("officialId","official_source_id","displayId","display_id","achievement_id","id") if row.get(key) not in (None,"")),"")
     value=str(raw).strip()
-    if not re.fullmatch(r"\d+",value):
+    try:
+        validate_achievement_id(value)
+    except ValueError:
         achievement_id=str(row.get("id") or row.get("achievement_id") or "").strip() or "（空白）"
-        raise RuntimeError(f"成就顯示排序資料錯誤：成就 {achievement_id} 缺少有效的數字官方 ID。請先至成就資料治理中心處理。")
-    return int(value)
+        raise RuntimeError(f"成就顯示排序資料錯誤：成就 {achievement_id} 缺少有效的官方 ID。請先至成就資料治理中心處理。")
+    source_order=row.get("sourceOrder") if row.get("sourceOrder") is not None else row.get("source_order",0)
+    return achievement_id_sort_key(value,source_order)
 
 
 def _sort_achievement_display_rows(
@@ -1408,7 +1374,7 @@ def _sort_achievement_display_rows(
         achievement_id=str(row.get("id") or row.get("achievement_id") or "").strip() or "（空白）"
         if category not in category_rank:
             raise RuntimeError(f"成就顯示排序資料錯誤：成就 {achievement_id} 的分類「{category or '（空白）'}」尚未納入成就類別管理。請先至成就資料治理中心處理。")
-        _achievement_display_official_id(row)
+        _achievement_display_id_sort_key(row)
         membership=stage_membership.get(achievement_id)
         if membership:
             group_id,_=membership
@@ -1418,16 +1384,16 @@ def _sort_achievement_display_rows(
 
     ordered: list[dict[str,Any]]=[]
     for category in sorted(category_rank,key=category_rank.get):
-        blocks: list[tuple[int,int,str,list[dict[str,Any]]]]=[]
+        blocks: list[tuple[tuple[int,int,str],int,str,list[dict[str,Any]]]]=[]
         for row in category_singles.get(category,[]):
-            official_id=_achievement_display_official_id(row)
+            official_id=_achievement_display_id_sort_key(row)
             achievement_id=str(row.get("id") or row.get("achievement_id") or "")
             blocks.append((official_id,1,achievement_id,[row]))
         for (group_category,group_id),members in category_stage_groups.items():
             if group_category!=category:
                 continue
-            members.sort(key=lambda row:(stage_membership[str(row.get("id") or row.get("achievement_id") or "")][1],_achievement_display_official_id(row)))
-            anchor=min(_achievement_display_official_id(row) for row in members)
+            members.sort(key=lambda row:(stage_membership[str(row.get("id") or row.get("achievement_id") or "")][1],_achievement_display_id_sort_key(row)))
+            anchor=min(_achievement_display_id_sort_key(row) for row in members)
             blocks.append((anchor,0,group_id,members))
         blocks.sort(key=lambda block:(block[0],block[1],block[2]))
         for _,_,_,members in blocks:
@@ -1556,21 +1522,6 @@ def init_db() -> None:
             is_active integer not null default 1, pinned integer not null default 0, starts_at integer, ends_at integer,
             created_by text references users(id) on delete set null, created_at integer not null, updated_at integer not null
         );
-        create table if not exists notifications (
-            id text primary key, target_user_id text references users(id) on delete cascade,
-            title text not null, body text not null, kind text not null default 'info', link text not null default '',
-            created_by text references users(id) on delete set null, created_at integer not null
-        );
-        create table if not exists notification_reads (
-            user_id text not null references users(id) on delete cascade,
-            notification_id text not null references notifications(id) on delete cascade,
-            read_at integer not null, primary key(user_id, notification_id)
-        );
-        create table if not exists notification_deletions (
-            user_id text not null references users(id) on delete cascade,
-            notification_id text not null references notifications(id) on delete cascade,
-            deleted_at integer not null, primary key(user_id, notification_id)
-        );
         create table if not exists redeem_games (
             game_id text primary key,
             name text not null,
@@ -1697,21 +1648,65 @@ def init_db() -> None:
             id text primary key, ticket_id text not null references support_tickets(id) on delete cascade,
             sender_user_id text references users(id) on delete set null, message text not null, created_at integer not null
         );
+        create table if not exists achievement_guide_submissions (
+            id text primary key,
+            game_id text not null,
+            achievement_id text not null,
+            author_user_id text references users(id) on delete set null,
+            author_name_snapshot text not null default '',
+            content_html text not null,
+            content_text text not null default '',
+            status text not null default 'pending' check(status in ('pending','approved','rejected')),
+            review_note text not null default '',
+            reviewed_by text references users(id) on delete set null,
+            created_at integer not null,
+            updated_at integer not null,
+            reviewed_at integer
+        );
+        create table if not exists achievement_guides (
+            game_id text not null,
+            achievement_id text not null,
+            submission_id text not null references achievement_guide_submissions(id) on delete restrict,
+            published_by text references users(id) on delete set null,
+            published_at integer not null,
+            updated_at integer not null,
+            primary key(game_id,achievement_id)
+        );
+        create table if not exists guide_media (
+            id text primary key,
+            owner_user_id text references users(id) on delete set null,
+            original_filename text not null default '',
+            media_type text not null,
+            size_bytes integer not null,
+            sha256 text not null,
+            storage_name text not null unique,
+            created_at integer not null,
+            expires_at integer
+        );
+        create table if not exists guide_submission_media (
+            submission_id text not null references achievement_guide_submissions(id) on delete cascade,
+            media_id text not null references guide_media(id) on delete cascade,
+            primary key(submission_id,media_id)
+        );
         create index if not exists sessions_user_idx on sessions(user_id);
         create index if not exists progress_user_idx on progress(user_id);
         create index if not exists verification_user_idx on email_verification_tokens(user_id);
         create index if not exists reset_user_idx on password_reset_tokens(user_id);
         create index if not exists reports_status_idx on achievement_reports(status,created_at);
-        create index if not exists notifications_target_idx on notifications(target_user_id,created_at);
         create index if not exists redeem_games_order_idx on redeem_games(enabled,display_order,name);
         create index if not exists redeem_servers_game_idx on redeem_servers(game_id,enabled,display_order,name);
         create index if not exists redeem_codes_game_idx on redeem_codes(game_id,enabled,start_at,end_at);
-        create unique index if not exists redeem_codes_game_code_unique on redeem_codes(game_id,lower(trim(code)));
+        drop index if exists redeem_codes_game_code_unique;
+        create unique index redeem_codes_game_code_unique on redeem_codes(game_id,trim(code) collate binary);
         create index if not exists redeem_import_batches_created_idx on redeem_import_batches(created_at,status);
         create index if not exists redeem_import_items_batch_idx on redeem_import_items(batch_id,row_number);
         create index if not exists redeem_notification_events_lookup_idx on redeem_notification_events(game_id,code_id,created_at);
         create index if not exists email_logs_created_idx on email_logs(created_at);
         create index if not exists tickets_user_idx on support_tickets(user_id,updated_at);
+        create index if not exists guide_submissions_achievement_idx on achievement_guide_submissions(game_id,achievement_id,status,updated_at);
+        create index if not exists guide_submissions_review_idx on achievement_guide_submissions(status,updated_at);
+        create unique index if not exists guide_submissions_user_pending_unique on achievement_guide_submissions(game_id,achievement_id,author_user_id) where status='pending' and author_user_id is not null;
+        create index if not exists guide_media_owner_idx on guide_media(owner_user_id,created_at);
 
         create table if not exists live_revisions (
             scope text primary key, revision integer not null default 0, updated_at integer not null default 0
@@ -1737,12 +1732,6 @@ def init_db() -> None:
         create trigger if not exists live_announcements_insert after insert on announcements begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='announcements'; end;
         create trigger if not exists live_announcements_update after update on announcements begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='announcements'; end;
         create trigger if not exists live_announcements_delete after delete on announcements begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='announcements'; end;
-        create trigger if not exists live_notifications_insert after insert on notifications begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
-        create trigger if not exists live_notifications_update after update on notifications begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
-        create trigger if not exists live_notifications_delete after delete on notifications begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
-        create trigger if not exists live_notification_reads_insert after insert on notification_reads begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
-        create trigger if not exists live_notification_reads_update after update on notification_reads begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
-        create trigger if not exists live_notification_deletions_insert after insert on notification_deletions begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
         create trigger if not exists live_redeem_games_insert after insert on redeem_games begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='redeem_codes'; end;
         create trigger if not exists live_redeem_games_update after update on redeem_games begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='redeem_codes'; end;
         create trigger if not exists live_redeem_games_delete after delete on redeem_games begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='redeem_codes'; end;
@@ -1875,6 +1864,15 @@ def init_db() -> None:
             updated_at integer not null default 0,
             primary key(game_id, scope)
         );
+        create table if not exists achievement_filter_preferences (
+            user_id text not null references users(id) on delete cascade,
+            game_id text not null,
+            state_json text not null default '{}',
+            updated_at integer not null,
+            primary key(user_id,game_id)
+        );
+        create index if not exists achievement_filter_preferences_updated_idx
+            on achievement_filter_preferences(updated_at);
         create table if not exists schema_migrations (
             name text primary key,
             applied_at integer not null,
@@ -2020,6 +2018,38 @@ def init_db() -> None:
             actor_user_id text references users(id) on delete set null,
             created_at integer not null
         );
+        create table if not exists source_isolation_exclusions (
+            id text primary key,
+            game_id text not null,
+            source_id text not null,
+            source_item_id text not null,
+            source_fingerprint text not null,
+            snapshot_json text not null default '{}',
+            reason text not null default '',
+            created_by text references users(id) on delete set null,
+            created_at integer not null,
+            revoked_by text references users(id) on delete set null,
+            revoked_at integer,
+            revoke_reason text not null default ''
+        );
+        create unique index if not exists source_isolation_exclusions_active_idx on source_isolation_exclusions(game_id,source_id,source_item_id,source_fingerprint) where revoked_at is null;
+        create index if not exists source_isolation_exclusions_lookup_idx on source_isolation_exclusions(game_id,source_id,source_item_id,created_at);
+        create table if not exists source_isolation_approvals (
+            id text primary key,
+            game_id text not null,
+            source_id text not null,
+            source_item_id text not null,
+            source_fingerprint text not null,
+            snapshot_json text not null default '{}',
+            reason text not null default '',
+            created_by text references users(id) on delete set null,
+            created_at integer not null,
+            revoked_by text references users(id) on delete set null,
+            revoked_at integer,
+            revoke_reason text not null default ''
+        );
+        create unique index if not exists source_isolation_approvals_active_idx on source_isolation_approvals(game_id,source_id,source_item_id,source_fingerprint) where revoked_at is null;
+        create index if not exists source_isolation_approvals_lookup_idx on source_isolation_approvals(game_id,source_id,source_item_id,created_at);
         create index if not exists source_sync_decisions_game_idx on source_sync_decisions(game_id,created_at);
         create index if not exists game_progress_user_idx on game_progress(game_id,user_id);
         create index if not exists game_choice_groups_idx on game_achievement_choice_groups(game_id,group_id);
@@ -2128,33 +2158,121 @@ def init_db() -> None:
         create trigger if not exists message_center_announcement_delete after delete on announcements begin
             delete from message_center_items where id=old.id;
         end;
-        create trigger if not exists message_center_notification_insert after insert on notifications begin
-            insert or replace into message_center_items(id,item_type,target_user_id,title,body,level,kind,link,is_active,pinned,starts_at,ends_at,created_by,created_at,updated_at)
-            values(new.id,'notification',new.target_user_id,new.title,new.body,'info',new.kind,new.link,1,0,null,null,new.created_by,new.created_at,new.created_at);
-        end;
-        create trigger if not exists message_center_notification_delete after delete on notifications begin
-            delete from message_center_items where id=old.id;
-        end;
-        create trigger if not exists message_center_read_insert after insert on notification_reads begin
-            insert or replace into message_center_reads(user_id,item_id,read_at) values(new.user_id,new.notification_id,new.read_at);
-        end;
-        create trigger if not exists message_center_read_update after update on notification_reads begin
-            insert or replace into message_center_reads(user_id,item_id,read_at) values(new.user_id,new.notification_id,new.read_at);
-        end;
-        create trigger if not exists message_center_delete_insert after insert on notification_deletions begin
-            insert or replace into message_center_deletions(user_id,item_id,deleted_at) values(new.user_id,new.notification_id,new.deleted_at);
-        end;
-        create trigger if not exists message_center_delete_update after update on notification_deletions begin
-            insert or replace into message_center_deletions(user_id,item_id,deleted_at) values(new.user_id,new.notification_id,new.deleted_at);
-        end;
+        create trigger if not exists live_message_center_notification_insert after insert on message_center_items when new.item_type='notification' begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
+        create trigger if not exists live_message_center_notification_update after update on message_center_items when new.item_type='notification' or old.item_type='notification' begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
+        create trigger if not exists live_message_center_notification_delete after delete on message_center_items when old.item_type='notification' begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
+        create trigger if not exists live_message_center_reads_insert after insert on message_center_reads begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
+        create trigger if not exists live_message_center_reads_update after update on message_center_reads begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
+        create trigger if not exists live_message_center_deletions_insert after insert on message_center_deletions begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
         """)
-        # Migrate legacy announcements and notifications into the shared message center.
+        # Migrate legacy announcements into the shared message center.
         db.execute("""insert or ignore into message_center_items(id,item_type,target_user_id,title,body,level,kind,link,is_active,pinned,starts_at,ends_at,created_by,created_at,updated_at)
             select id,'announcement',null,title,body,level,'announcement','',is_active,pinned,starts_at,ends_at,created_by,created_at,updated_at from announcements""")
-        db.execute("""insert or ignore into message_center_items(id,item_type,target_user_id,title,body,level,kind,link,is_active,pinned,starts_at,ends_at,created_by,created_at,updated_at)
-            select id,'notification',target_user_id,title,body,'info',kind,link,1,0,null,null,created_by,created_at,created_at from notifications""")
-        db.execute("""insert or ignore into message_center_reads(user_id,item_id,read_at) select user_id,notification_id,read_at from notification_reads""")
-        db.execute("""insert or ignore into message_center_deletions(user_id,item_id,deleted_at) select user_id,notification_id,deleted_at from notification_deletions""")
+        legacy_tables = {
+            str(row["name"])
+            for row in db.execute(
+                "select name from sqlite_master where type='table' and name in ('notifications','notification_reads','notification_deletions')"
+            ).fetchall()
+        }
+        if "notifications" in legacy_tables:
+            db.execute("""insert or ignore into message_center_items(id,item_type,target_user_id,title,body,level,kind,link,is_active,pinned,starts_at,ends_at,created_by,created_at,updated_at)
+                select id,'notification',target_user_id,title,body,'info',kind,link,1,0,null,null,created_by,created_at,created_at from notifications""")
+        if "notification_reads" in legacy_tables:
+            db.execute("""insert or ignore into message_center_reads(user_id,item_id,read_at) select user_id,notification_id,read_at from notification_reads""")
+        if "notification_deletions" in legacy_tables:
+            db.execute("""insert or ignore into message_center_deletions(user_id,item_id,deleted_at) select user_id,notification_id,deleted_at from notification_deletions""")
+        for row in db.execute("select id,link from message_center_items where link<>''").fetchall():
+            try:
+                safe_link = normalize_message_link(str(row["link"] or ""))
+            except HTTPException:
+                safe_link = ""
+            if safe_link != str(row["link"] or ""):
+                db.execute("update message_center_items set link=?,updated_at=? where id=?", (safe_link, now(), row["id"]))
+        for trigger_name in (
+            "message_center_notification_insert", "message_center_notification_delete",
+            "message_center_read_insert", "message_center_read_update",
+            "message_center_delete_insert", "message_center_delete_update",
+            "live_notifications_insert", "live_notifications_update", "live_notifications_delete",
+            "live_notification_reads_insert", "live_notification_reads_update", "live_notification_deletions_insert",
+        ):
+            db.execute(f'drop trigger if exists "{trigger_name}"')
+        db.execute("drop table if exists notification_reads")
+        db.execute("drop table if exists notification_deletions")
+        db.execute("drop table if exists notifications")
+        db.execute(
+            "insert or ignore into schema_migrations(name,applied_at,details_json) values(?,?,?)",
+            (
+                "2026-08-13-message-center-unification-v2",
+                now(),
+                json.dumps(
+                    {
+                        "migrated_tables": ["notifications", "notification_reads", "notification_deletions"],
+                        "canonical_tables": ["message_center_items", "message_center_reads", "message_center_deletions"],
+                        "unsafe_links_cleared": True,
+                    },
+                    ensure_ascii=False,
+                ),
+            ),
+        )
+        db.execute(
+            "insert or ignore into schema_migrations(name,applied_at,details_json) values(?,?,?)",
+            (
+                "2026-08-22-achievement-filter-preferences-v1",
+                now(),
+                json.dumps(
+                    {
+                        "table": "achievement_filter_preferences",
+                        "scope": "user_game",
+                        "fields": ["achievementSearch", "state", "hidden", "version", "category", "pageSize"],
+                    },
+                    ensure_ascii=False,
+                ),
+            ),
+        )
+        guide_media_columns = {str(row["name"]) for row in db.execute("pragma table_info(guide_media)").fetchall()}
+        if "expires_at" not in guide_media_columns:
+            db.execute("alter table guide_media add column expires_at integer")
+        db.execute("create index if not exists guide_media_expiry_idx on guide_media(expires_at)")
+        # Existing sanitized guide submissions can be related deterministically.
+        for submission in db.execute("select id,author_user_id,content_html,status from achievement_guide_submissions").fetchall():
+            for media_id in guide_media_ids(str(submission["content_html"] or "")):
+                media = db.execute("select owner_user_id from guide_media where id=?", (media_id,)).fetchone()
+                if media and (not submission["author_user_id"] or media["owner_user_id"] == submission["author_user_id"]):
+                    db.execute(
+                        "insert or ignore into guide_submission_media(submission_id,media_id) values(?,?)",
+                        (submission["id"], media_id),
+                    )
+                    db.execute("update guide_media set expires_at=null where id=?", (media_id,))
+        db.execute(
+            "insert or ignore into schema_migrations(name,applied_at,details_json) values(?,?,?)",
+            (
+                "2026-08-13-guide-media-lifecycle-v2",
+                now(),
+                json.dumps(
+                    {
+                        "tables": ["guide_media", "guide_submission_media"],
+                        "unbound_expiry_seconds": GUIDE_MEDIA_UNBOUND_SECONDS,
+                        "rejected_expiry_seconds": GUIDE_MEDIA_REJECTED_SECONDS,
+                    },
+                    ensure_ascii=False,
+                ),
+            ),
+        )
+        db.execute(
+            "insert or ignore into schema_migrations(name,applied_at,details_json) values(?,?,?)",
+            (
+                "2026-08-09-achievement-guides-v1",
+                now(),
+                json.dumps(
+                    {
+                        "tables": ["achievement_guide_submissions", "achievement_guides", "guide_media"],
+                        "publication_model": "approved_submission_pointer",
+                        "content_format": "sanitized_html_v1",
+                    },
+                    ensure_ascii=False,
+                ),
+            ),
+        )
         redeem_code_columns={row["name"] for row in db.execute("pragma table_info(redeem_codes)").fetchall()}
         if "source" not in redeem_code_columns:
             db.execute("alter table redeem_codes add column source text not null default ''")
@@ -2223,6 +2341,14 @@ def init_db() -> None:
         for column_name,column_type in source_sync_additions.items():
             if column_name not in source_sync_columns:
                 db.execute(f"alter table source_sync_history add column {column_name} {column_type}")
+        db.execute(
+            "insert or ignore into schema_migrations(name,applied_at,details_json) values(?,?,?)",
+            ("2026-08-09-source-isolation-exclusions-v1",now(),json.dumps({"table":"source_isolation_exclusions","fingerprint_scope":"source_content"},ensure_ascii=False)),
+        )
+        db.execute(
+            "insert or ignore into schema_migrations(name,applied_at,details_json) values(?,?,?)",
+            ("2026-08-13-source-isolation-approvals-v1",now(),json.dumps({"table":"source_isolation_approvals","fingerprint_scope":"complete_source_content"},ensure_ascii=False)),
+        )
         redeem_import_columns={row["name"] for row in db.execute("pragma table_info(redeem_import_batches)").fetchall()}
         redeem_import_additions={
             "input_type":"text not null default ''","source_filename":"text not null default ''","source_sheet":"text not null default ''",
@@ -2287,7 +2413,6 @@ def init_db() -> None:
         _migrate_wuwa_shared_model(db)
         if not OPEN_SOURCE_EMPTY_DATA:
             _verify_wuwa_shared_model(db)
-            _repair_hsr_catalog_rewards(db)
             normalize_all_game_official_order(db,migration_stamp)
             _verify_wuwa_shared_model(db)
             verify_official_id_model(db)
@@ -2349,10 +2474,6 @@ def init_db() -> None:
         if SITE_OWNER_EMAIL:
             admin_email = SITE_OWNER_EMAIL
             db.execute("update users set role='admin', is_active=1, updated_at=? where email_key=?", (now(), admin_email))
-        # 站內通知功能已移除，清除舊通知資料但保留資料表以相容既有資料庫。
-        db.execute("delete from notification_reads")
-        db.execute("delete from notification_deletions")
-        db.execute("delete from notifications")
         cleanup(db)
 
 
@@ -2362,6 +2483,7 @@ def cleanup(db: sqlite3.Connection) -> None:
     db.execute("delete from email_verification_tokens where expires_at <= ? or used_at is not null", (t,))
     db.execute("delete from password_reset_tokens where expires_at <= ? or used_at is not null", (t,))
     db.execute("delete from rate_limits where window_start < ?", (t - 172800,))
+    cleanup_expired_guide_media(db, t)
     try:
         db.execute("delete from game_sync_previews where expires_at <= ?", (t,))
         db.execute("delete from catalog_scan_previews where expires_at <= ?", (t,))
@@ -2601,6 +2723,9 @@ def create_database_backup() -> Path:
             target=backup_dir/f"app-{stamp}-{suffix:02d}.db"
             suffix+=1
         _copy_sqlite_database(DB_FILE, target)
+        backups = sorted(backup_dir.glob("app-*.db"), key=lambda path: path.stat().st_mtime, reverse=True)
+        for old_backup in backups[30:]:
+            old_backup.unlink(missing_ok=True)
         return target
 
 
@@ -2625,14 +2750,18 @@ def enforce_blocklist(email_address: str, ip_address: str) -> None:
 def create_notification(title: str, body: str, kind: str="info", link: str="", target_user_id: str | None=None, created_by: str | None=None) -> str:
     """Create a broadcast or account-specific in-site notification."""
     notification_id=str(uuid.uuid4())
+    safe_link=normalize_message_link(link)
+    stamp=now()
     with connect_db() as db:
         if target_user_id:
             exists=db.execute("select 1 from users where id=?",(target_user_id,)).fetchone()
             if not exists:
                 raise HTTPException(status_code=404,detail="找不到通知目標帳號。")
         db.execute(
-            "insert into notifications(id,target_user_id,title,body,kind,link,created_by,created_at) values(?,?,?,?,?,?,?,?)",
-            (notification_id,target_user_id,title.strip()[:200],body.strip()[:3000],kind.strip()[:30] or "info",link.strip()[:500],created_by,now()),
+            """insert into message_center_items(
+            id,item_type,target_user_id,title,body,level,kind,link,is_active,pinned,starts_at,ends_at,created_by,created_at,updated_at
+            ) values(?,'notification',?,?,?,'info',?,?,1,0,null,null,?,?,?)""",
+            (notification_id,target_user_id,title.strip()[:200],body.strip()[:3000],kind.strip()[:30] or "info",safe_link,created_by,stamp,stamp),
         )
     return notification_id
 
@@ -2861,8 +2990,12 @@ async def security_middleware(request: Request, call_next):
         "/api/genshin-logo",
         "/api/zzz-logo",
     }
-    is_game_icon = request.url.path in icon_paths or request.url.path.startswith("/api/games/") and request.url.path.endswith("/icon")
-    if is_game_icon and response.status_code == 200:
+    is_static_api_media = (
+        request.url.path in icon_paths
+        or request.url.path.startswith("/api/games/") and request.url.path.endswith("/icon")
+        or request.url.path.startswith("/api/guide-media/")
+    )
+    if is_static_api_media and response.status_code == 200:
         response.headers["Cache-Control"] = "public, max-age=86400"
     else:
         response.headers["Cache-Control"] = "no-store" if request.url.path.startswith("/api/") else "no-cache"
@@ -2992,6 +3125,13 @@ def logout(request: Request, response: Response):
 def me(request: Request):
     user=current_user(request)
     return {"ok":True,"authenticated":bool(user),"user":user}
+
+@app.get("/api/auth/progress-summary")
+def auth_progress_summary(request: Request):
+    user=require_user(request)
+    with connect_db() as db:
+        summary=_user_progress_summary(db,user["id"])
+    return {"ok":True,**summary}
 
 @app.put("/api/auth/username")
 @app.post("/api/auth/username")
@@ -3690,7 +3830,7 @@ def admin_system_health(request: Request):
     require_admin(request)
     disk=shutil.disk_usage(ROOT)
     directory_checks={}
-    for name,path in {"data":DATA_DIR,"logs":LOG_DIR,"backups":ROOT/"backups","outbox":OUTBOX_DIR}.items():
+    for name,path in {"data":DATA_DIR,"logs":LOG_DIR,"backups":ROOT/"backups","outbox":OUTBOX_DIR,"guide_media":GUIDE_MEDIA_DIR}.items():
         try:
             path.mkdir(parents=True,exist_ok=True)
             probe=path/f".write-test-{secrets.token_hex(4)}"
@@ -3701,7 +3841,7 @@ def admin_system_health(request: Request):
     with connect_db() as db:
         integrity=str(db.execute("pragma integrity_check").fetchone()[0])
         tables={str(row["name"]) for row in db.execute("select name from sqlite_master where type='table'").fetchall()}
-        required={"users","sessions","game_catalog_items","game_progress","game_achievement_choice_groups","notifications","email_logs","game_sync_previews","redeem_games","redeem_servers","redeem_codes"}
+        required={"users","sessions","game_catalog_items","game_progress","game_achievement_choice_groups","message_center_items","message_center_reads","message_center_deletions","email_logs","game_sync_previews","source_isolation_exclusions","source_isolation_approvals","redeem_games","redeem_servers","redeem_codes","achievement_guide_submissions","achievement_guides","guide_media","guide_submission_media"}
         game_rows=[]
         for project in enabled_game_projects():
             gid=project["id"]
@@ -3713,6 +3853,7 @@ def admin_system_health(request: Request):
             "support_tickets":int(db.execute("select count(*) c from support_tickets where status not in ('resolved','closed')").fetchone()["c"] or 0),
             "failed_emails":int(db.execute("select count(*) c from email_logs where status='failed'").fetchone()["c"] or 0),
             "sync_previews":int(db.execute("select count(*) c from game_sync_previews where expires_at> ?",(now(),)).fetchone()["c"] or 0),
+            "guide_submissions":int(db.execute("select count(*) c from achievement_guide_submissions where status='pending'").fetchone()["c"] or 0),
         }
     backup_files=list((ROOT/"backups").glob("app-*.db"))
     latest=max(backup_files,key=lambda item:item.stat().st_mtime) if backup_files else None
@@ -3949,10 +4090,18 @@ def redeem_code_snapshot(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
 
 
 def redeem_import_key(game_id: str, code: str) -> str:
-    return f"{game_id}|{code.strip().casefold()}"
+    return f"{game_id}|{code.strip()}"
 
 
 REDEEM_EXCEL_MAX_BYTES = 10 * 1024 * 1024
+REDEEM_EXCEL_MAX_ARCHIVE_ENTRIES = 256
+REDEEM_EXCEL_MAX_EXPANDED_BYTES = 64 * 1024 * 1024
+REDEEM_EXCEL_MAX_ENTRY_BYTES = 32 * 1024 * 1024
+REDEEM_EXCEL_MAX_COMPRESSION_RATIO = 100
+REDEEM_EXCEL_MAX_WORKSHEETS = 20
+REDEEM_EXCEL_MAX_SCANNED_ROWS = 5000
+REDEEM_EXCEL_MAX_COLUMNS = 64
+REDEEM_EXCEL_MAX_CELL_TEXT = 10000
 REDEEM_EXCEL_HEADER_ALIASES = {
     "遊戲": "game_id", "game": "game_id", "gameid": "game_id",
     "兌換碼": "code", "代碼": "code", "code": "code", "redeemcode": "code",
@@ -3982,7 +4131,38 @@ def redeem_excel_cell_text(value: Any) -> str:
         return value.isoformat()
     if isinstance(value, float) and value.is_integer():
         return str(int(value))
-    return str(value).strip()
+    text = str(value).strip()
+    if len(text) > REDEEM_EXCEL_MAX_CELL_TEXT:
+        raise HTTPException(status_code=422, detail="Excel 儲存格文字過長。")
+    return text
+
+
+def validate_redeem_excel_archive(content: bytes) -> None:
+    try:
+        with zipfile.ZipFile(BytesIO(content)) as archive:
+            entries = archive.infolist()
+            if len(entries) > REDEEM_EXCEL_MAX_ARCHIVE_ENTRIES:
+                raise HTTPException(status_code=422, detail="Excel 檔案包含過多內部項目。")
+            total = 0
+            for entry in entries:
+                name = str(entry.filename or "").replace("\\", "/")
+                parts = [part for part in name.split("/") if part not in {"", "."}]
+                if not parts or name.startswith("/") or re.match(r"^[A-Za-z]:", name) or ".." in parts:
+                    raise HTTPException(status_code=422, detail="Excel 檔案包含不安全的內部路徑。")
+                if entry.flag_bits & 0x1:
+                    raise HTTPException(status_code=422, detail="Excel 檔案不可使用密碼或加密內容。")
+                if entry.file_size > REDEEM_EXCEL_MAX_ENTRY_BYTES:
+                    raise HTTPException(status_code=422, detail="Excel 內部項目展開後過大。")
+                total += int(entry.file_size)
+                if total > REDEEM_EXCEL_MAX_EXPANDED_BYTES:
+                    raise HTTPException(status_code=422, detail="Excel 檔案展開後超過安全上限。")
+                if entry.file_size and (
+                    entry.compress_size <= 0
+                    or entry.file_size / max(1, entry.compress_size) > REDEEM_EXCEL_MAX_COMPRESSION_RATIO
+                ):
+                    raise HTTPException(status_code=422, detail="Excel 檔案壓縮比例異常。")
+    except zipfile.BadZipFile as exc:
+        raise HTTPException(status_code=422, detail="Excel 檔案損壞或格式無法讀取。") from exc
 
 
 def parse_redeem_excel_workbook(filename: str, content: bytes) -> dict[str, Any]:
@@ -3995,6 +4175,7 @@ def parse_redeem_excel_workbook(filename: str, content: bytes) -> dict[str, Any]
         raise HTTPException(status_code=422, detail="Excel 檔案是空白的。")
     if len(content) > REDEEM_EXCEL_MAX_BYTES:
         raise HTTPException(status_code=413, detail="Excel 檔案不可超過 10 MB。")
+    validate_redeem_excel_archive(content)
     if load_workbook is None:
         raise HTTPException(status_code=503, detail="後端尚未安裝 Excel 解析套件，請重新安裝 requirements.txt。")
     try:
@@ -4005,6 +4186,8 @@ def parse_redeem_excel_workbook(filename: str, content: bytes) -> dict[str, Any]
     empty_sheet: tuple[str, int, list[str], list[str]] | None = None
     try:
         worksheets = sorted(workbook.worksheets, key=lambda sheet: sheet.sheet_state != "visible")
+        if len(worksheets) > REDEEM_EXCEL_MAX_WORKSHEETS:
+            raise HTTPException(status_code=422, detail="Excel 工作表數量超過安全上限。")
         for worksheet in worksheets:
             header_fields: list[str] | None = None
             header_labels: list[str] = []
@@ -4013,6 +4196,10 @@ def parse_redeem_excel_workbook(filename: str, content: bytes) -> dict[str, Any]
             rows: list[dict[str, str]] = []
             skipped_without_code = 0
             for row_number, values in enumerate(worksheet.iter_rows(values_only=True), 1):
+                if row_number > REDEEM_EXCEL_MAX_SCANNED_ROWS:
+                    raise HTTPException(status_code=422, detail="Excel 掃描列數超過安全上限。")
+                if len(values) > REDEEM_EXCEL_MAX_COLUMNS:
+                    raise HTTPException(status_code=422, detail="Excel 欄位數量超過安全上限。")
                 cells = [redeem_excel_cell_text(value) for value in values]
                 if header_fields is None:
                     if row_number > 50:
@@ -4057,25 +4244,33 @@ def parse_redeem_excel_workbook(filename: str, content: bytes) -> dict[str, Any]
     raise HTTPException(status_code=422, detail="找不到含「兌換碼」或「code」欄位的工作表；標題列須位於前 50 列。")
 
 
-def build_redeem_excel_template(game_id: str, game_name: str, server_names: list[str]) -> bytes:
+def build_redeem_excel_template(
+    default_game_id: str,
+    games: list[dict[str, Any]],
+    servers_by_game: dict[str, list[str]],
+) -> bytes:
     if Workbook is None:
         raise HTTPException(status_code=503, detail="後端尚未安裝 Excel 解析套件，請重新安裝 requirements.txt。")
+    default_game = next((game for game in games if str(game.get("game_id") or "") == default_game_id), None)
+    if not default_game:
+        raise HTTPException(status_code=404, detail="找不到新增列預設遊戲。")
+    default_game_name = str(default_game.get("name") or default_game_id)
     workbook = Workbook()
     worksheet = workbook.active
     worksheet.title = "兌換碼匯入"
     worksheet.merge_cells("A1:H1")
-    worksheet["A1"] = f"{game_name}｜兌換碼批次匯入"
+    worksheet["A1"] = f"多遊戲兌換碼批次匯入｜新增列預設：{default_game_name}"
     worksheet["A1"].font = Font(bold=True, color="FFFFFF", size=14)
     worksheet["A1"].fill = PatternFill("solid", fgColor="174A5B")
     worksheet["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    worksheet["A2"] = "填寫兌換碼後，可直接由後台的「匯入 Excel」載入；每列服務器可不同，多個服務器請用「、」分隔。"
+    worksheet["A2"] = "填寫兌換碼後，可直接由後台的「匯入 Excel」載入；每列可指定不同遊戲與服務器，多個服務器請用「、」分隔。"
     worksheet.merge_cells("A2:H2")
     worksheet["A2"].alignment = Alignment(wrap_text=True, vertical="center")
     headers = ["遊戲", "兌換碼", "來源", "獎勵", "開始日期", "結束日期", "服務器", "兌換連結"]
     worksheet.append([])
     worksheet.append(headers)
     header_notes = {
-        "遊戲": f"固定使用 {game_id}；同一檔案只能有一個遊戲。",
+        "遊戲": f"必填。可使用遊戲 ID 或名稱；範例列預設為 {default_game_id}，同一檔案可包含多款遊戲。",
         "兌換碼": "必填。系統會在同一遊戲內檢查重複。",
         "來源": "例如：官方直播、官方社群、活動頁。",
         "獎勵": "可在儲存格內換行。",
@@ -4091,7 +4286,7 @@ def build_redeem_excel_template(game_id: str, game_name: str, server_names: list
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         cell.comment = Comment(header_notes[title], "Milora_tool")
     for row in range(5, 25):
-        worksheet.cell(row=row, column=1, value=game_id)
+        worksheet.cell(row=row, column=1, value=default_game_id)
         worksheet.cell(row=row, column=4).alignment = Alignment(wrap_text=True, vertical="top")
         for column in range(1, 9):
             if row % 2 == 0:
@@ -4104,15 +4299,31 @@ def build_redeem_excel_template(game_id: str, game_name: str, server_names: list
     for column, width in widths.items():
         worksheet.column_dimensions[column].width = width
 
-    servers = workbook.create_sheet("可用服務器")
-    servers["A1"] = f"{game_name} 可用服務器"
+    servers = workbook.create_sheet("可用遊戲與服務器")
+    servers.merge_cells("A1:C1")
+    servers["A1"] = "可用遊戲與服務器"
     servers["A1"].font = Font(bold=True, color="FFFFFF")
     servers["A1"].fill = PatternFill("solid", fgColor="174A5B")
-    servers["A2"] = "每一列兌換碼可選不同服務器；需要多選時，以「、」連接名稱。"
+    servers["A2"] = "每列可填不同遊戲；服務器必須屬於該列遊戲，需要多選時以「、」連接名稱。"
+    servers.merge_cells("A2:C2")
     servers["A2"].alignment = Alignment(wrap_text=True)
-    for index, name in enumerate(server_names, 4):
-        servers.cell(row=index, column=1, value=name)
-    servers.column_dimensions["A"].width = 42
+    for column, title in enumerate(("遊戲名稱", "遊戲 ID", "服務器"), 1):
+        cell = servers.cell(row=3, column=column, value=title)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill("solid", fgColor="276477")
+    index = 4
+    for game in games:
+        game_id = str(game.get("game_id") or "")
+        game_name = str(game.get("name") or game_id)
+        server_names = servers_by_game.get(game_id) or [""]
+        for server_name in server_names:
+            servers.cell(row=index, column=1, value=game_name)
+            servers.cell(row=index, column=2, value=game_id)
+            servers.cell(row=index, column=3, value=server_name)
+            index += 1
+    servers.column_dimensions["A"].width = 28
+    servers.column_dimensions["B"].width = 20
+    servers.column_dimensions["C"].width = 42
     servers.freeze_panes = "A4"
 
     buffer = BytesIO()
@@ -4128,8 +4339,8 @@ def find_redeem_code_duplicate(
     *,
     exclude_id: str = "",
 ) -> sqlite3.Row | None:
-    query = "select * from redeem_codes where game_id=? and lower(trim(code))=?"
-    params: list[Any] = [game_id, code.strip().casefold()]
+    query = "select * from redeem_codes where game_id=? and trim(code) collate binary=?"
+    params: list[Any] = [game_id, code.strip()]
     if exclude_id:
         query += " and id<>?"
         params.append(exclude_id)
@@ -4141,7 +4352,7 @@ def redeem_import_state(db: sqlite3.Connection, keys: list[str]) -> dict[str, An
     for key in sorted(set(keys)):
         game_id, _, code_key = key.partition("|")
         row = db.execute(
-            "select * from redeem_codes where game_id=? and lower(trim(code))=?",
+            "select * from redeem_codes where game_id=? and trim(code) collate binary=?",
             (game_id, code_key),
         ).fetchone()
         result[key] = redeem_code_snapshot(row) if row else None
@@ -4157,22 +4368,51 @@ def redeem_import_server_ids(db: sqlite3.Connection, game_id: str, raw: dict[str
     raw_ids = raw.get("server_ids")
     if isinstance(raw_ids, list) and raw_ids:
         return validate_redeem_servers(db, game_id, [str(value) for value in raw_ids])
-    raw_names = raw.get("server_names")
-    if isinstance(raw_names, str):
-        names = [part.strip() for part in re.split(r"[,，、;；|]", raw_names) if part.strip()]
-    elif isinstance(raw_names, list):
-        names = [str(part or "").strip() for part in raw_names if str(part or "").strip()]
-    else:
-        names = []
+
     rows = db.execute(
         "select id,name from redeem_servers where game_id=? and enabled=1 order by display_order,name,id",
         (game_id,),
     ).fetchall()
+    by_name: dict[str, list[str]] = {}
+    canonical_name: dict[str, str] = {}
+    for row in rows:
+        name = str(row["name"]).strip()
+        key = name.casefold()
+        by_name.setdefault(key, []).append(str(row["id"]))
+        canonical_name.setdefault(key, name)
+
+    raw_names = raw.get("server_names")
+    if isinstance(raw_names, str):
+        text = raw_names.strip()
+        if not text:
+            names = []
+        elif text.casefold() in by_name:
+            # 服務器名稱本身可能包含逗號，例如「HK,TW,MO」。
+            names = [canonical_name[text.casefold()]]
+        else:
+            names = []
+            for chunk in re.split(r"[、;；|]", text):
+                part = chunk.strip()
+                if not part:
+                    continue
+                key = part.casefold()
+                if key in by_name:
+                    names.append(canonical_name[key])
+                    continue
+                # 相容舊資料以半形／全形逗號分隔多個服務器；
+                # 只有每個拆分結果都能匹配既有服務器時才拆分。
+                comma_parts = [item.strip() for item in re.split(r"[,，]", part) if item.strip()]
+                if len(comma_parts) > 1 and all(item.casefold() in by_name for item in comma_parts):
+                    names.extend(canonical_name[item.casefold()] for item in comma_parts)
+                else:
+                    names.append(part)
+    elif isinstance(raw_names, list):
+        names = [str(part or "").strip() for part in raw_names if str(part or "").strip()]
+    else:
+        names = []
+
     if len(names) == 1 and names[0].casefold() in {"all", "全部", "全服務器", "全部服務器"}:
         return validate_redeem_servers(db, game_id, [str(row["id"]) for row in rows])
-    by_name: dict[str, list[str]] = {}
-    for row in rows:
-        by_name.setdefault(str(row["name"]).strip().casefold(), []).append(str(row["id"]))
     ids: list[str] = []
     missing: list[str] = []
     ambiguous: list[str] = []
@@ -4246,6 +4486,10 @@ def redeem_import_candidate_matches(before: dict[str, Any], candidate: dict[str,
 def redeem_import_batch_payload(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
     data = dict(row)
     summary = _json_object(data.pop("summary_json", "{}"), {})
+    game_ids = summary.get("game_ids") if isinstance(summary.get("game_ids"), list) else []
+    if not game_ids and data.get("default_game_id"):
+        game_ids = [data["default_game_id"]]
+    summary["game_ids"] = list(dict.fromkeys(str(value).strip() for value in game_ids if str(value).strip()))
     data.pop("plan_json", None)
     data.pop("snapshot_json", None)
     data.pop("pre_state_hash", None)
@@ -4296,8 +4540,10 @@ def redeem_import_batch_where(
     conditions: list[str] = []
     params: list[Any] = []
     if game_id:
-        conditions.append("b.default_game_id=?")
-        params.append(game_id)
+        conditions.append(
+            "(b.default_game_id=? or exists(select 1 from redeem_import_items game_item where game_item.batch_id=b.id and game_item.game_id=?))"
+        )
+        params.extend((game_id, game_id))
     if status:
         conditions.append("b.status=?")
         params.append(status)
@@ -4366,10 +4612,11 @@ def redeem_notification_event_key(row: dict[str, Any]) -> str:
 
 def create_message_center_notification(db: sqlite3.Connection, *, user_id: str, title: str, body: str, link: str, kind: str = "redeem", level: str = "info") -> str:
     item_id = str(uuid.uuid4()); stamp = now()
+    safe_link = normalize_message_link(link)
     db.execute(
         """insert into message_center_items(id,item_type,target_user_id,title,body,level,kind,link,is_active,pinned,created_by,created_at,updated_at)
            values(?,'notification',?,?,?,?,?, ?,1,0,null,?,?)""",
-        (item_id, user_id, title[:200], body[:3000], level, kind[:30], link[:500], stamp, stamp),
+        (item_id, user_id, title[:200], body[:3000], level[:20], kind[:30], safe_link, stamp, stamp),
     )
     return item_id
 
@@ -4546,7 +4793,10 @@ def admin_delete_redeem_import_batch(batch_id: str, request: Request):
         if status in {"completed", "rolled_back"}:
             raise HTTPException(status_code=409, detail="已完成或已復原的批次必須保留稽核紀錄，不可刪除。")
         summary = _json_object(batch["summary_json"], {})
-        game_id = str(batch["default_game_id"] or "")
+        game_ids = summary.get("game_ids") if isinstance(summary.get("game_ids"), list) else []
+        if not game_ids and batch["default_game_id"]:
+            game_ids = [str(batch["default_game_id"])]
+        game_id = str(game_ids[0] if len(game_ids) == 1 else "")
         db.execute("delete from redeem_import_batches where id=?", (batch_id,))
     log_admin_action(
         admin["id"],
@@ -4590,14 +4840,23 @@ def admin_redeem_excel_template(request: Request, game_id: str):
     gid = normalize_redeem_game_id(game_id)
     with connect_db() as db:
         game = require_redeem_game(db, gid)
-        server_names = [
-            str(row["name"])
+        games = [
+            dict(row)
             for row in db.execute(
-                "select name from redeem_servers where game_id=? and enabled=1 order by display_order,name",
-                (gid,),
+                "select game_id,name,enabled from redeem_games order by display_order,name,game_id"
             ).fetchall()
         ]
-    content = build_redeem_excel_template(gid, str(game["name"]), server_names)
+        servers_by_game = {
+            str(item["game_id"]): [
+                str(row["name"])
+                for row in db.execute(
+                    "select name from redeem_servers where game_id=? and enabled=1 order by display_order,name",
+                    (str(item["game_id"]),),
+                ).fetchall()
+            ]
+            for item in games
+        }
+    content = build_redeem_excel_template(gid, games, servers_by_game)
     log_admin_action(
         admin["id"],
         "generate_redeem_excel_template",
@@ -4606,7 +4865,11 @@ def admin_redeem_excel_template(request: Request, game_id: str):
         target_type="redeem_import_template",
         target_id=gid,
         summary=f"生成兌換碼 Excel 範例：{game['name']}",
-        after={"server_count": len(server_names)},
+        after={
+            "game_count": len(games),
+            "server_count": sum(len(values) for values in servers_by_game.values()),
+            "default_game_id": gid,
+        },
         actor_ip=client_ip(request),
     )
     filename = f"redeem-code-template-{gid}.xlsx"
@@ -4647,8 +4910,8 @@ def admin_preview_redeem_import(body: RedeemImportPreviewPayload, request: Reque
                     raise HTTPException(status_code=422, detail="同一批匯入資料中出現重複兌換碼。")
                 seen_keys.add(key); keys.append(key)
                 existing = db.execute(
-                    "select * from redeem_codes where game_id=? and lower(trim(code))=?",
-                    (candidate["game_id"], candidate["code"].strip().casefold()),
+                    "select * from redeem_codes where game_id=? and trim(code) collate binary=?",
+                    (candidate["game_id"], candidate["code"].strip()),
                 ).fetchone()
                 before = redeem_code_snapshot(existing) if existing else {}
                 if before:
@@ -4672,6 +4935,7 @@ def admin_preview_redeem_import(body: RedeemImportPreviewPayload, request: Reque
             "skip": sum(item["action"] == "skip" for item in items),
             "unchanged": sum(item["action"] == "unchanged" for item in items),
             "errors": sum(item["action"] == "error" for item in items),
+            "game_ids": list(dict.fromkeys(str(item.get("game_id") or "").strip() for item in items if str(item.get("game_id") or "").strip())),
         }
         pre_state_hash = redeem_import_state_hash(db, keys)
         plan = {"keys": keys, "items": items}
@@ -4686,7 +4950,8 @@ def admin_preview_redeem_import(body: RedeemImportPreviewPayload, request: Reque
                values(?,?,?,?,?,?,?,?,?,?)""",
             [(item["id"], batch_id, item["row_number"], item["game_id"], item["code"], item["action"], item["target_id"], json.dumps(item["candidate"], ensure_ascii=False), json.dumps(item["before"], ensure_ascii=False), item["error"]) for item in items],
         )
-    log_admin_action(admin["id"], "preview_redeem_import", category="redeem", target_type="redeem_import_batch", target_id=batch_id, summary="建立兌換碼批次匯入預覽", after=summary, metadata={"input_type": input_type, "source_filename": source_filename, "source_sheet": source_sheet}, actor_ip=client_ip(request), locked=True)
+    audit_game_id = summary["game_ids"][0] if len(summary["game_ids"]) == 1 else ""
+    log_admin_action(admin["id"], "preview_redeem_import", category="redeem", game_id=audit_game_id, target_type="redeem_import_batch", target_id=batch_id, summary="建立兌換碼批次匯入預覽", after=summary, metadata={"input_type": input_type, "source_filename": source_filename, "source_sheet": source_sheet, "game_ids": summary["game_ids"]}, actor_ip=client_ip(request), locked=True)
     return {"ok": True, "batch_id": batch_id, "status": "preview_ready", "summary": summary, "items": items, "can_execute": summary["errors"] == 0 and summary["create"] + summary["update"] > 0}
 
 
@@ -4738,7 +5003,11 @@ def admin_execute_redeem_import(batch_id: str, body: RedeemImportExecutePayload,
             )
         except Exception as exc:
             raise HTTPException(status_code=409, detail=f"兌換碼批次匯入失敗，交易已回復：{exc}") from exc
-    log_admin_action(admin["id"], "execute_redeem_import", category="redeem", game_id=str(batch["default_game_id"] or ""), target_type="redeem_import_batch", target_id=batch_id, summary="套用兌換碼批次匯入", before=summary, after=completed_summary, metadata={"reason": reason}, backup_name=backup.name, actor_ip=client_ip(request), locked=True)
+    game_ids = summary.get("game_ids") if isinstance(summary.get("game_ids"), list) else []
+    if not game_ids and batch["default_game_id"]:
+        game_ids = [str(batch["default_game_id"])]
+    audit_game_id = str(game_ids[0] if len(game_ids) == 1 else "")
+    log_admin_action(admin["id"], "execute_redeem_import", category="redeem", game_id=audit_game_id, target_type="redeem_import_batch", target_id=batch_id, summary="套用兌換碼批次匯入", before=summary, after=completed_summary, metadata={"reason": reason, "game_ids": game_ids}, backup_name=backup.name, actor_ip=client_ip(request), locked=True)
     created_ids = [str(item.get("target_id") or "") for item in plan.get("items") or [] if item.get("action") == "create"]
     safe_dispatch_redeem_code_notifications(created_ids)
     return {"ok": True, "batch_id": batch_id, "status": "completed", "summary": completed_summary, "backup": backup.name}
@@ -4752,6 +5021,7 @@ def admin_rollback_redeem_import(batch_id: str, body: RedeemImportRollbackPayloa
         batch = db.execute("select * from redeem_import_batches where id=?", (batch_id,)).fetchone()
         if not batch or batch["status"] != "completed" or batch["rolled_back_at"]:
             raise HTTPException(status_code=409, detail="此兌換碼匯入批次目前不可復原。")
+        summary = _json_object(batch["summary_json"], {})
         plan = _json_object(batch["plan_json"], {})
         snapshot = _json_object(batch["snapshot_json"], {})
         keys = [str(key) for key in plan.get("keys") or []]
@@ -4775,7 +5045,11 @@ def admin_rollback_redeem_import(batch_id: str, body: RedeemImportRollbackPayloa
             db.execute("update redeem_import_batches set status='rolled_back',rolled_back_at=?,rolled_back_by=?,rollback_reason=?,rollback_backup_name=? where id=?", (now(), admin["id"], body.reason.strip(), safety.name, batch_id))
         except Exception as exc:
             raise HTTPException(status_code=409, detail=f"兌換碼批次復原失敗，交易已回復：{exc}") from exc
-    log_admin_action(admin["id"], "rollback_redeem_import", category="redeem", game_id=str(batch["default_game_id"] or ""), target_type="redeem_import_batch", target_id=batch_id, summary="復原兌換碼批次匯入", metadata={"reason": body.reason}, backup_name=safety.name, actor_ip=client_ip(request), locked=True)
+    game_ids = summary.get("game_ids") if isinstance(summary.get("game_ids"), list) else []
+    if not game_ids and batch["default_game_id"]:
+        game_ids = [str(batch["default_game_id"])]
+    audit_game_id = str(game_ids[0] if len(game_ids) == 1 else "")
+    log_admin_action(admin["id"], "rollback_redeem_import", category="redeem", game_id=audit_game_id, target_type="redeem_import_batch", target_id=batch_id, summary="復原兌換碼批次匯入", metadata={"reason": body.reason, "game_ids": game_ids}, backup_name=safety.name, actor_ip=client_ip(request), locked=True)
     return {"ok": True, "batch_id": batch_id, "status": "rolled_back", "backup": safety.name}
 
 
@@ -5072,54 +5346,29 @@ def admin_delete_announcement(announcement_id: str, request: Request):
     log_admin_action(admin["id"],"delete_announcement",details=announcement_id)
     return {"ok":True}
 
-@app.get("/api/notifications")
-def user_notifications(request: Request):
-    user=require_user(request)
-    with connect_db() as db:
-        rows=db.execute("""select n.*,case when r.read_at is null then 0 else 1 end as is_read
-        from notifications n
-        left join notification_reads r on r.notification_id=n.id and r.user_id=?
-        left join notification_deletions d on d.notification_id=n.id and d.user_id=?
-        where (n.target_user_id is null or n.target_user_id=?) and d.user_id is null
-        order by n.created_at desc limit 100""",(user["id"],user["id"],user["id"])).fetchall()
-    values=[dict(r) for r in rows]
-    return {"ok":True,"notifications":values,"unread":sum(1 for r in values if not r["is_read"])}
-
-@app.post("/api/notifications/{notification_id}/read")
-def mark_notification_read(notification_id: str, request: Request):
-    user=require_user(request)
-    with connect_db() as db:
-        n=db.execute("select id,target_user_id from notifications where id=?",(notification_id,)).fetchone()
-        if not n or (n["target_user_id"] and n["target_user_id"]!=user["id"]): raise HTTPException(status_code=404,detail="找不到通知。")
-        db.execute("insert into notification_reads(user_id,notification_id,read_at) values(?,?,?) on conflict(user_id,notification_id) do update set read_at=excluded.read_at",(user["id"],notification_id,now()))
-    return {"ok":True}
-
-@app.post("/api/notifications/read-all")
-def mark_all_notifications_read(request: Request):
-    user=require_user(request); stamp=now()
-    with connect_db() as db:
-        rows=db.execute("""select n.id from notifications n
-          left join notification_deletions d on d.notification_id=n.id and d.user_id=?
-          where (n.target_user_id is null or n.target_user_id=?) and d.notification_id is null""",(user["id"],user["id"])).fetchall()
-        db.executemany("insert into notification_reads(user_id,notification_id,read_at) values(?,?,?) on conflict(user_id,notification_id) do update set read_at=excluded.read_at",[(user["id"],row["id"],stamp) for row in rows])
-    return {"ok":True,"updated":len(rows)}
-
-
 @app.get("/api/admin/notifications")
 def admin_notifications(request: Request):
-    require_admin(request)
+    admin=require_admin(request)
+    site_owner=is_site_owner_email(str(admin.get("email") or ""))
     with connect_db() as db:
         rows=db.execute("""select n.*,u.email target_email,creator.email creator_email
-        from notifications n
+        from message_center_items n
         left join users u on u.id=n.target_user_id
         left join users creator on creator.id=n.created_by
+        where n.item_type='notification'
         order by n.created_at desc limit 200""").fetchall()
         recipients=db.execute("""select email,username,role,is_active
         from users
-        order by case when role='admin' then 0 else 1 end,coalesce(nullif(username,''),email_key)""").fetchall()
+        order by case when role='admin' then 0 else 1 end,coalesce(nullif(username,''),email_key)""").fetchall() if site_owner else []
+    notification_rows=[]
+    for row in rows:
+        item=dict(row)
+        if not site_owner and item.get("target_user_id"):
+            item["target_email"]="指定使用者"
+        notification_rows.append(item)
     return {
         "ok":True,
-        "notifications":[dict(r) for r in rows],
+        "notifications":notification_rows,
         "recipients":[{
             "email":r["email"],"username":r["username"] or "","role":r["role"],"is_active":bool(r["is_active"]),
         } for r in recipients],
@@ -5130,7 +5379,7 @@ def admin_notifications(request: Request):
 def admin_delete_notification(notification_id: str, request: Request):
     admin=require_admin(request)
     with connect_db() as db:
-        deleted=db.execute("delete from notifications where id=?",(notification_id,)).rowcount
+        deleted=db.execute("delete from message_center_items where id=? and item_type='notification'",(notification_id,)).rowcount
     if not deleted: raise HTTPException(status_code=404,detail="找不到通知。")
     log_admin_action(admin["id"],"delete_notification",details=notification_id)
     return {"ok":True}
@@ -5154,6 +5403,8 @@ def admin_create_notification(body: NotificationPayload, request: Request):
             if not target_ids:
                 raise HTTPException(status_code=400,detail="目前沒有可接收通知的啟用中管理員。")
         elif scope=="user":
+            if not is_site_owner_email(str(admin.get("email") or "")):
+                raise HTTPException(status_code=403,detail="只有站長可以指定單一帳號接收通知。")
             email=body.target_email.strip()
             if not email:
                 raise HTTPException(status_code=400,detail="請選擇通知目標帳號。")
@@ -5432,14 +5683,17 @@ def _write_catalog_items_payload(game_id: str, items: list[dict[str,Any]]) -> No
     path=game_catalog_file(game_id)
     payload=json.loads(path.read_text(encoding="utf-8-sig")) if path.exists() else {"schema_version":1,"game_id":game_id}
     normalized=[]
-    for source_item in items:
+    for index,source_item in enumerate(items,1):
         item=dict(source_item)
         achievement_id=str(item.get("id") or item.get("achievement_id") or "").strip()
-        official_order=official_id_number(achievement_id)
+        official_order=achievement_source_order(
+            achievement_id,
+            item.get("sourceOrder") if item.get("sourceOrder") is not None else item.get("source_order",index),
+        )
         item["sourceOrder"]=official_order
         item.pop("source_order",None)
         normalized.append(item)
-    normalized.sort(key=lambda item:(int(str(item.get("id") or item.get("achievement_id"))),str(item.get("id") or item.get("achievement_id"))))
+    normalized.sort(key=lambda item:achievement_id_sort_key(item.get("id") or item.get("achievement_id"),item.get("sourceOrder")))
     payload["items"]=normalized; payload["count"]=len(normalized); payload["generated_at"]=time.strftime("%Y-%m-%dT%H:%M:%S%z")
     temp=path.with_suffix(path.suffix+".tmp")
     temp.write_text(json.dumps(payload,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
@@ -5543,11 +5797,16 @@ def _apply_catalog_repair(game_id: str, record: sqlite3.Row, body: CatalogRepair
                         db.execute("insert into achievement_id_aliases(game_id,alias_id,canonical_id,reason,created_by,created_at) values(?,?,?,?,?,?) on conflict(game_id,alias_id) do update set canonical_id=excluded.canonical_id,reason=excluded.reason,created_by=excluded.created_by,created_at=excluded.created_at",(game_id,remove_id,keep_id,body.reason or "duplicate_merge",admin["id"],now()))
                     changed_count+=max(1,len(remove_ids))
                 elif action=="recalculate_order":
-                    for item in plan["items"]:
+                    for index,item in enumerate(plan["items"],1):
                         achievement_id=str(item.get("id") or item.get("achievement_id") or "").strip()
                         if achievement_id:
-                            db.execute("update game_catalog_items set source_order=?,updated_at=? where game_id=? and achievement_id=?",(official_id_number(achievement_id),now(),game_id,achievement_id))
-                    plan["items"].sort(key=lambda item:(official_id_number(item.get("id") or item.get("achievement_id")),str(item.get("id") or item.get("achievement_id"))))
+                            source_order=achievement_source_order(
+                                achievement_id,
+                                item.get("sourceOrder") if item.get("sourceOrder") is not None else item.get("source_order",index),
+                            )
+                            item["sourceOrder"]=source_order
+                            db.execute("update game_catalog_items set source_order=?,updated_at=? where game_id=? and achievement_id=?",(source_order,now(),game_id,achievement_id))
+                    plan["items"].sort(key=lambda item:achievement_id_sort_key(item.get("id") or item.get("achievement_id"),item.get("sourceOrder")))
                     changed_count+=len(plan["items"])
                 elif action=="create_alias":
                     db.execute("insert into achievement_id_aliases(game_id,alias_id,canonical_id,reason,created_by,created_at) values(?,?,?,?,?,?) on conflict(game_id,alias_id) do update set canonical_id=excluded.canonical_id,reason=excluded.reason,created_by=excluded.created_by,created_at=excluded.created_at",(game_id,str(op.get("alias_id") or ""),str(op.get("canonical_id") or ""),body.reason or "catalog_health_alias",admin["id"],now()))
@@ -5751,36 +6010,10 @@ def replace_progress(body: ProgressReplace, request: Request):
     return extra_game_replace_progress("wuwa",body,request)
 
 
-def load_official_cache() -> dict[str,Any]:
-    if not CACHE_FILE.exists():
-        return {"ok":False,"message":"尚未建立官方成就快取，請由管理員執行同步。"}
-    try:
-        payload=json.loads(CACHE_FILE.read_text(encoding="utf-8"))
-        meta={}
-        if META_FILE.exists():
-            try: meta=json.loads(META_FILE.read_text(encoding="utf-8"))
-            except Exception: meta={}
-        return {"ok":True,"cached":True,"payload":payload,"meta":meta}
-    except Exception as exc:
-        return {"ok":False,"message":"官方成就快取損壞。","errors":[str(exc)]}
-
-
-@app.get("/api/official-achievements")
-def official_achievements():
-    return load_official_cache()
-
-
 @app.get("/api/official-zh-tw-achievements")
 def official_zh_tw_achievements():
-    if not OFFICIAL_ZH_TW_FILE.exists():
-        return {"ok":False,"records":[],"message":"尚未同步遊戲正式繁中成就文字。"}
-    try:
-        payload=json.loads(OFFICIAL_ZH_TW_FILE.read_text(encoding="utf-8-sig"))
-        if not isinstance(payload,dict) or not isinstance(payload.get("records"),list):
-            raise ValueError("資料格式不正確")
-        return payload
-    except Exception as exc:
-        return {"ok":False,"records":[],"message":"遊戲正式繁中成就文字資料損壞。","errors":[str(exc)]}
+    # 舊玩家頁相容端點；所有遊戲資料已改由正式目錄與主要來源提供。
+    return {"ok":True,"records":[]}
 
 
 @app.post("/api/admin/official-achievements/sync")
@@ -5801,7 +6034,7 @@ def admin_sync_official_achievements(request: Request):
 
 
 
-# ===== 四遊戲共用成就專案 API =====
+# ===== 多遊戲共用成就專案 API =====
 def require_extra_game(game_id: str) -> str:
     value=str(game_id or "").strip()
     if not value or any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_" for ch in value):
@@ -5810,6 +6043,24 @@ def require_extra_game(game_id: str) -> str:
     if not project:
         raise HTTPException(status_code=404, detail="找不到或尚未啟用此遊戲專案。")
     return value
+
+
+def normalize_achievement_filter_preference(value: Any) -> dict[str, Any]:
+    raw = value if isinstance(value, dict) else {}
+    state = str(raw.get("state") or "").strip()
+    hidden = str(raw.get("hidden") or "").strip()
+    try:
+        page_size = int(raw.get("pageSize") or 20)
+    except (TypeError, ValueError):
+        page_size = 20
+    return {
+        "achievementSearch": str(raw.get("achievementSearch") or "").strip()[:300],
+        "state": state if state in {"", "done", "todo"} else "",
+        "hidden": hidden if hidden in {"", "hidden", "visible"} else "",
+        "version": str(raw.get("version") or "").strip()[:100],
+        "category": str(raw.get("category") or "").strip()[:200],
+        "pageSize": max(1, min(200, page_size)),
+    }
 
 
 def bump_game_live_scope(game_id: str, scope: str) -> None:
@@ -5831,13 +6082,13 @@ def serialize_game_override(row: sqlite3.Row) -> dict[str,Any]:
     return value
 
 
-OFFICIAL_ACHIEVEMENT_ID_PATTERN = re.compile(r"^[0-9]+$")
+OFFICIAL_ACHIEVEMENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _validate_official_achievement_id(game_id: str, achievement_id: Any) -> str:
     aid = str(achievement_id or "").strip()
     if not aid or len(aid) > 64 or not OFFICIAL_ACHIEVEMENT_ID_PATTERN.fullmatch(aid):
-        raise HTTPException(status_code=422, detail=f"{game_id} 成就 ID 必須是官方純數字 ID，不可使用中文、名稱、分類或自訂代碼。")
+        raise HTTPException(status_code=422, detail=f"{game_id} 成就 ID 只能使用英文字母、數字、底線或連字號，不可包含中文、空白、斜線或網址符號。")
     return aid
 
 
@@ -5876,7 +6127,7 @@ def _effective_achievement_row(db: sqlite3.Connection, game_id: str, achievement
             "hidden": 0,
             "tags_json": "[]",
             "source": "admin_manual",
-            "source_order": official_id_number(aid),
+            "source_order": achievement_source_order(aid, 0),
             "updated_at": int(override["updated_at"] or 0) if override else 0,
         }
     if override:
@@ -5931,7 +6182,7 @@ def _effective_catalog_items(db: sqlite3.Connection, game_id: str) -> list[dict[
         ).fetchall()
     }
     rows = [row for aid in ids if (row := _effective_achievement_row(db, game_id, aid))]
-    rows.sort(key=lambda row: (official_id_number(row.get("achievement_id")), str(row.get("achievement_id"))))
+    rows.sort(key=lambda row: achievement_id_sort_key(row.get("achievement_id"), row.get("source_order")))
     return rows
 
 
@@ -5941,6 +6192,505 @@ def record_game_achievement_revision(game_id: str, achievement_id: str, action: 
             "insert into game_achievement_revisions(game_id,achievement_id,action,snapshot_json,actor_user_id,created_at) values(?,?,?,?,?,?)",
             (game_id,achievement_id,action,json.dumps(snapshot,ensure_ascii=False),actor_user_id,now()),
         )
+
+
+GUIDE_STATUS_LABELS = {"pending": "等待審查", "approved": "已核准", "rejected": "已退回"}
+GUIDE_IMAGE_TYPES = {
+    "image/png": (b"\x89PNG\r\n\x1a\n", ".png"),
+    "image/jpeg": (b"\xff\xd8\xff", ".jpg"),
+    "image/webp": (b"RIFF", ".webp"),
+}
+GUIDE_IMAGE_MAX_BYTES = 5 * 1024 * 1024
+GUIDE_MEDIA_USER_MAX_BYTES = int(os.getenv("GUIDE_MEDIA_USER_MAX_BYTES", str(100 * 1024 * 1024)))
+GUIDE_MEDIA_USER_MAX_FILES = int(os.getenv("GUIDE_MEDIA_USER_MAX_FILES", "100"))
+GUIDE_MEDIA_GLOBAL_MAX_BYTES = int(os.getenv("GUIDE_MEDIA_GLOBAL_MAX_BYTES", str(5 * 1024 * 1024 * 1024)))
+GUIDE_MEDIA_DISK_RESERVE_BYTES = int(os.getenv("GUIDE_MEDIA_DISK_RESERVE_BYTES", str(1024 * 1024 * 1024)))
+GUIDE_MEDIA_UNBOUND_SECONDS = int(os.getenv("GUIDE_MEDIA_UNBOUND_SECONDS", str(24 * 60 * 60)))
+GUIDE_MEDIA_REJECTED_SECONDS = int(os.getenv("GUIDE_MEDIA_REJECTED_SECONDS", str(30 * 24 * 60 * 60)))
+GUIDE_MEDIA_REFERENCE_PATTERN = re.compile(r"/api/guide-media/([0-9a-fA-F-]{36})(?=[^0-9a-fA-F-]|$)")
+
+
+def guide_media_ids(content_html: str) -> set[str]:
+    values: set[str] = set()
+    for match in GUIDE_MEDIA_REFERENCE_PATTERN.finditer(str(content_html or "")):
+        try:
+            values.add(str(uuid.UUID(match.group(1))))
+        except ValueError:
+            continue
+    return values
+
+
+def _guide_media_target(storage_name: str) -> Path | None:
+    target = (GUIDE_MEDIA_DIR / str(storage_name)).resolve()
+    return target if target.parent == GUIDE_MEDIA_DIR.resolve() else None
+
+
+def cleanup_expired_guide_media(db: sqlite3.Connection, stamp: int | None = None) -> int:
+    current = int(stamp or now())
+    try:
+        rows = db.execute(
+            """select m.id,m.storage_name from guide_media m
+            where m.expires_at is not null and m.expires_at<=?
+            and not exists (
+                select 1 from guide_submission_media sm
+                join achievement_guide_submissions s on s.id=sm.submission_id
+                left join achievement_guides g on g.submission_id=s.id
+                where sm.media_id=m.id and (s.status='pending' or g.submission_id=s.id)
+            )""",
+            (current,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return 0
+    removed = 0
+    for row in rows:
+        target = _guide_media_target(str(row["storage_name"] or ""))
+        if target:
+            target.unlink(missing_ok=True)
+        removed += db.execute("delete from guide_media where id=?", (row["id"],)).rowcount
+    return removed
+
+
+def sync_guide_submission_media(
+    db: sqlite3.Connection,
+    submission_id: str,
+    content_html: str,
+    allowed_owner_ids: set[str],
+) -> None:
+    requested = guide_media_ids(content_html)
+    stamp = now()
+    media_rows = {
+        str(row["id"]): row
+        for row in db.execute(
+            f"select id,owner_user_id,storage_name,expires_at from guide_media where id in ({','.join('?' for _ in requested)})",
+            tuple(sorted(requested)),
+        ).fetchall()
+    } if requested else {}
+    if set(media_rows) != requested:
+        raise HTTPException(status_code=422, detail="攻略內含找不到或已失效的圖片。")
+    for media_id, row in media_rows.items():
+        if str(row["owner_user_id"] or "") not in allowed_owner_ids:
+            raise HTTPException(status_code=403, detail="攻略不可引用其他帳號上傳的圖片。")
+        if row["expires_at"] is not None and int(row["expires_at"]) <= stamp:
+            raise HTTPException(status_code=422, detail="攻略圖片已過期，請重新上傳。")
+        target = _guide_media_target(str(row["storage_name"] or ""))
+        if not target or not target.is_file():
+            raise HTTPException(status_code=422, detail="攻略圖片檔案不存在，請重新上傳。")
+    existing = {
+        str(row[0])
+        for row in db.execute("select media_id from guide_submission_media where submission_id=?", (submission_id,)).fetchall()
+    }
+    for media_id in existing - requested:
+        db.execute("delete from guide_submission_media where submission_id=? and media_id=?", (submission_id, media_id))
+        db.execute(
+            """update guide_media set expires_at=coalesce(expires_at,?) where id=? and not exists (
+            select 1 from guide_submission_media sm
+            join achievement_guide_submissions s on s.id=sm.submission_id
+            left join achievement_guides g on g.submission_id=s.id
+            where sm.media_id=guide_media.id and (s.status='pending' or g.submission_id=s.id)
+            )""",
+            (stamp + GUIDE_MEDIA_UNBOUND_SECONDS, media_id),
+        )
+    for media_id in requested:
+        db.execute("insert or ignore into guide_submission_media(submission_id,media_id) values(?,?)", (submission_id, media_id))
+        db.execute("update guide_media set expires_at=null where id=?", (media_id,))
+
+
+def _guide_achievement_payload(row: dict[str, Any], game_id: str) -> dict[str, Any]:
+    return {
+        "game_id": game_id,
+        "game_name": game_display_name(game_id),
+        "id": str(row.get("achievement_id") or row.get("id") or ""),
+        "name": str(row.get("name") or ""),
+        "condition": str(row.get("condition") or ""),
+        "version": str(row.get("version") or "未標示"),
+        "category": str(row.get("category") or "未辨識分類"),
+        "reward": int(row.get("reward") or 0),
+        "hidden": bool(row.get("hidden")),
+        "tags": list(row.get("tags") or []),
+    }
+
+
+def _guide_submission_payload(row: sqlite3.Row | dict[str, Any], *, include_content: bool = True) -> dict[str, Any]:
+    value = dict(row)
+    status = str(value.get("status") or "pending")
+    result = {
+        "id": str(value.get("id") or ""),
+        "game_id": str(value.get("game_id") or ""),
+        "achievement_id": str(value.get("achievement_id") or ""),
+        "provider": str(value.get("author_name_snapshot") or value.get("author_username") or "已註冊使用者"),
+        "status": status,
+        "status_label": GUIDE_STATUS_LABELS.get(status, status),
+        "review_note": str(value.get("review_note") or ""),
+        "created_at": int(value.get("created_at") or 0),
+        "updated_at": int(value.get("updated_at") or 0),
+        "reviewed_at": int(value.get("reviewed_at") or 0),
+        "reviewer": str(value.get("reviewer_username") or ""),
+        "is_published": bool(value.get("is_published")),
+    }
+    if include_content:
+        result["content_html"] = str(value.get("content_html") or "")
+    return result
+
+
+def _guide_submission_row(db: sqlite3.Connection, submission_id: str) -> sqlite3.Row | None:
+    return db.execute(
+        """select s.*,author.username author_username,reviewer.username reviewer_username,
+        case when g.submission_id=s.id then 1 else 0 end is_published
+        from achievement_guide_submissions s
+        left join users author on author.id=s.author_user_id
+        left join users reviewer on reviewer.id=s.reviewed_by
+        left join achievement_guides g on g.game_id=s.game_id and g.achievement_id=s.achievement_id
+        where s.id=?""",
+        (submission_id,),
+    ).fetchone()
+
+
+def _sanitize_guide_submission(value: str) -> tuple[str, str]:
+    try:
+        sanitized = sanitize_guide_html(value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if not guide_has_content(sanitized):
+        raise HTTPException(status_code=422, detail="攻略內容不可為空。")
+    return sanitized, guide_plain_text(sanitized)
+
+
+def _guide_image_type(content: bytes) -> tuple[str, str] | None:
+    for media_type, (signature, extension) in GUIDE_IMAGE_TYPES.items():
+        if content.startswith(signature):
+            if media_type == "image/webp" and (len(content) < 12 or content[8:12] != b"WEBP"):
+                continue
+            return media_type, extension
+    return None
+
+
+@app.get("/api/games/{game_id}/achievements/{achievement_id}/guide")
+def achievement_guide(game_id: str, achievement_id: str, request: Request):
+    game_id = require_extra_game(game_id)
+    user = current_user(request)
+    with connect_db() as db:
+        aid = _resolve_effective_achievement_id(db, game_id, achievement_id)
+        achievement = _effective_achievement_row(db, game_id, aid)
+        if not achievement:
+            raise HTTPException(status_code=404, detail="找不到此成就。")
+        published_row = db.execute(
+            """select s.*,author.username author_username,reviewer.username reviewer_username,1 is_published
+            from achievement_guides g join achievement_guide_submissions s on s.id=g.submission_id
+            left join users author on author.id=s.author_user_id
+            left join users reviewer on reviewer.id=s.reviewed_by
+            where g.game_id=? and g.achievement_id=?""",
+            (game_id, aid),
+        ).fetchone()
+        my_submission = None
+        if user:
+            my_submission = db.execute(
+                """select s.*,author.username author_username,reviewer.username reviewer_username,
+                case when g.submission_id=s.id then 1 else 0 end is_published
+                from achievement_guide_submissions s
+                left join users author on author.id=s.author_user_id
+                left join users reviewer on reviewer.id=s.reviewed_by
+                left join achievement_guides g on g.game_id=s.game_id and g.achievement_id=s.achievement_id
+                where s.game_id=? and s.achievement_id=? and s.author_user_id=?
+                order by case s.status when 'pending' then 0 when 'rejected' then 1 else 2 end,s.updated_at desc limit 1""",
+                (game_id, aid, user["id"]),
+            ).fetchone()
+        admin_pending: list[dict[str, Any]] = []
+        approved_history: list[dict[str, Any]] = []
+        if user and user.get("role") == "admin":
+            admin_pending = [
+                _guide_submission_payload(row)
+                for row in db.execute(
+                    """select s.*,author.username author_username,reviewer.username reviewer_username,0 is_published
+                    from achievement_guide_submissions s
+                    left join users author on author.id=s.author_user_id
+                    left join users reviewer on reviewer.id=s.reviewed_by
+                    where s.game_id=? and s.achievement_id=? and s.status='pending'
+                    order by s.updated_at""",
+                    (game_id, aid),
+                ).fetchall()
+            ]
+            approved_history = [
+                _guide_submission_payload(row, include_content=False)
+                for row in db.execute(
+                    """select s.*,author.username author_username,reviewer.username reviewer_username,
+                    case when g.submission_id=s.id then 1 else 0 end is_published
+                    from achievement_guide_submissions s
+                    left join users author on author.id=s.author_user_id
+                    left join users reviewer on reviewer.id=s.reviewed_by
+                    left join achievement_guides g on g.game_id=s.game_id and g.achievement_id=s.achievement_id
+                    where s.game_id=? and s.achievement_id=? and s.status='approved'
+                    order by s.reviewed_at desc,s.updated_at desc""",
+                    (game_id, aid),
+                ).fetchall()
+            ]
+    return {
+        "ok": True,
+        "achievement": _guide_achievement_payload(achievement, game_id),
+        "published": _guide_submission_payload(published_row) if published_row else None,
+        "authenticated": bool(user),
+        "user": user,
+        "my_submission": _guide_submission_payload(my_submission) if my_submission else None,
+        "admin_pending": admin_pending,
+        "approved_history": approved_history,
+    }
+
+
+@app.post("/api/games/{game_id}/achievements/{achievement_id}/guide/submissions")
+def submit_achievement_guide(game_id: str, achievement_id: str, body: GuideSubmissionPayload, request: Request):
+    game_id = require_extra_game(game_id)
+    user = require_user(request)
+    consume_rate_limit("guide-submit-user-5m", user["id"], 10, AUTH_RATE_WINDOW_SECONDS)
+    content_html, content_text = _sanitize_guide_submission(body.content_html)
+    stamp = now()
+    with connect_db() as db:
+        aid = _resolve_effective_achievement_id(db, game_id, achievement_id)
+        account = db.execute("select username from users where id=?", (user["id"],)).fetchone()
+        provider = str((account["username"] if account else "") or user.get("username") or "已註冊使用者")
+        existing = db.execute(
+            """select id from achievement_guide_submissions
+            where game_id=? and achievement_id=? and author_user_id=? and status='pending'""",
+            (game_id, aid, user["id"]),
+        ).fetchone()
+        if existing:
+            submission_id = str(existing["id"])
+            db.execute(
+                """update achievement_guide_submissions set content_html=?,content_text=?,author_name_snapshot=?,
+                review_note='',updated_at=? where id=?""",
+                (content_html, content_text, provider, stamp, submission_id),
+            )
+        else:
+            submission_id = str(uuid.uuid4())
+            db.execute(
+                """insert into achievement_guide_submissions(
+                id,game_id,achievement_id,author_user_id,author_name_snapshot,content_html,content_text,status,
+                review_note,created_at,updated_at) values(?,?,?,?,?,?,?,'pending','',?,?)""",
+                (submission_id, game_id, aid, user["id"], provider, content_html, content_text, stamp, stamp),
+            )
+        sync_guide_submission_media(db, submission_id, content_html, {str(user["id"])})
+        row = _guide_submission_row(db, submission_id)
+    return {"ok": True, "submission": _guide_submission_payload(row), "message": "攻略已送出，狀態為「等待審查」。"}
+
+
+@app.post("/api/guide-media")
+def upload_guide_media(body: GuideImageUploadPayload, request: Request):
+    user = require_user(request)
+    consume_rate_limit("guide-media-user-5m", user["id"], 20, AUTH_RATE_WINDOW_SECONDS)
+    try:
+        content = base64.b64decode(body.content_base64, validate=True)
+    except (ValueError, binascii.Error) as exc:
+        raise HTTPException(status_code=422, detail="圖片資料格式不正確。") from exc
+    if not content or len(content) > GUIDE_IMAGE_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="圖片不可超過 5 MB。")
+    detected = _guide_image_type(content)
+    if not detected:
+        raise HTTPException(status_code=422, detail="只支援 JPG、PNG 或 WebP 圖片，不支援 SVG。")
+    media_type, extension = detected
+    media_id = str(uuid.uuid4())
+    storage_name = f"{media_id}{extension}"
+    target = GUIDE_MEDIA_DIR / storage_name
+    try:
+        with connect_db() as cleanup_db:
+            cleanup_expired_guide_media(cleanup_db)
+        with connect_db() as db:
+            db.execute("begin immediate")
+            user_usage = db.execute(
+                "select count(*) file_count,coalesce(sum(size_bytes),0) total_bytes from guide_media where owner_user_id=?",
+                (user["id"],),
+            ).fetchone()
+            global_bytes = int(db.execute("select coalesce(sum(size_bytes),0) from guide_media").fetchone()[0] or 0)
+            if int(user_usage["file_count"] or 0) >= GUIDE_MEDIA_USER_MAX_FILES or int(user_usage["total_bytes"] or 0) + len(content) > GUIDE_MEDIA_USER_MAX_BYTES:
+                raise HTTPException(status_code=413, detail="攻略圖片已達帳號儲存上限，請移除未使用圖片或稍後再試。")
+            if global_bytes + len(content) > GUIDE_MEDIA_GLOBAL_MAX_BYTES:
+                raise HTTPException(status_code=503, detail="攻略圖片儲存空間暫時已滿。")
+            if shutil.disk_usage(GUIDE_MEDIA_DIR).free - len(content) < GUIDE_MEDIA_DISK_RESERVE_BYTES:
+                raise HTTPException(status_code=503, detail="伺服器可用空間不足，暫停上傳攻略圖片。")
+            db.execute(
+                """insert into guide_media(id,owner_user_id,original_filename,media_type,size_bytes,sha256,storage_name,created_at,expires_at)
+                values(?,?,?,?,?,?,?,?,?)""",
+                (media_id, user["id"], Path(body.filename).name[:255], media_type, len(content), hashlib.sha256(content).hexdigest(), storage_name, now(), now() + GUIDE_MEDIA_UNBOUND_SECONDS),
+            )
+            target.write_bytes(content)
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
+    return {"ok": True, "id": media_id, "url": f"/api/guide-media/{media_id}", "media_type": media_type, "size_bytes": len(content)}
+
+
+@app.get("/api/guide-media/{media_id}")
+def guide_media(media_id: str):
+    try:
+        normalized_id = str(uuid.UUID(str(media_id)))
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="找不到圖片。") from exc
+    with connect_db() as db:
+        row = db.execute("select storage_name,media_type,expires_at from guide_media where id=?", (normalized_id,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="找不到圖片。")
+    if row["expires_at"] is not None and int(row["expires_at"]) <= now():
+        raise HTTPException(status_code=404, detail="找不到圖片。")
+    target = (GUIDE_MEDIA_DIR / str(row["storage_name"])).resolve()
+    if target.parent != GUIDE_MEDIA_DIR.resolve() or not target.is_file():
+        raise HTTPException(status_code=404, detail="找不到圖片檔案。")
+    return FileResponse(target, media_type=str(row["media_type"]), headers={"Content-Disposition": "inline", "X-Content-Type-Options": "nosniff"})
+
+
+@app.post("/api/guide-video/validate")
+def validate_guide_video(body: GuideVideoValidatePayload, request: Request):
+    require_user(request)
+    normalized = normalize_video_url(body.url)
+    embed = video_embed_url(normalized)
+    if not normalized or not embed:
+        raise HTTPException(status_code=422, detail="目前只支援 YouTube 與 Bilibili 影片網址。")
+    return {"ok": True, "url": normalized, "embed_url": embed}
+
+
+@app.get("/api/admin/guide-submissions")
+def admin_guide_submissions(request: Request, game_id: str = "", status: str = "pending", limit: int = 200):
+    require_admin(request)
+    selected_game = require_extra_game(game_id) if game_id else ""
+    selected_status = str(status or "pending").strip().lower()
+    if selected_status not in {"pending", "approved", "rejected", "all"}:
+        raise HTTPException(status_code=422, detail="攻略投稿狀態不正確。")
+    clauses: list[str] = []
+    params: list[Any] = []
+    if selected_game:
+        clauses.append("s.game_id=?")
+        params.append(selected_game)
+    if selected_status != "all":
+        clauses.append("s.status=?")
+        params.append(selected_status)
+    where = ("where " + " and ".join(clauses)) if clauses else ""
+    safe_limit = max(1, min(500, int(limit)))
+    with connect_db() as db:
+        rows = db.execute(
+            f"""select s.*,author.username author_username,reviewer.username reviewer_username,
+            case when g.submission_id=s.id then 1 else 0 end is_published
+            from achievement_guide_submissions s
+            left join users author on author.id=s.author_user_id
+            left join users reviewer on reviewer.id=s.reviewed_by
+            left join achievement_guides g on g.game_id=s.game_id and g.achievement_id=s.achievement_id
+            {where} order by case s.status when 'pending' then 0 when 'rejected' then 1 else 2 end,s.updated_at limit ?""",
+            (*params, safe_limit),
+        ).fetchall()
+        submissions = []
+        for row in rows:
+            item = _guide_submission_payload(row)
+            achievement = _effective_achievement_row(db, item["game_id"], item["achievement_id"])
+            item["achievement_name"] = str((achievement or {}).get("name") or item["achievement_id"])
+            item["game_name"] = game_display_name(item["game_id"])
+            item["guide_url"] = f"/{item['game_id']}/{item['achievement_id']}"
+            submissions.append(item)
+        pending_count = int(db.execute("select count(*) from achievement_guide_submissions where status='pending'").fetchone()[0])
+    return {"ok": True, "submissions": submissions, "pending_count": pending_count}
+
+
+@app.put("/api/admin/guide-submissions/{submission_id}")
+def admin_edit_guide_submission(submission_id: str, body: GuideSubmissionPayload, request: Request):
+    admin = require_admin(request)
+    content_html, content_text = _sanitize_guide_submission(body.content_html)
+    with connect_db() as db:
+        row = _guide_submission_row(db, submission_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="找不到攻略投稿。")
+        if row["status"] != "pending":
+            raise HTTPException(status_code=409, detail="只能編輯等待審查中的投稿。")
+        before = _guide_submission_payload(row)
+        db.execute(
+            "update achievement_guide_submissions set content_html=?,content_text=?,updated_at=? where id=?",
+            (content_html, content_text, now(), submission_id),
+        )
+        sync_guide_submission_media(
+            db,
+            submission_id,
+            content_html,
+            {str(value) for value in (row["author_user_id"], admin["id"]) if value},
+        )
+        updated = _guide_submission_row(db, submission_id)
+    log_admin_action(
+        admin["id"], "edit_guide_submission", row["author_user_id"],
+        category="content", game_id=str(row["game_id"]), target_type="guide_submission", target_id=submission_id,
+        summary="編輯等待審查中的攻略投稿", before=before, after=_guide_submission_payload(updated), actor_ip=client_ip(request),
+    )
+    return {"ok": True, "submission": _guide_submission_payload(updated)}
+
+
+@app.post("/api/admin/guide-submissions/{submission_id}/review")
+def admin_review_guide_submission(submission_id: str, body: GuideSubmissionReviewPayload, request: Request):
+    admin = require_admin(request)
+    action = str(body.action or "").strip().lower()
+    if action not in {"approve", "reject"}:
+        raise HTTPException(status_code=422, detail="審查操作必須是核准或退回。")
+    stamp = now()
+    with connect_db() as db:
+        row = _guide_submission_row(db, submission_id)
+        if not row:
+            raise HTTPException(status_code=404, detail="找不到攻略投稿。")
+        if row["status"] != "pending":
+            raise HTTPException(status_code=409, detail="這筆投稿已完成審查。")
+        before = _guide_submission_payload(row)
+        status = "approved" if action == "approve" else "rejected"
+        db.execute(
+            """update achievement_guide_submissions set status=?,review_note=?,reviewed_by=?,reviewed_at=?,updated_at=? where id=?""",
+            (status, body.review_note.strip(), admin["id"], stamp, stamp, submission_id),
+        )
+        if action == "approve":
+            previous = db.execute(
+                "select submission_id from achievement_guides where game_id=? and achievement_id=?",
+                (row["game_id"], row["achievement_id"]),
+            ).fetchone()
+            db.execute(
+                """insert into achievement_guides(game_id,achievement_id,submission_id,published_by,published_at,updated_at)
+                values(?,?,?,?,?,?) on conflict(game_id,achievement_id) do update set
+                submission_id=excluded.submission_id,published_by=excluded.published_by,
+                published_at=excluded.published_at,updated_at=excluded.updated_at""",
+                (row["game_id"], row["achievement_id"], submission_id, admin["id"], stamp, stamp),
+            )
+            db.execute(
+                """update guide_media set expires_at=null where id in (
+                select media_id from guide_submission_media where submission_id=?
+                )""",
+                (submission_id,),
+            )
+            if previous and str(previous["submission_id"]) != submission_id:
+                db.execute(
+                    """update guide_media set expires_at=coalesce(expires_at,?) where id in (
+                    select media_id from guide_submission_media where submission_id=?
+                    ) and not exists (
+                    select 1 from guide_submission_media sm
+                    join achievement_guide_submissions s on s.id=sm.submission_id
+                    left join achievement_guides g on g.submission_id=s.id
+                    where sm.media_id=guide_media.id and (s.status='pending' or g.submission_id=s.id)
+                    )""",
+                    (stamp + GUIDE_MEDIA_REJECTED_SECONDS, previous["submission_id"]),
+                )
+        else:
+            db.execute(
+                """update guide_media set expires_at=coalesce(expires_at,?) where id in (
+                select media_id from guide_submission_media where submission_id=?
+                ) and not exists (
+                select 1 from guide_submission_media sm
+                join achievement_guide_submissions s on s.id=sm.submission_id
+                left join achievement_guides g on g.submission_id=s.id
+                where sm.media_id=guide_media.id and (s.status='pending' or g.submission_id=s.id)
+                )""",
+                (stamp + GUIDE_MEDIA_REJECTED_SECONDS, submission_id),
+            )
+        updated = _guide_submission_row(db, submission_id)
+    link = f"/{row['game_id']}/{row['achievement_id']}"
+    if row["author_user_id"]:
+        try:
+            title = "攻略已核准發布" if action == "approve" else "攻略投稿已退回"
+            message = "你的攻略已通過管理員審查並公開顯示。" if action == "approve" else (body.review_note.strip() or "你的攻略投稿需要修改，請開啟攻略頁查看並重新送出。")
+            create_notification(title, message, "guide", link, row["author_user_id"], admin["id"])
+        except HTTPException:
+            pass
+    log_admin_action(
+        admin["id"], "approve_guide_submission" if action == "approve" else "reject_guide_submission", row["author_user_id"],
+        category="content", game_id=str(row["game_id"]), target_type="guide_submission", target_id=submission_id,
+        summary="核准並發布攻略" if action == "approve" else "退回攻略投稿", before=before,
+        after=_guide_submission_payload(updated), metadata={"review_note": body.review_note.strip()}, actor_ip=client_ip(request),
+    )
+    return {"ok": True, "submission": _guide_submission_payload(updated), "published": action == "approve"}
 
 
 
@@ -6033,7 +6783,10 @@ def game_relation_groups(game_id: str):
 
 def _candidate_row_for_json(row: dict[str,Any]) -> dict[str,Any]:
     achievement_id=str(row.get("achievement_id") or row.get("id") or "").strip()
-    numeric_official_id=official_id_number(achievement_id)
+    source_order=achievement_source_order(
+        achievement_id,
+        row.get("source_order") if row.get("source_order") is not None else row.get("sourceOrder",0),
+    )
     value={
         "achievement_id":achievement_id,
         "name":str(row.get("name") or "").strip(),
@@ -6044,7 +6797,7 @@ def _candidate_row_for_json(row: dict[str,Any]) -> dict[str,Any]:
         "hidden":1 if row.get("hidden") else 0,
         "tags_json":row.get("tags_json") if isinstance(row.get("tags_json"),str) else json.dumps(row.get("tags") if isinstance(row.get("tags"),list) else [],ensure_ascii=False),
         "source":str(row.get("source") or "official").strip(),
-        "source_order":numeric_official_id,
+        "source_order":source_order,
     }
     for key,default in (
         ("category_id",""),("group_id",""),("group_name",""),("progress_value",0),("level",0),
@@ -6098,11 +6851,12 @@ def _prepare_game_sync_candidate(game_id: str) -> tuple[list[dict[str,Any]],dict
         "identity_model":identity_metadata,
         "source_policy":policy,
         "primary_source":policy.get("primary"),
-        "secondary_source":policy.get("secondary"),
         "fallback_source":policy.get("fallback"),
         "requires_admin_confirmation":True,
     }
-    return [_candidate_row_for_json(row) for row in rows],metadata,source_payload
+    candidate_rows=[_candidate_row_for_json(row) for row in rows]
+    candidate_rows,metadata=_apply_source_isolation_approvals(game_id,candidate_rows,metadata)
+    return candidate_rows,metadata,source_payload
 
 
 def _current_official_catalog_rows(db: sqlite3.Connection,game_id: str) -> list[dict[str,Any]]:
@@ -6154,7 +6908,6 @@ def _safe_degraded_sync_candidate(game_id: str, exc: BaseException) -> tuple[lis
         "minimum_count": int((get_game_config(game_id) or {}).get("minimumCatalogCount") or 1),
         "source_policy": policy,
         "primary_source": primary,
-        "secondary_source": policy.get("secondary"),
         "fallback_source": policy.get("fallback"),
         "cross_validation": {
             "pairing_status": "source_unavailable",
@@ -6260,7 +7013,6 @@ def _write_game_catalog_candidate(game_id: str,rows: list[dict[str,Any]],metadat
             "rewardId":str(row.get("reward_id") or ""),
             "sourceDetails":{
                 "primary":str(row.get("primary_source_id") or ""),
-                "secondary":str(row.get("secondary_source_id") or ""),
                 "officialId":str(row.get("official_source_id") or row.get("achievement_id") or ""),
                 "internalId":str(row.get("achievement_id") or ""),
                 "identityMatchStatus":str(row.get("identity_match_status") or ""),
@@ -6274,7 +7026,7 @@ def _write_game_catalog_candidate(game_id: str,rows: list[dict[str,Any]],metadat
         "schema_version":4,"game_id":game_id,"source":metadata.get("source") or (items[0].get("source") if items else "official-sync-preview"),
         "source_page":metadata.get("source_page") or "","source_mode":metadata.get("source_mode") or "",
         "source_architecture_version":SOURCE_PIPELINE_VERSION,
-        "primary_source":metadata.get("primary_source") or {},"secondary_source":metadata.get("secondary_source") or {},
+        "primary_source":metadata.get("primary_source") or {},
         "generated_at":time.strftime("%Y-%m-%dT%H:%M:%S%z"),"count":len(items),"items":items,
     }
     temp=path.with_suffix(path.suffix+".tmp")
@@ -6484,7 +7236,7 @@ def admin_game_source_status(game_id: str, request: Request):
     for row in histories:
         row["summary"]=json.loads(row.pop("summary_json") or "{}")
     sources=[]
-    for role in ("primary","secondary","fallback"):
+    for role in ("primary","fallback"):
         source=policy.get(role)
         if not isinstance(source,dict): continue
         sources.append({**source,"role":role,"configured":True,"last_test":None})
@@ -6503,7 +7255,7 @@ def admin_game_source_status(game_id: str, request: Request):
 @app.post("/api/games/{game_id}/admin/source-test/{role}")
 def admin_test_game_source(game_id: str, role: str, request: Request):
     game_id=require_extra_game(game_id); admin=require_admin(request)
-    if role not in {"primary","secondary","fallback"}: raise HTTPException(status_code=400,detail="來源角色無效。")
+    if role not in {"primary","fallback"}: raise HTTPException(status_code=400,detail="來源角色無效。")
     source=get_source_policy(game_id).get(role)
     if not isinstance(source,dict): raise HTTPException(status_code=404,detail="此遊戲未設定該來源。")
     result=test_repository_source(game_id,role,timeout=15)
@@ -6512,10 +7264,246 @@ def admin_test_game_source(game_id: str, role: str, request: Request):
     return {"game_id":game_id,"role":role,"source":source,**result}
 
 
+_SOURCE_ISOLATION_CONTENT_FIELDS=(
+    "achievement_id","name","condition","version","category","reward","hidden","tags_json","source",
+    "source_order","category_id","group_id","group_name","progress_value","level","next_link","reward_id",
+    "primary_source_id","official_source_id","raw_json",
+)
+_SOURCE_ISOLATION_APPROVABLE_REASONS={"historical_backfill_requires_review"}
+
+
+def _source_isolation_snapshot(row: dict[str,Any]) -> dict[str,Any]:
+    snapshot={}
+    for key in _SOURCE_ISOLATION_CONTENT_FIELDS:
+        if key not in row:
+            continue
+        value=copy.deepcopy(row.get(key))
+        if key in {"raw_json","tags_json"} and isinstance(value,str):
+            try:
+                value=json.loads(value)
+            except (TypeError,json.JSONDecodeError):
+                pass
+        elif key in {"reward","source_order","progress_value","level"}:
+            try:
+                value=int(value or 0)
+            except (TypeError,ValueError):
+                value=0
+        elif key=="hidden":
+            value=bool(value)
+        snapshot[key]=value
+    return snapshot
+
+
+def _source_isolation_fingerprint(row: dict[str,Any]) -> tuple[str,dict[str,Any]]:
+    snapshot=_source_isolation_snapshot(row)
+    payload=json.dumps(snapshot,ensure_ascii=False,sort_keys=True,separators=(",",":"),default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest(),snapshot
+
+
+def _source_isolation_context(metadata: dict[str,Any]) -> tuple[str,list[dict[str,Any]]]:
+    policy=metadata.get("source_policy") or {}
+    primary_source=metadata.get("primary_source") or policy.get("primary") or {}
+    cross_validation=metadata.get("cross_validation") or {}
+    preservation=cross_validation.get("catalog_preservation") or metadata.get("catalog_preservation") or {}
+    review_rows=list(preservation.get("isolated_rows") or [])+list(preservation.get("preserved_unresolved_existing") or [])
+    rows=[dict(row) for row in review_rows if isinstance(row,dict)]
+    return str(primary_source.get("id") or "primary"),rows
+
+
+def _source_isolation_approvable(row: dict[str,Any]) -> bool:
+    reasons={str(reason) for reason in (row.get("reasons") or []) if str(reason)}
+    return reasons==_SOURCE_ISOLATION_APPROVABLE_REASONS
+
+
+def _matching_source_isolation_record(
+    db: sqlite3.Connection,
+    table: str,
+    records: list[dict[str,Any]],
+    fingerprint: str,
+    snapshot: dict[str,Any],
+    *,
+    upgrade_legacy: bool=False,
+) -> dict[str,Any] | None:
+    exact=next((item for item in records if str(item.get("source_fingerprint") or "")==fingerprint),None)
+    if exact or not upgrade_legacy:
+        return exact
+    for item in records:
+        try:
+            legacy_snapshot=json.loads(str(item.get("snapshot_json") or "{}"))
+        except (TypeError,json.JSONDecodeError):
+            continue
+        if not isinstance(legacy_snapshot,dict) or not legacy_snapshot:
+            continue
+        legacy_keys={str(key) for key in legacy_snapshot}
+        legacy_minimal=legacy_keys.issubset({"achievement_id","name","reward_id"}) and {"achievement_id","name"}.issubset(legacy_keys)
+        compared_items=(
+            ((key,legacy_snapshot.get(key)) for key in ("achievement_id","name"))
+            if legacy_minimal else legacy_snapshot.items()
+        )
+        if any(snapshot.get(str(key))!=value for key,value in compared_items):
+            continue
+        try:
+            db.execute(
+                f"update {table} set source_fingerprint=?,snapshot_json=? where id=? and revoked_at is null",
+                (fingerprint,json.dumps(snapshot,ensure_ascii=False,separators=(",",":"),default=str),item["id"]),
+            )
+        except sqlite3.IntegrityError:
+            existing=db.execute(
+                f"select id,source_item_id,source_fingerprint,snapshot_json,reason,created_at from {table} where game_id=? and source_id=? and source_item_id=? and source_fingerprint=? and revoked_at is null order by created_at desc limit 1",
+                (item["game_id"],item["source_id"],item["source_item_id"],fingerprint),
+            ).fetchone()
+            return dict(existing) if existing else None
+        upgraded=dict(item)
+        upgraded["source_fingerprint"]=fingerprint
+        upgraded["snapshot_json"]=json.dumps(snapshot,ensure_ascii=False,separators=(",",":"),default=str)
+        return upgraded
+    return None
+
+
+def _apply_source_isolation_approvals(game_id: str, candidate_rows: list[dict[str,Any]], metadata: dict[str,Any]) -> tuple[list[dict[str,Any]],dict[str,Any]]:
+    enriched=copy.deepcopy(metadata)
+    previous_ids={str(value) for value in (enriched.get("source_isolation_approved_item_ids") or []) if str(value)}
+    rows=[dict(row) for row in candidate_rows if str(row.get("achievement_id") or "") not in previous_ids]
+    source_id,review_rows=_source_isolation_context(enriched)
+    with connect_db() as db:
+        approvals=[dict(row) for row in db.execute(
+            "select id,game_id,source_id,source_item_id,source_fingerprint,snapshot_json,reason,created_at from source_isolation_approvals where game_id=? and source_id=? and revoked_at is null order by created_at desc",
+            (game_id,source_id),
+        ).fetchall()]
+    by_item: dict[str,list[dict[str,Any]]]={}
+    for approval in approvals:
+        by_item.setdefault(str(approval.get("source_item_id") or ""),[]).append(approval)
+    existing_ids={str(row.get("achievement_id") or "") for row in rows}
+    approved_ids=[]
+    for review_row in review_rows:
+        item_id=str(review_row.get("achievement_id") or review_row.get("official_id") or review_row.get("id") or "")
+        if not item_id or not _source_isolation_approvable(review_row):
+            continue
+        fingerprint,_snapshot=_source_isolation_fingerprint(review_row)
+        matching=next((item for item in by_item.get(item_id,[]) if str(item.get("source_fingerprint") or "")==fingerprint),None)
+        if not matching:
+            continue
+        approved_ids.append(item_id)
+        if item_id not in existing_ids:
+            rows.append(_candidate_row_for_json(review_row))
+            existing_ids.add(item_id)
+    rows.sort(key=lambda row:(int(row.get("source_order") or 0),str(row.get("achievement_id") or "")))
+    enriched["source_isolation_approved_item_ids"]=approved_ids
+    enriched["count"]=len(rows)
+    cross_validation=enriched.setdefault("cross_validation",{})
+    cross_validation["individual_content_entries"]=len(rows)
+    preservation=cross_validation.setdefault("catalog_preservation",{})
+    preservation["approved_current_count"]=len(approved_ids)
+    preservation["approved_current_ids"]=approved_ids
+    if isinstance(enriched.get("catalog_preservation"),dict):
+        enriched["catalog_preservation"]["approved_current_count"]=len(approved_ids)
+        enriched["catalog_preservation"]["approved_current_ids"]=approved_ids
+    return rows,enriched
+
+
+def _annotate_source_isolation_exclusions(game_id: str, metadata: dict[str,Any]) -> dict[str,Any]:
+    enriched=copy.deepcopy(metadata)
+    source_id,rows=_source_isolation_context(enriched)
+    if not rows:
+        return enriched
+    with connect_db() as db:
+        exclusions=[dict(row) for row in db.execute(
+            "select id,game_id,source_id,source_item_id,source_fingerprint,snapshot_json,reason,created_at from source_isolation_exclusions where game_id=? and source_id=? and revoked_at is null order by created_at desc",
+            (game_id,source_id),
+        ).fetchall()]
+        approvals=[dict(row) for row in db.execute(
+            "select id,game_id,source_id,source_item_id,source_fingerprint,snapshot_json,reason,created_at from source_isolation_approvals where game_id=? and source_id=? and revoked_at is null order by created_at desc",
+            (game_id,source_id),
+        ).fetchall()]
+        by_item: dict[str,list[dict[str,Any]]]={}
+        approved_by_item: dict[str,list[dict[str,Any]]]={}
+        for exclusion in exclusions:
+            by_item.setdefault(str(exclusion.get("source_item_id") or ""),[]).append(exclusion)
+        for approval in approvals:
+            approved_by_item.setdefault(str(approval.get("source_item_id") or ""),[]).append(approval)
+        excluded_count=0
+        approved_count=0
+        for row in rows:
+            item_id=str(row.get("achievement_id") or row.get("official_id") or row.get("id") or "")
+            fingerprint,snapshot=_source_isolation_fingerprint(row)
+            candidates=by_item.get(item_id) or []
+            approval_candidates=approved_by_item.get(item_id) or []
+            matching=_matching_source_isolation_record(db,"source_isolation_exclusions",candidates,fingerprint,snapshot,upgrade_legacy=True)
+            matching_approval=_matching_source_isolation_record(db,"source_isolation_approvals",approval_candidates,fingerprint,snapshot)
+            if matching:
+                matching_approval=None
+            row["source_item_id"]=item_id
+            row["source_fingerprint"]=fingerprint
+            row["can_confirm_include"]=_source_isolation_approvable(row)
+            row["excluded_current"]=bool(matching)
+            row["approved_current"]=bool(matching_approval)
+            row["source_updated_since_exclusion"]=bool(not matching and candidates)
+            row["source_updated_since_approval"]=bool(not matching_approval and approval_candidates)
+            row["exclusion"]=(
+                {"id":matching["id"],"reason":matching.get("reason") or "","created_at":int(matching.get("created_at") or 0)}
+                if matching else {}
+            )
+            row["approval"]=(
+                {"id":matching_approval["id"],"reason":matching_approval.get("reason") or "","created_at":int(matching_approval.get("created_at") or 0)}
+                if matching_approval else {}
+            )
+            if matching:
+                excluded_count+=1
+            elif matching_approval:
+                approved_count+=1
+    cross_validation=enriched.setdefault("cross_validation",{})
+    preservation=cross_validation.setdefault("catalog_preservation",{})
+    preservation["review_rows"]=rows
+    cross_validation["official_unmatched_samples"]=rows
+    unmatched=int(cross_validation.get("official_unmatched_count") or len(rows))
+    cross_validation["excluded_current_count"]=excluded_count
+    cross_validation["approved_current_count"]=approved_count
+    cross_validation["visible_unmatched_count"]=max(0,unmatched-excluded_count-approved_count)
+    return enriched
+
+
+def _owned_isolated_source_item(game_id: str, preview_id: str, admin_id: str, source_item_id: str) -> tuple[dict[str,Any],str,dict[str,Any],str,dict[str,Any]]:
+    record=dict(_owned_sync_preview(game_id,preview_id,admin_id))
+    metadata=json.loads(record.get("metadata_json") or "{}")
+    source_id,rows=_source_isolation_context(metadata)
+    item_id=str(source_item_id or "").strip()
+    row=next((item for item in rows if str(item.get("achievement_id") or item.get("official_id") or item.get("id") or "")==item_id),None)
+    if not row:
+        raise HTTPException(status_code=404,detail="此同步預覽中找不到指定的未配對來源項目。")
+    fingerprint,snapshot=_source_isolation_fingerprint(row)
+    return metadata,source_id,row,fingerprint,snapshot
+
+
+def _refresh_sync_preview_isolation_approvals(game_id: str, preview_id: str, admin_id: str) -> dict[str,Any]:
+    record=dict(_owned_sync_preview(game_id,preview_id,admin_id))
+    candidate_rows=json.loads(record.get("candidate_json") or "[]")
+    metadata=json.loads(record.get("metadata_json") or "{}")
+    candidate_rows,metadata=_apply_source_isolation_approvals(game_id,candidate_rows,metadata)
+    with connect_db() as db:
+        current=_current_official_catalog_rows(db,game_id)
+        diff=_catalog_sync_diff(current,candidate_rows,game_id=game_id,metadata=metadata)
+        db.execute(
+            "update game_sync_previews set candidate_json=?,metadata_json=?,diff_json=? where id=? and game_id=? and admin_user_id=?",
+            (
+                json.dumps(candidate_rows,ensure_ascii=False,separators=(",",":")),
+                json.dumps(metadata,ensure_ascii=False,separators=(",",":")),
+                json.dumps(diff,ensure_ascii=False,separators=(",",":")),
+                preview_id,game_id,admin_id,
+            ),
+        )
+        refreshed=db.execute(
+            "select * from game_sync_previews where id=? and game_id=? and admin_user_id=?",
+            (preview_id,game_id,admin_id),
+        ).fetchone()
+    if not refreshed:
+        raise HTTPException(status_code=404,detail="找不到同步預覽。")
+    return _sync_preview_response(refreshed)
+
+
 
 def _sync_preview_response(record: sqlite3.Row) -> dict[str, Any]:
     diff=json.loads(record["diff_json"] or "{}")
-    metadata=json.loads(record["metadata_json"] or "{}")
+    metadata=_annotate_source_isolation_exclusions(str(record["game_id"]),json.loads(record["metadata_json"] or "{}"))
     candidate_rows=json.loads(record["candidate_json"] or "[]")
     response_changes=list(diff.get("changes") or [])[:200]
     return {
@@ -6676,6 +7664,119 @@ def admin_cancel_sync_preview(game_id: str, preview_id: str, request: Request):
     return {"ok":True}
 
 
+@app.post("/api/games/{game_id}/admin/official-achievements/preview/{preview_id}/isolated/exclude/{source_item_id}")
+def admin_exclude_isolated_source_item(game_id: str, preview_id: str, source_item_id: str, body: SourceIsolationDecisionPayload, request: Request):
+    game_id=require_extra_game(game_id);admin=require_admin(request)
+    reason=body.reason.strip()
+    if len(reason)<3: raise HTTPException(status_code=422,detail="請輸入至少 3 個字的排除原因。")
+    metadata,source_id,row,fingerprint,snapshot=_owned_isolated_source_item(game_id,preview_id,str(admin["id"]),source_item_id)
+    created=False
+    with connect_db() as db:
+        db.execute(
+            "update source_isolation_approvals set revoked_by=?,revoked_at=?,revoke_reason=? where game_id=? and source_id=? and source_item_id=? and source_fingerprint=? and revoked_at is null",
+            (admin["id"],now(),"改為永久排除目前內容",game_id,source_id,source_item_id,fingerprint),
+        )
+        existing=db.execute(
+            "select id from source_isolation_exclusions where game_id=? and source_id=? and source_item_id=? and source_fingerprint=? and revoked_at is null",
+            (game_id,source_id,source_item_id,fingerprint),
+        ).fetchone()
+        if existing:
+            exclusion_id=str(existing["id"])
+        else:
+            exclusion_id=str(uuid.uuid4())
+            db.execute(
+                "insert into source_isolation_exclusions(id,game_id,source_id,source_item_id,source_fingerprint,snapshot_json,reason,created_by,created_at) values(?,?,?,?,?,?,?,?,?)",
+                (exclusion_id,game_id,source_id,source_item_id,fingerprint,json.dumps(snapshot,ensure_ascii=False,separators=(",",":"),default=str),reason,admin["id"],now()),
+            )
+            created=True
+    if created:
+        log_admin_action(admin["id"],"exclude_isolated_source_item",category="sync",game_id=game_id,target_type="source_isolated_row",target_id=source_item_id,summary="永久排除未配對來源項目的目前內容",before={"excluded":False},after={"excluded":True},metadata={"preview_id":preview_id,"source_id":source_id,"source_fingerprint":fingerprint,"reason":reason,"snapshot":snapshot},actor_ip=client_ip(request),locked=True)
+    refreshed=_refresh_sync_preview_isolation_approvals(game_id,preview_id,str(admin["id"]))
+    enriched=refreshed.get("metadata") or _annotate_source_isolation_exclusions(game_id,metadata)
+    isolated=((enriched.get("cross_validation") or {}).get("catalog_preservation") or {}).get("review_rows") or []
+    item=next((value for value in isolated if str(value.get("source_item_id") or "")==str(source_item_id)),row)
+    return {"ok":True,"created":created,"exclusion_id":exclusion_id,"item":item,"cross_validation":enriched.get("cross_validation") or {},"preview":refreshed}
+
+
+@app.post("/api/games/{game_id}/admin/official-achievements/preview/{preview_id}/isolated/restore/{source_item_id}")
+def admin_restore_isolated_source_item(game_id: str, preview_id: str, source_item_id: str, body: SourceIsolationDecisionPayload, request: Request):
+    game_id=require_extra_game(game_id);admin=require_admin(request)
+    reason=body.reason.strip()
+    if len(reason)<3: raise HTTPException(status_code=422,detail="請輸入至少 3 個字的取消原因。")
+    metadata,source_id,row,fingerprint,_snapshot=_owned_isolated_source_item(game_id,preview_id,str(admin["id"]),source_item_id)
+    with connect_db() as db:
+        exclusion=db.execute(
+            "select id,reason,created_at from source_isolation_exclusions where game_id=? and source_id=? and source_item_id=? and source_fingerprint=? and revoked_at is null order by created_at desc limit 1",
+            (game_id,source_id,source_item_id,fingerprint),
+        ).fetchone()
+        if not exclusion:
+            raise HTTPException(status_code=404,detail="此來源項目的目前內容沒有有效排除紀錄。")
+        db.execute(
+            "update source_isolation_exclusions set revoked_by=?,revoked_at=?,revoke_reason=? where id=? and revoked_at is null",
+            (admin["id"],now(),reason,exclusion["id"]),
+        )
+    log_admin_action(admin["id"],"restore_isolated_source_item",category="sync",game_id=game_id,target_type="source_isolated_row",target_id=source_item_id,summary="取消未配對來源項目的永久排除",before={"excluded":True},after={"excluded":False},metadata={"preview_id":preview_id,"source_id":source_id,"source_fingerprint":fingerprint,"reason":reason,"previous_reason":str(exclusion["reason"] or "")},actor_ip=client_ip(request),locked=True)
+    enriched=_annotate_source_isolation_exclusions(game_id,metadata)
+    isolated=((enriched.get("cross_validation") or {}).get("catalog_preservation") or {}).get("review_rows") or []
+    item=next((value for value in isolated if str(value.get("source_item_id") or "")==str(source_item_id)),row)
+    return {"ok":True,"item":item,"cross_validation":enriched.get("cross_validation") or {}}
+
+
+@app.post("/api/games/{game_id}/admin/official-achievements/preview/{preview_id}/isolated/include/{source_item_id}")
+def admin_include_isolated_source_item(game_id: str, preview_id: str, source_item_id: str, body: SourceIsolationDecisionPayload, request: Request):
+    game_id=require_extra_game(game_id);admin=require_admin(request)
+    reason=body.reason.strip()
+    if len(reason)<3: raise HTTPException(status_code=422,detail="請輸入至少 3 個字的納入原因。")
+    metadata,source_id,row,fingerprint,snapshot=_owned_isolated_source_item(game_id,preview_id,str(admin["id"]),source_item_id)
+    if not _source_isolation_approvable(row):
+        raise HTTPException(status_code=409,detail="此來源項目仍有名稱、條件、版本、分類或獎勵等欄位問題，不能直接確認納入。")
+    created=False
+    with connect_db() as db:
+        db.execute(
+            "update source_isolation_exclusions set revoked_by=?,revoked_at=?,revoke_reason=? where game_id=? and source_id=? and source_item_id=? and source_fingerprint=? and revoked_at is null",
+            (admin["id"],now(),"改為確認納入目前內容",game_id,source_id,source_item_id,fingerprint),
+        )
+        existing=db.execute(
+            "select id from source_isolation_approvals where game_id=? and source_id=? and source_item_id=? and source_fingerprint=? and revoked_at is null",
+            (game_id,source_id,source_item_id,fingerprint),
+        ).fetchone()
+        if existing:
+            approval_id=str(existing["id"])
+        else:
+            approval_id=str(uuid.uuid4())
+            db.execute(
+                "insert into source_isolation_approvals(id,game_id,source_id,source_item_id,source_fingerprint,snapshot_json,reason,created_by,created_at) values(?,?,?,?,?,?,?,?,?)",
+                (approval_id,game_id,source_id,source_item_id,fingerprint,json.dumps(snapshot,ensure_ascii=False,separators=(",",":"),default=str),reason,admin["id"],now()),
+            )
+            created=True
+    if created:
+        log_admin_action(admin["id"],"include_isolated_source_item",category="sync",game_id=game_id,target_type="source_isolated_row",target_id=source_item_id,summary="確認納入歷史來源項目的目前內容",before={"approved":False},after={"approved":True},metadata={"preview_id":preview_id,"source_id":source_id,"source_fingerprint":fingerprint,"reason":reason,"snapshot":snapshot},actor_ip=client_ip(request),locked=True)
+    refreshed=_refresh_sync_preview_isolation_approvals(game_id,preview_id,str(admin["id"]))
+    return {"ok":True,"created":created,"approval_id":approval_id,"preview":refreshed}
+
+
+@app.post("/api/games/{game_id}/admin/official-achievements/preview/{preview_id}/isolated/include/restore/{source_item_id}")
+def admin_restore_included_source_item(game_id: str, preview_id: str, source_item_id: str, body: SourceIsolationDecisionPayload, request: Request):
+    game_id=require_extra_game(game_id);admin=require_admin(request)
+    reason=body.reason.strip()
+    if len(reason)<3: raise HTTPException(status_code=422,detail="請輸入至少 3 個字的取消原因。")
+    _metadata,source_id,_row,fingerprint,_snapshot=_owned_isolated_source_item(game_id,preview_id,str(admin["id"]),source_item_id)
+    with connect_db() as db:
+        approval=db.execute(
+            "select id,reason,created_at from source_isolation_approvals where game_id=? and source_id=? and source_item_id=? and source_fingerprint=? and revoked_at is null order by created_at desc limit 1",
+            (game_id,source_id,source_item_id,fingerprint),
+        ).fetchone()
+        if not approval:
+            raise HTTPException(status_code=404,detail="此來源項目的目前內容沒有有效納入紀錄。")
+        db.execute(
+            "update source_isolation_approvals set revoked_by=?,revoked_at=?,revoke_reason=? where id=? and revoked_at is null",
+            (admin["id"],now(),reason,approval["id"]),
+        )
+    log_admin_action(admin["id"],"restore_included_source_item",category="sync",game_id=game_id,target_type="source_isolated_row",target_id=source_item_id,summary="取消歷史來源項目的確認納入",before={"approved":True},after={"approved":False},metadata={"preview_id":preview_id,"source_id":source_id,"source_fingerprint":fingerprint,"reason":reason,"previous_reason":str(approval["reason"] or "")},actor_ip=client_ip(request),locked=True)
+    refreshed=_refresh_sync_preview_isolation_approvals(game_id,preview_id,str(admin["id"]))
+    return {"ok":True,"preview":refreshed}
+
+
 @app.post("/api/games/{game_id}/admin/official-achievements/preview")
 def preview_game_official_achievements(game_id: str, request: Request):
     game_id=require_extra_game(game_id)
@@ -6708,8 +7809,9 @@ def preview_game_official_achievements(game_id: str, request: Request):
         ))
     response_changes=diff["changes"][:200]
     log_admin_action(admin["id"],"preview_official_achievements",details=f"game={game_id}; changes={diff['summary']['total_changes']}; candidate={len(rows)}",category="sync",game_id=game_id,target_type="sync_preview",target_id=preview_id,summary="建立官方成就同步預覽",after=diff["summary"],metadata=metadata,actor_ip=client_ip(request))
+    response_metadata=_annotate_source_isolation_exclusions(game_id,metadata)
     return {"ok":True,"preview_id":preview_id,"game_id":game_id,"game_name":game_display_name(game_id),
-            "expires_at":expires,"metadata":metadata,"summary":diff["summary"],"current_count":diff["current_count"],
+            "expires_at":expires,"metadata":response_metadata,"summary":diff["summary"],"current_count":diff["current_count"],
             "candidate_count":diff["candidate_count"],"changes":response_changes,"changes_total":len(diff["changes"]),
             "default_selections":build_default_sync_selections(diff["changes"]),
             "changes_offset":0,"changes_limit":len(response_changes),"changes_truncated":len(diff["changes"])>len(response_changes)}
@@ -6989,8 +8091,6 @@ def extra_game_sync_official_achievements(game_id: str, request: Request):
 @app.get("/api/games/{game_id}/official-zh-tw-achievements")
 def extra_game_official_texts(game_id: str):
     game_id=require_extra_game(game_id)
-    if game_id=="wuwa":
-        return official_zh_tw_achievements()
     return {"ok":True,"records":[]}
 
 
@@ -7004,6 +8104,41 @@ def extra_game_live_state(game_id: str):
     for row in game_rows:
         revisions[row["scope"]]=int(row["revision"] or 0)
     return {"ok":True,"revisions":revisions,"server_time":now()}
+
+
+@app.get("/api/games/{game_id}/preferences/achievement-filter")
+def extra_game_get_achievement_filter_preference(game_id: str, request: Request):
+    game_id = require_extra_game(game_id)
+    user = require_user(request)
+    state: dict[str, Any] = {}
+    with connect_db() as db:
+        row = db.execute(
+            "select state_json from achievement_filter_preferences where user_id=? and game_id=?",
+            (user["id"], game_id),
+        ).fetchone()
+    if row:
+        try:
+            state = json.loads(str(row["state_json"] or "{}"))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            state = {}
+    return {"ok": True, "game_id": game_id, "state": normalize_achievement_filter_preference(state)}
+
+
+@app.put("/api/games/{game_id}/preferences/achievement-filter")
+def extra_game_save_achievement_filter_preference(
+    game_id: str, body: AchievementFilterPreferencePayload, request: Request
+):
+    game_id = require_extra_game(game_id)
+    user = require_user(request)
+    state = normalize_achievement_filter_preference(body.model_dump())
+    with connect_db() as db:
+        db.execute(
+            """insert into achievement_filter_preferences(user_id,game_id,state_json,updated_at)
+            values(?,?,?,?)
+            on conflict(user_id,game_id) do update set state_json=excluded.state_json,updated_at=excluded.updated_at""",
+            (user["id"], game_id, json.dumps(state, ensure_ascii=False, separators=(",", ":")), now()),
+        )
+    return {"ok": True, "game_id": game_id, "state": state}
 
 
 @app.get("/api/games/{game_id}/admin/overview")
@@ -8775,14 +9910,6 @@ async def admin_game_achievement_save(request: Request):
         raise HTTPException(status_code=422, detail=str(exc))
     return extra_game_save_achievement(require_extra_game(game_id), achievement_id, body, request)
 
-@app.post("/api/convert-traditional")
-async def convert_traditional(request: Request):
-    raw=await request.body()
-    if len(raw)>10_000_000: raise HTTPException(status_code=413,detail="內容過大。")
-    try: value=json.loads(raw)
-    except Exception: raise HTTPException(status_code=400,detail="JSON 格式錯誤。")
-    return {"ok":True,"payload":convert_to_traditional(value)}
-
 # ----- 成就資料治理中心與共用訊息中心 -----
 GOVERNANCE_RULES_VERSION = "2026.06.26-final-governance-v1"
 GOVERNANCE_ACTIVE_STATES = {"new", "waiting_review", "assigned", "ready", "processing", "reopened", "failed"}
@@ -9941,7 +11068,7 @@ def _governance_validate_simulated_state(game_id: str, catalog_items: list[dict[
     ids=[str(row.get("id") or row.get("achievement_id") or "").strip() for row in catalog_items]
     if any(not OFFICIAL_ACHIEVEMENT_ID_PATTERN.fullmatch(value or "") for value in ids):
         invalid=next(value for value in ids if not OFFICIAL_ACHIEVEMENT_ID_PATTERN.fullmatch(value or ""))
-        raise RuntimeError(f"non_numeric_official_id:{invalid}")
+        raise RuntimeError(f"invalid_official_id:{invalid}")
     if len(ids)!=len(set(ids)):
         raise RuntimeError("duplicate_catalog_id_after_action")
     catalog_ids=set(ids)
@@ -10167,12 +11294,12 @@ def _materialize_governance_overrides(db: sqlite3.Connection, game_id: str, cata
             continue
         ov=dict(override); row=by_id.get(aid)
         if row is None:
-            row={"id":aid,"achievement_id":aid,"name":aid,"condition":"","version":"未標示","category":"未辨識分類","reward":0,"hidden":False,"tags":[],"source":"admin_manual","sourceOrder":official_id_number(aid)}
+            row={"id":aid,"achievement_id":aid,"name":aid,"condition":"","version":"未標示","category":"未辨識分類","reward":0,"hidden":False,"tags":[],"source":"admin_manual","sourceOrder":achievement_source_order(aid,0)}
             catalog_items.append(row); by_id[aid]=row
         for key in ("name","condition","version","category","reward","hidden","source"):
             if ov.get(key) is not None: row[key]=bool(ov[key]) if key=="hidden" else ov[key]
         row["tags"]=_json_object(ov.get("tags_json"),[])
-        row["sourceOrder"]=official_id_number(aid)
+        row["sourceOrder"]=achievement_source_order(aid,row.get("sourceOrder") or row.get("source_order") or 0)
 
 
 def _governance_relation_group(relation_documents: dict[str, dict[str, Any]], relation_type: str, group_id: str) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any] | None]:
@@ -10330,8 +11457,8 @@ def _governance_apply_action(db: sqlite3.Connection, game_id: str, catalog_items
         db.execute("insert or ignore into game_progress(game_id,user_id,achievement_id,completed_at) select game_id,user_id,?,completed_at from game_progress where game_id=? and achievement_id=?",(target_id,game_id,source_id));db.execute("delete from game_progress where game_id=? and achievement_id=?",(game_id,source_id));after={"source_id":source_id,"source_count":0,"target_id":target_id}
     elif name=="recalculate_order":
         before={"count":len(catalog_items),"rule":"official_id"}
-        for row in catalog_items:aid=str(row.get("id") or row.get("achievement_id") or "").strip();row["sourceOrder"]=official_id_number(aid);row.pop("source_order",None)
-        catalog_items.sort(key=lambda row:(official_id_number(row.get("id") or row.get("achievement_id")),str(row.get("id") or row.get("achievement_id"))));after={"count":len(catalog_items),"rule":"official_id"}
+        for index,row in enumerate(catalog_items,1):aid=str(row.get("id") or row.get("achievement_id") or "").strip();row["sourceOrder"]=achievement_source_order(aid,row.get("sourceOrder") if row.get("sourceOrder") is not None else row.get("source_order",index));row.pop("source_order",None)
+        catalog_items.sort(key=lambda row:achievement_id_sort_key(row.get("id") or row.get("achievement_id"),row.get("sourceOrder")));after={"count":len(catalog_items),"rule":"official_id_or_source_order"}
     elif name in {"normalize_hidden","normalize_tags"}:
         aid=str(params.get("achievement_id") or (action.get("entity_ids") or [""])[0]).strip();row=by_id.get(aid)
         if not row:raise RuntimeError(f"achievement_not_found:{aid}")
@@ -10405,7 +11532,7 @@ def _governance_apply_action(db: sqlite3.Connection, game_id: str, catalog_items
     elif name=="sync_database_to_json":
         aid=str(params.get("achievement_id") or (action.get("entity_ids") or [""])[0]).strip();dbrow=db.execute("select * from game_catalog_items where game_id=? and achievement_id=?",(game_id,aid)).fetchone()
         if not dbrow:raise RuntimeError(f"database_row_not_found:{aid}")
-        before=dict(by_id.get(aid) or {});value=dict(dbrow);value.update({"id":aid,"tags":_json_object(value.pop("tags_json","[]"),[]),"hidden":bool(value.get("hidden")),"sourceOrder":int(value.pop("source_order",official_id_number(aid)) or official_id_number(aid))});value.pop("game_id",None);value.pop("achievement_id",None);value.pop("updated_at",None)
+        before=dict(by_id.get(aid) or {});value=dict(dbrow);value.update({"id":aid,"tags":_json_object(value.pop("tags_json","[]"),[]),"hidden":bool(value.get("hidden")),"sourceOrder":achievement_source_order(aid,value.pop("source_order",0))});value.pop("game_id",None);value.pop("achievement_id",None);value.pop("updated_at",None)
         if aid in by_id:by_id[aid].clear();by_id[aid].update(value)
         else:catalog_items.append(value);by_id[aid]=value
         after=dict(value)
@@ -10426,7 +11553,7 @@ def _governance_apply_action(db: sqlite3.Connection, game_id: str, catalog_items
             if not candidate and source:
                 raw=_json_object(source["raw_json"],{});candidate=raw if isinstance(raw,dict) else None
             if not candidate:raise RuntimeError(f"restore_source_not_found:{aid}")
-            value={"id":aid,"name":str(candidate.get("name") or aid),"condition":str(candidate.get("condition") or ""),"version":str(candidate.get("version") or "未標示"),"category":str(candidate.get("category") or "未辨識分類"),"reward":int(candidate.get("reward") or 0),"hidden":bool(candidate.get("hidden")),"tags":candidate.get("tags") if isinstance(candidate.get("tags"),list) else _json_object(candidate.get("tags_json"),[]),"source":str(candidate.get("source") or "restored"),"sourceOrder":official_id_number(aid)};catalog_items.append(value);by_id[aid]=value
+            value={"id":aid,"name":str(candidate.get("name") or aid),"condition":str(candidate.get("condition") or ""),"version":str(candidate.get("version") or "未標示"),"category":str(candidate.get("category") or "未辨識分類"),"reward":int(candidate.get("reward") or 0),"hidden":bool(candidate.get("hidden")),"tags":candidate.get("tags") if isinstance(candidate.get("tags"),list) else _json_object(candidate.get("tags_json"),[]),"source":str(candidate.get("source") or "restored"),"sourceOrder":achievement_source_order(aid,candidate.get("sourceOrder") or candidate.get("source_order") or 0)};catalog_items.append(value);by_id[aid]=value
         after=dict(by_id[aid])
     elif name=="source_fill":
         aid=str(params.get("achievement_id") or (action.get("entity_ids") or [""])[0]).strip();row=by_id.get(aid)
@@ -10460,10 +11587,10 @@ def _governance_persist_catalog_rows(db: sqlite3.Connection,game_id: str,rows: l
     normalized=[];desired=set();stamp=now()
     for index,row in enumerate(rows):
         aid=str(row.get("id") or row.get("achievement_id") or "").strip()
-        if not OFFICIAL_ACHIEVEMENT_ID_PATTERN.fullmatch(aid or ""):raise RuntimeError(f"non_numeric_official_id:{aid}")
+        if not OFFICIAL_ACHIEVEMENT_ID_PATTERN.fullmatch(aid or ""):raise RuntimeError(f"invalid_official_id:{aid}")
         if aid in desired:raise RuntimeError(f"duplicate_catalog_id:{aid}")
         desired.add(aid)
-        normalized.append((game_id,aid,str(row.get("name") or "").strip(),str(row.get("condition") or "").strip(),str(row.get("version") or "未標示").strip(),str(row.get("category") or "未辨識分類").strip(),int(row.get("reward") or 0),1 if row.get("hidden") else 0,json.dumps(row.get("tags") if isinstance(row.get("tags"),list) else [],ensure_ascii=False),str(row.get("source") or "catalog"),int(row.get("sourceOrder") if row.get("sourceOrder") is not None else row.get("source_order") or official_id_number(aid)),stamp))
+        normalized.append((game_id,aid,str(row.get("name") or "").strip(),str(row.get("condition") or "").strip(),str(row.get("version") or "未標示").strip(),str(row.get("category") or "未辨識分類").strip(),int(row.get("reward") or 0),1 if row.get("hidden") else 0,json.dumps(row.get("tags") if isinstance(row.get("tags"),list) else [],ensure_ascii=False),str(row.get("source") or "catalog"),achievement_source_order(aid,row.get("sourceOrder") if row.get("sourceOrder") is not None else row.get("source_order") or index),stamp))
     existing={str(row[0]) for row in db.execute("select achievement_id from game_catalog_items where game_id=?",(game_id,)).fetchall()}
     removed=sorted(existing-desired)
     for aid in removed:
@@ -10873,6 +12000,7 @@ def admin_dashboard_overview(request: Request):
             game_cards.append({"id": game_id, "name": project.get("name") or game_id, "achievement_count": total, "hidden_count": hidden, "category_count": categories, "relation_count": relations, "progress_count": progress, "pending_issue_count": pending, "pending_issue_severity": severity, "pending_sync_preview_count": preview, "active_preview_summary": _json_object(preview_row["diff_json"], {}).get("summary", {}) if preview_row else {}, "last_scan": {**dict(scan), "summary": _json_object(scan["summary_json"], {})} if scan else None, "latest_sync": {**dict(latest_sync), "summary": _json_object(latest_sync["summary_json"], {})} if latest_sync else None, "latest_source_test": dict(latest_source_test) if latest_source_test else None, "source_freshness": freshness, "source_last_activity_at": last_activity or None, "source_policy": get_source_policy(game_id)})
         pending_reports = int(db.execute("select count(*) from game_achievement_reports where status in ('open','reviewing')").fetchone()[0])
         pending_tickets = int(db.execute("select count(*) from support_tickets where status in ('open','pending','reviewing')").fetchone()[0])
+        pending_guides = int(db.execute("select count(*) from achievement_guide_submissions where status='pending'").fetchone()[0])
         unread_announcements = int(db.execute("select count(*) from message_center_items where item_type='announcement' and is_active=1 and (starts_at is null or starts_at<=?) and (ends_at is null or ends_at>?)", (stamp, stamp)).fetchone()[0])
         redeem_row = db.execute("""select count(*) total,
             sum(case when enabled=1 and (end_at is null or end_at>=?) then 1 else 0 end) open,
@@ -10892,7 +12020,7 @@ def admin_dashboard_overview(request: Request):
             item["target_id"] = sanitize_legacy_id_display(str(item.get("target_id") or ""))
             target_game = str(item.get("game_id") or "")
             target_id = str(item.get("target_id") or "")
-            if target_game in {"wuwa", "hsr", "genshin", "zzz"} and target_id.isdigit():
+            if get_game_config(target_game) and OFFICIAL_ACHIEVEMENT_ID_PATTERN.fullmatch(target_id):
                 achievement = db.execute(
                     "select name from game_catalog_items where game_id=? and achievement_id=?",
                     (target_game, target_id),
@@ -10911,7 +12039,7 @@ def admin_dashboard_overview(request: Request):
         health_status = "error"; health_messages.append(str(exc))
     if any(card["pending_issue_count"] for card in game_cards) and health_status == "ok":
         health_status = "warning"; health_messages.append("存在待處理的成就資料問題")
-    return {"ok": True, "health_summary": {"status": health_status, "message": "；".join(health_messages) or "核心檢查正常", "checked_at": stamp}, "games": game_cards, "redeem": redeem_summary, "work": {"pending_reports": pending_reports, "pending_tickets": pending_tickets, "active_announcements": unread_announcements, "pending_issues": sum(card["pending_issue_count"] for card in game_cards), "pending_sync_previews": sum(card["pending_sync_preview_count"] for card in game_cards), "pending_redeem_imports": redeem_summary["pending_import_batches"]}, "recent_logs": recent_logs, "latest_scan": dict(latest_validation) if latest_validation else None}
+    return {"ok": True, "health_summary": {"status": health_status, "message": "；".join(health_messages) or "核心檢查正常", "checked_at": stamp}, "games": game_cards, "redeem": redeem_summary, "work": {"pending_reports": pending_reports, "pending_tickets": pending_tickets, "pending_guides": pending_guides, "active_announcements": unread_announcements, "pending_issues": sum(card["pending_issue_count"] for card in game_cards), "pending_sync_previews": sum(card["pending_sync_preview_count"] for card in game_cards), "pending_redeem_imports": redeem_summary["pending_import_batches"]}, "recent_logs": recent_logs, "latest_scan": dict(latest_validation) if latest_validation else None}
 
 
 @app.get("/api/admin/system-health/detail")
@@ -10947,7 +12075,7 @@ def admin_system_health_detail(request: Request):
         status="warning" if abnormal else "ok"
         message="；".join(reasons) if reasons else ("後端執行期間存在屬正常現象，無須處理" if exists else "目前不存在，屬正常狀態")
         add(f"SQLite {suffix[1:].upper()}",status,message,{"path":str(path),"exists":exists,"size_bytes":size,"modified_at":modified,"backend_running":True,"journal_mode":journal,"checkpoint":checkpoint,"action_required":abnormal})
-    required = [HUB_INDEX, ADMIN_INDEX, game_catalog_file("wuwa"), game_catalog_file("hsr"), game_catalog_file("genshin"), game_catalog_file("zzz")]
+    required = [HUB_INDEX, ADMIN_INDEX, game_catalog_file("wuwa"), game_catalog_file("hsr"), game_catalog_file("genshin"), game_catalog_file("zzz"), game_catalog_file("nte")]
     missing = [str(path) for path in required if not path.exists()]; add("必要檔案", "ok" if not missing else "error", "必要檔案完整" if not missing else f"缺少 {len(missing)} 個檔案", missing)
     backup_files = sorted((ROOT / "backups").glob("*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
     add("資料庫備份", "ok" if backup_files else "warning", f"共 {len(backup_files)} 份", {"latest": str(backup_files[0]) if backup_files else ""})
@@ -11025,6 +12153,17 @@ def _game_project_response(game_id: str):
     if not index_file:
         raise HTTPException(status_code=404,detail="找不到或尚未啟用此遊戲專案。")
     return _html_no_store_response(index_file)
+
+def guide_project():
+    if not GUIDE_INDEX.exists():
+        raise HTTPException(status_code=404, detail="找不到攻略頁面。")
+    return _html_no_store_response(GUIDE_INDEX)
+
+@app.get("/_projects/guide")
+@app.get("/_projects/guide/")
+@app.get("/_projects/guide/index.html")
+def guide_project_page():
+    return guide_project()
 
 @app.get("/_projects/account")
 def account_project():
@@ -11129,6 +12268,12 @@ def _hub_response():
         raise HTTPException(status_code=404, detail="找不到遊戲成就紀錄器首頁。")
     return _html_no_store_response(HUB_INDEX)
 
+
+def _game_hub_response():
+    response = _hub_response()
+    response.headers["X-Robots-Tag"] = "noindex, follow"
+    return response
+
 @app.get("/")
 def index():
     return _hub_response()
@@ -11136,22 +12281,52 @@ def index():
 @app.get("/wuwa")
 @app.get("/wuwa/")
 def wuwa_page():
-    return _hub_response()
+    return _game_hub_response()
 
 @app.get("/hsr")
 @app.get("/hsr/")
 def hsr_page():
-    return _hub_response()
+    return _game_hub_response()
 
 @app.get("/genshin")
 @app.get("/genshin/")
 def genshin_page():
-    return _hub_response()
+    return _game_hub_response()
 
 @app.get("/zzz")
 @app.get("/zzz/")
 def zzz_page():
-    return _hub_response()
+    return _game_hub_response()
+
+@app.get("/nte")
+@app.get("/nte/")
+def nte_page():
+    return _game_hub_response()
+
+def _achievement_guide_hub_page(game_id: str, achievement_id: str):
+    require_extra_game(game_id)
+    _validate_official_achievement_id(game_id, achievement_id)
+    return _game_hub_response()
+
+@app.get("/wuwa/{achievement_id}")
+def wuwa_guide_page(achievement_id: str):
+    return _achievement_guide_hub_page("wuwa", achievement_id)
+
+@app.get("/hsr/{achievement_id}")
+def hsr_guide_page(achievement_id: str):
+    return _achievement_guide_hub_page("hsr", achievement_id)
+
+@app.get("/genshin/{achievement_id}")
+def genshin_guide_page(achievement_id: str):
+    return _achievement_guide_hub_page("genshin", achievement_id)
+
+@app.get("/zzz/{achievement_id}")
+def zzz_guide_page(achievement_id: str):
+    return _achievement_guide_hub_page("zzz", achievement_id)
+
+@app.get("/nte/{achievement_id}")
+def nte_guide_page(achievement_id: str):
+    return _achievement_guide_hub_page("nte", achievement_id)
 
 @app.get("/hna")
 @app.get("/hna/")

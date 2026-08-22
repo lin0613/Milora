@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,follow">
+<title>成就攻略｜遊戲成就紀錄器</title>
+<link rel="stylesheet" href="/assets/shared/common.css">
+<link rel="stylesheet" href="/assets/shared/guide.css?v=20260813-source-isolation-review-decisions-1290">
+<script defer src="/assets/shared/runtime.js?v=20260813-source-isolation-review-decisions-1290"></script>
+<script defer src="/assets/shared/guide.js?v=20260813-source-isolation-review-decisions-1290"></script>
+</head>
+<body>
+<main class="guidePage" id="guidePage" aria-busy="true">
+ <section class="guideAchievementHeader" id="guideAchievementHeader" hidden>
+  <div class="guideAchievementCopy">
+   <h1 id="guideAchievementName">成就攻略</h1>
+   <p id="guideAchievementCondition"></p>
+   <div class="guideAchievementMeta" id="guideAchievementMeta"></div>
+  </div>
+  <button class="guideSecondary guideEditButton" id="guideEditButton" type="button">編輯攻略</button>
+ </section>
+
+ <div class="guideNotice" id="guideNotice">正在載入攻略……</div>
+
+ <section class="guideSubmissionState" id="guideSubmissionState" hidden>
+  <div><strong id="guideSubmissionStateTitle"></strong><p id="guideSubmissionStateMessage"></p></div>
+  <span class="guideStatusBadge" id="guideSubmissionStateBadge"></span>
+ </section>
+
+ <section class="guideReadingSurface" id="guideReadingSurface" hidden>
+  <header class="guideSectionHeader">
+   <div><h2>攻略內容</h2><p id="guideProviderLine"></p></div>
+   <time id="guidePublishedAt"></time>
+  </header>
+  <article class="guideDocument" id="guidePublishedContent"></article>
+ </section>
+
+ <section class="guideEmptyState" id="guideEmptyState" hidden>
+  <h2>暫無攻略</h2>
+  <p>目前還沒有通過審查的攻略內容。</p>
+  <button class="guideSecondary" id="guideEmptyEditButton" type="button">編輯攻略</button>
+ </section>
+
+ <section class="guideEditorSection" id="guideEditorSection" hidden>
+  <div class="guideEditorWorkspace" id="guideEditorWorkspace">
+   <div class="guideEditorPanel" id="guideEditorPanel">
+    <header class="guideEditorHeader"><div><h2 id="guideEditorTitle">編輯攻略</h2><p id="guideEditorProvider"></p></div><button class="guideSecondary" id="guideCloseEditorButton" type="button">關閉編輯</button></header>
+    <div class="guideToolbar" id="guideToolbar" role="toolbar" aria-label="攻略編輯工具列">
+     <label><span class="srOnly">段落格式</span><select id="guideBlockFormat" title="段落格式"><option value="p">一般段落</option><option value="h2">標題</option><option value="h3">小標題</option></select></label>
+     <div class="guideToolGroup"><button type="button" data-command="bold" title="粗體" aria-label="粗體"><strong>B</strong></button><button type="button" data-command="italic" title="斜體" aria-label="斜體"><em>I</em></button><button type="button" data-command="underline" title="底線" aria-label="底線"><u>U</u></button><button type="button" data-command="strikeThrough" title="刪除線" aria-label="刪除線"><s>S</s></button><button type="button" id="guideSpoilerButton" title="反黑" aria-label="反黑">反黑</button></div>
+     <label class="guideColorControl" title="文字顏色"><span>A</span><input id="guideTextColor" type="color" value="#eef5fb" aria-label="文字顏色"></label>
+     <label><span class="srOnly">文字大小</span><select id="guideFontSize" title="文字大小"><option value="12px">12</option><option value="14px">14</option><option value="16px" selected>16</option><option value="18px">18</option><option value="20px">20</option><option value="24px">24</option><option value="28px">28</option><option value="32px">32</option></select></label>
+     <div class="guideToolGroup"><button type="button" data-command="justifyLeft" title="靠左" aria-label="靠左"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 10h11M4 14h16M4 18h11"></path></svg></button><button type="button" data-command="justifyCenter" title="置中" aria-label="置中"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"></path></svg></button><button type="button" data-command="justifyRight" title="靠右" aria-label="靠右"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M9 10h11M4 14h16M9 18h11"></path></svg></button></div>
+     <div class="guideToolGroup"><button type="button" data-command="insertUnorderedList" title="項目符號" aria-label="項目符號"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="7" r="1"></circle><circle cx="5" cy="12" r="1"></circle><circle cx="5" cy="17" r="1"></circle><path d="M9 7h11M9 12h11M9 17h11"></path></svg></button><button type="button" data-command="insertOrderedList" title="編號清單" aria-label="編號清單"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7h11M9 12h11M9 17h11M4 6h1v3M4 11h2l-2 3h2M4 17h2v3H4"></path></svg></button></div>
+     <div class="guideToolGroup"><button type="button" id="guideLinkButton" title="超連結">連結</button><button type="button" id="guideImageButton" title="圖片">圖片</button><button type="button" id="guideVideoButton" title="影片嵌入">影片</button></div>
+     <div class="guideToolGroup"><button type="button" data-command="undo" title="復原" aria-label="復原"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 7-5 5 5 5"></path><path d="M5 12h8a6 6 0 0 1 6 6"></path></svg></button><button type="button" data-command="redo" title="重做" aria-label="重做"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5"></path><path d="M19 12h-8a6 6 0 0 0-6 6"></path></svg></button></div>
+    </div>
+    <div class="guideEditor guideDocument" id="guideEditor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="攻略內容"></div>
+    <footer class="guideEditorFooter"><p>送出後狀態將變成「等待審查」，管理員核准前不會公開。</p><div><button class="guideSecondary" id="guideCancelEditorButton" type="button">取消</button><button class="guideSecondary" id="guideSubmitButton" type="button">送出審查</button></div></footer>
+   </div>
+
+   <aside class="guideAdminReview" id="guideAdminReview" hidden>
+    <h2>待審投稿</h2>
+    <div class="guidePendingList" id="guidePendingList"></div>
+    <div class="guideReviewDetail" id="guideReviewDetail" hidden>
+     <p id="guideReviewProvider"></p><span class="guideStatusBadge pending">等待審查</span>
+     <label>審查備註<textarea id="guideReviewNote" maxlength="2000" placeholder="輸入審查備註（選填）"></textarea></label>
+     <div class="guideReviewActions"><button class="guideDanger" id="guideRejectButton" type="button">退回修改</button><button class="guideSecondary" id="guideApproveButton" type="button">核准發布</button></div>
+    </div>
+   </aside>
+  </div>
+ </section>
+</main>
+
+<dialog class="guideDialog" id="guideLinkDialog"><form method="dialog" id="guideLinkForm"><header><h2>加入超連結</h2><button value="cancel" type="submit" formnovalidate aria-label="關閉">×</button></header><div class="guideDialogBody"><label>網址<input id="guideLinkUrl" type="url" maxlength="2000" placeholder="https://" required></label><label>顯示文字<input id="guideLinkText" maxlength="300" placeholder="未選取文字時使用"></label><div class="guideDialogActions"><button class="guideSecondary" value="cancel" type="submit" formnovalidate>取消</button><button class="guideSecondary" value="confirm" type="submit">加入連結</button></div></div></form></dialog>
+<dialog class="guideDialog" id="guideImageDialog"><form method="dialog" id="guideImageForm"><header><h2>加入圖片</h2><button value="cancel" type="submit" formnovalidate aria-label="關閉">×</button></header><div class="guideDialogBody"><label>圖片檔案<input id="guideImageFile" type="file" accept="image/jpeg,image/png,image/webp" required></label><p class="guideFieldHint">支援 JPG、PNG、WebP，單張上限 5 MB。</p><label>替代文字<input id="guideImageAlt" maxlength="300" placeholder="簡短描述圖片內容"></label><label>圖片說明<input id="guideImageCaption" maxlength="500"></label><div class="guideDialogActions"><button class="guideSecondary" value="cancel" type="submit" formnovalidate>取消</button><button class="guideSecondary" id="guideImageUploadButton" value="confirm" type="submit">上傳圖片</button></div></div></form></dialog>
+<dialog class="guideDialog" id="guideVideoDialog"><form method="dialog" id="guideVideoForm"><header><h2>嵌入影片</h2><button value="cancel" type="submit" formnovalidate aria-label="關閉">×</button></header><div class="guideDialogBody"><label>YouTube 或 Bilibili 網址<input id="guideVideoUrl" type="url" maxlength="2000" placeholder="https://" required></label><label>影片說明<input id="guideVideoCaption" maxlength="500"></label><div class="guideDialogActions"><button class="guideSecondary" value="cancel" type="submit" formnovalidate>取消</button><button class="guideSecondary" id="guideVideoInsertButton" value="confirm" type="submit">嵌入影片</button></div></div></form></dialog>
+</body>
+</html>

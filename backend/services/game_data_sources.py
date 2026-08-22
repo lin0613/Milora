@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import gzip
 import hashlib
 import html
 import json
@@ -10,32 +9,24 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
-from difflib import SequenceMatcher
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from backend.services.source_pipeline import PIPELINE_VERSION, adapter_id as source_adapter_id
 
-SOURCE_ARCHITECTURE_VERSION = "source-architecture-animegamedata2-bundled-completion-v11"
+SOURCE_ARCHITECTURE_VERSION = "source-architecture-primary-repository-history-v18"
 DEFAULT_TIMEOUT = 30
-MAX_FILE_BYTES = 160 * 1024 * 1024
-USER_AGENT = "Milora_tool-SourceArchitecture/AnimeGameData2Completion"
-
-GENSHIN_COMPLETION_SOURCE_ID = "genshin_db_dist"
-GENSHIN_COMPLETION_SOURCE_NAME = "genshin-db 繁體中文完整成就資料"
-GENSHIN_COMPLETION_SOURCE_URLS = (
-    "https://raw.githubusercontent.com/theBowja/genshin-db-dist/main/data/gzips/chinesetraditional-achievements.min.json.gzip",
-    "https://cdn.jsdelivr.net/gh/theBowja/genshin-db-dist@main/data/gzips/chinesetraditional-achievements.min.json.gzip",
-)
-GENSHIN_COMPLETION_API_URL = (
-    "https://genshin-db-api.vercel.app/api/v5/achievements"
-    "?query=names&matchCategories=true&verboseCategories=true&resultLanguage=ChineseTraditional"
-)
-GENSHIN_BUNDLED_COMPLETION_FILENAME = "bundled-completion.json"
-
-GENSHIN_EMBEDDED_COMPLETION: tuple[dict[str, Any], ...] = ()
-
+MAX_FILE_BYTES = 64 * 1024 * 1024
+MAX_BUNDLE_BYTES = 192 * 1024 * 1024
+MAX_REDIRECTS = 4
+USER_AGENT = "Milora_tool-SourceArchitecture/PrimaryRepositoryHistory"
+TRUSTED_SOURCE_HOSTS = frozenset({
+    "api.github.com",
+    "github.com",
+    "git.mero.moe",
+    "gitlab.com",
+    "raw.githubusercontent.com",
+})
 
 class RepositorySourceError(RuntimeError):
     def __init__(self, message: str, *, code: str = "source_error", diagnostics: dict[str, Any] | None = None):
@@ -59,9 +50,6 @@ class RepositoryDefinition:
     repository_url: str
     raw_bases: tuple[str, ...]
     files: tuple[SourceFileSpec, ...]
-    secondary_id: str
-    secondary_name: str
-    secondary_url: str
     minimum_count: int
 
 
@@ -106,21 +94,7 @@ SOURCE_DEFINITIONS: dict[str, RepositoryDefinition] = {
                     "Textmaps/zh-Hant/multi_text/multi_text.json",
                 ),
             ),
-            SourceFileSpec(
-                "rewards",
-                (
-                    "BinData/drop/dropunit.json",
-                    "BinData/drop/drop.json",
-                    "BinData/reward/reward.json",
-                    "BinData/reward/drop.json",
-                    "BinData/item/drop.json",
-                ),
-                required=False,
-            ),
         ),
-        secondary_id="kuro_official_wiki",
-        secondary_name="鳴潮既有官方來源",
-        secondary_url="https://wiki.kurobbs.com/mc/item/1220879855033786368",
         minimum_count=800,
     ),
     "genshin": RepositoryDefinition(
@@ -165,9 +139,6 @@ SOURCE_DEFINITIONS: dict[str, RepositoryDefinition] = {
                 ),
             ),
         ),
-        secondary_id="stardb_genshin",
-        secondary_name="StarDB 原神成就資料",
-        secondary_url="https://stardb.gg/zh-tw/genshin/achievement-tracker",
         minimum_count=1200,
     ),
     "hsr": RepositoryDefinition(
@@ -181,12 +152,11 @@ SOURCE_DEFINITIONS: dict[str, RepositoryDefinition] = {
             SourceFileSpec("groups", ("ExcelOutput/AchievementSeries.json",)),
             SourceFileSpec("quests", ("ExcelOutput/QuestData.json",), required=False),
             SourceFileSpec("rewards", ("ExcelOutput/RewardData.json",), required=False),
+            SourceFileSpec("textjoin_config", ("ExcelOutput/TextJoinConfig.json",), required=False),
+            SourceFileSpec("textjoin_items", ("ExcelOutput/TextJoinItem.json",), required=False),
             SourceFileSpec("textmap", ("TextMap/TextMapCHT.json",)),
             SourceFileSpec("textmap_main", ("TextMap/TextMapMainCHT.json",), required=False),
         ),
-        secondary_id="stardb_hsr",
-        secondary_name="StarDB 崩鐵成就資料",
-        secondary_url="https://stardb.gg/zh-tw/achievement-tracker",
         minimum_count=1200,
     ),
     "zzz": RepositoryDefinition(
@@ -218,10 +188,23 @@ SOURCE_DEFINITIONS: dict[str, RepositoryDefinition] = {
                 required=False,
             ),
         ),
-        secondary_id="stardb_zzz",
-        secondary_name="StarDB 絕區零成就資料",
-        secondary_url="https://stardb.gg/zh-tw/zzz/achievement-tracker",
         minimum_count=600,
+    ),
+    "nte": RepositoryDefinition(
+        game_id="nte",
+        primary_id="nte_assets",
+        primary_name="Waifus-Grace/NTE_Assets",
+        repository_url="https://github.com/Waifus-Grace/NTE_Assets",
+        raw_bases=(
+            "https://raw.githubusercontent.com/Waifus-Grace/NTE_Assets/main/",
+            "https://raw.githubusercontent.com/Waifus-Grace/NTE_Assets/master/",
+        ),
+        files=(
+            SourceFileSpec("achievements", ("DataTable/DT_AchievementConfigInfo.json",)),
+            SourceFileSpec("achievement_text", ("Text/ST_Achievement.json",)),
+            SourceFileSpec("localization_zh_hant", ("Localization/zh-Hant/game.json",)),
+        ),
+        minimum_count=380,
     ),
 }
 
@@ -231,6 +214,51 @@ def definition_for(game_id: str) -> RepositoryDefinition:
         return SOURCE_DEFINITIONS[str(game_id or "").strip()]
     except KeyError as exc:
         raise RepositorySourceError("不支援的遊戲來源。", code="unsupported_game") from exc
+
+
+def _validated_source_url(value: str) -> str:
+    url = str(value or "").strip()
+    parsed = urllib.parse.urlsplit(url)
+    host = (parsed.hostname or "").casefold().rstrip(".")
+    if parsed.scheme.casefold() != "https" or not host or host not in TRUSTED_SOURCE_HOSTS:
+        raise RepositorySourceError(
+            "來源網址不在允許的 HTTPS 主機清單中。",
+            code="source_url_not_allowed",
+            diagnostics={"host": host},
+        )
+    if parsed.username or parsed.password or (parsed.port not in {None, 443}):
+        raise RepositorySourceError(
+            "來源網址包含不允許的驗證資訊或連接埠。",
+            code="source_url_not_allowed",
+            diagnostics={"host": host},
+        )
+    return urllib.parse.urlunsplit(parsed)
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _open_trusted_source(request: urllib.request.Request, *, timeout: int):
+    opener = urllib.request.build_opener(_NoRedirect)
+    current_url = _validated_source_url(request.full_url)
+    for redirect_count in range(MAX_REDIRECTS + 1):
+        current_request = urllib.request.Request(current_url, headers=dict(request.header_items()))
+        try:
+            return opener.open(current_request, timeout=timeout), current_url, redirect_count
+        except urllib.error.HTTPError as exc:
+            if exc.code not in {301, 302, 303, 307, 308}:
+                raise
+            location = str(exc.headers.get("Location") or "").strip()
+            if not location or redirect_count >= MAX_REDIRECTS:
+                raise RepositorySourceError(
+                    "來源重新導向次數過多或缺少目標。",
+                    code="source_redirect_invalid",
+                    diagnostics={"url": current_url, "redirect_count": redirect_count},
+                ) from exc
+            current_url = _validated_source_url(urllib.parse.urljoin(current_url, location))
+    raise RepositorySourceError("來源重新導向次數過多。", code="source_redirect_invalid")
 
 
 def _request_bytes(url: str, *, timeout: int = DEFAULT_TIMEOUT, max_bytes: int = MAX_FILE_BYTES, attempts: int = 2) -> tuple[bytes, dict[str, Any]]:
@@ -246,7 +274,8 @@ def _request_bytes(url: str, *, timeout: int = DEFAULT_TIMEOUT, max_bytes: int =
         )
         started = time.monotonic()
         try:
-            with urllib.request.urlopen(request, timeout=timeout) as response:
+            response, effective_url, redirect_count = _open_trusted_source(request, timeout=timeout)
+            with response:
                 status = int(getattr(response, "status", 200) or 200)
                 content_length = int(response.headers.get("Content-Length") or 0)
                 if content_length > max_bytes:
@@ -271,7 +300,9 @@ def _request_bytes(url: str, *, timeout: int = DEFAULT_TIMEOUT, max_bytes: int =
                     chunks.append(chunk)
                 payload = b"".join(chunks)
                 return payload, {
-                    "url": url,
+                    "url": effective_url,
+                    "requested_url": url,
+                    "redirect_count": redirect_count,
                     "http_status": status,
                     "size_bytes": len(payload),
                     "sha256": hashlib.sha256(payload).hexdigest(),
@@ -282,7 +313,7 @@ def _request_bytes(url: str, *, timeout: int = DEFAULT_TIMEOUT, max_bytes: int =
                 }
         except RepositorySourceError as exc:
             last_error = exc
-            if exc.code in {"source_file_too_large", "source_json_invalid", "source_encoding_invalid"}:
+            if exc.code in {"source_file_too_large", "source_bundle_too_large", "source_json_invalid", "source_encoding_invalid", "source_url_not_allowed", "source_redirect_invalid"}:
                 raise
         except urllib.error.HTTPError as exc:
             last_error = RepositorySourceError(
@@ -337,7 +368,7 @@ def _github_owner_repo(repository_url: str) -> tuple[str, str] | None:
 
 
 def _version_sort_key(value: Any) -> tuple[int, ...]:
-    version = _valid_auxiliary_version(value)
+    version = _valid_version(value)
     if not version:
         return ()
     return tuple(int(part) for part in version.split("."))
@@ -351,7 +382,7 @@ def _version_less_than(left: Any, right: Any) -> bool:
 
 def _wuwa_public_version_branches(repository_url: str, *, current_ref: str, timeout: int = DEFAULT_TIMEOUT) -> tuple[list[str], dict[str, Any]]:
     owner_repo = _github_owner_repo(repository_url)
-    current_version = _valid_auxiliary_version(current_ref)
+    current_version = _valid_version(current_ref)
     if not owner_repo:
         return [], {"status": "unsupported_repository_url", "current_ref": current_ref}
     owner, repo = owner_repo
@@ -374,7 +405,7 @@ def _wuwa_public_version_branches(repository_url: str, *, current_ref: str, time
                 name = str(item.get("name") or "").strip()
             else:
                 name = str(item or "").strip()
-            version = _valid_auxiliary_version(name)
+            version = _valid_version(name)
             if not version:
                 continue
             if _version_less_than(version, "1.0"):
@@ -530,7 +561,7 @@ def _hsr_release_commits(
             continue
         commit_id = str(item.get("id") or "").strip()
         title = str(item.get("title") or item.get("message") or "").strip()
-        parsed_version = _valid_auxiliary_version(title)
+        parsed_version = _valid_version(title)
         if not commit_id or not parsed_version:
             continue
         parts = parsed_version.split(".")
@@ -674,6 +705,197 @@ def _resolve_hsr_first_seen_versions(
     }
 
 
+def _genshin_release_commits(
+    repository_url: str,
+    *,
+    current_ref: str,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> tuple[list[dict[str, str]], dict[str, Any]]:
+    project_path = _gitlab_project_path(repository_url)
+    if not project_path:
+        return [], {"status": "unsupported_repository_url", "repository_url": repository_url}
+    source_path = "ExcelBinOutput/AchievementExcelConfigData.json"
+    query = urllib.parse.urlencode({
+        "path": source_path,
+        "ref_name": current_ref or "main",
+        "per_page": 100,
+    })
+    api_url = (
+        "https://gitlab.com/api/v4/projects/"
+        f"{urllib.parse.quote(project_path, safe='')}/repository/commits?{query}"
+    )
+    try:
+        raw, manifest = _request_bytes(
+            api_url,
+            timeout=min(timeout, 20),
+            max_bytes=4 * 1024 * 1024,
+            attempts=2,
+        )
+        payload = _decode_json(raw, url=api_url)
+    except RepositorySourceError as exc:
+        return [], {
+            "status": "unavailable",
+            "reason": exc.code,
+            "error": str(exc),
+            "diagnostics": dict(exc.diagnostics or {}),
+            "url": api_url,
+        }
+
+    releases_by_version: dict[str, dict[str, str]] = {}
+    for item in payload if isinstance(payload, list) else []:
+        if not isinstance(item, dict):
+            continue
+        commit_id = str(item.get("id") or "").strip()
+        title = str(item.get("title") or item.get("message") or "").strip()
+        version_match = re.search(r"CNRELWin(\d+\.\d+)(?:\.\d+)?", title, flags=re.I)
+        if not commit_id or not version_match:
+            continue
+        version = version_match.group(1)
+        if version not in releases_by_version:
+            releases_by_version[version] = {
+                "version": version,
+                "commit_id": commit_id,
+                "title": title,
+                "created_at": str(item.get("created_at") or ""),
+            }
+    releases = sorted(releases_by_version.values(), key=lambda item: _version_sort_key(item["version"]))
+    return releases, {
+        "status": "ok" if releases else "release_commits_not_found",
+        "url": api_url,
+        "http_status": manifest.get("http_status"),
+        "current_ref": current_ref or "main",
+        "source_path": source_path,
+        "release_count": len(releases),
+        "versions": [item["version"] for item in releases],
+    }
+
+
+def _genshin_achievement_ids_for_commit(
+    repository_url: str,
+    commit_id: str,
+    *,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> tuple[set[str], dict[str, Any]]:
+    base = str(repository_url or "").rstrip("/").removesuffix(".git")
+    if not _gitlab_project_path(base):
+        raise RepositorySourceError("GitLab repository URL is not supported", code="unsupported_repository_url")
+    encoded_commit = urllib.parse.quote(str(commit_id or "").strip(), safe="")
+    url = f"{base}/-/raw/{encoded_commit}/ExcelBinOutput/AchievementExcelConfigData.json"
+    raw, manifest = _request_bytes(
+        url,
+        timeout=min(timeout, 25),
+        max_bytes=16 * 1024 * 1024,
+        attempts=2,
+    )
+    payload = _decode_json(raw, url=url)
+    rows = _unwrap_rows(payload)
+    active_rows = [
+        row for row in rows
+        if not _as_bool(_get(row, "isDisuse", "IsDisuse", "disused", "Disused"))
+    ]
+    achievement_ids = {
+        _text_key(_get(row, "id", "Id", "achievementId", "AchievementId"))
+        for row in active_rows
+        if _text_key(_get(row, "id", "Id", "achievementId", "AchievementId"))
+    }
+    return achievement_ids, {
+        "commit_id": commit_id,
+        "row_count": len(rows),
+        "active_row_count": len(active_rows),
+        "id_count": len(achievement_ids),
+        **manifest,
+    }
+
+
+def _resolve_genshin_first_seen_versions(
+    achievement_ids: Iterable[str],
+    *,
+    repository_url: str,
+    current_ref: str,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> tuple[dict[str, str], dict[str, Any]]:
+    requested = {
+        str(value or "").strip()
+        for value in achievement_ids
+        if str(value or "").strip()
+    }
+    if not requested:
+        return {}, {"status": "skipped", "requested_count": 0}
+
+    releases, release_diagnostics = _genshin_release_commits(
+        repository_url,
+        current_ref=current_ref,
+        timeout=timeout,
+    )
+    if len(releases) < 2:
+        return {}, {
+            "status": "unavailable",
+            "requested_count": len(requested),
+            "resolved_count": 0,
+            "unresolved_count": len(requested),
+            "release_resolution": release_diagnostics,
+        }
+
+    unresolved = set(requested)
+    resolved: dict[str, str] = {}
+    seen_ids: set[str] = set()
+    manifests: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+    baseline_ready = False
+    for release in releases:
+        try:
+            release_ids, manifest = _genshin_achievement_ids_for_commit(
+                repository_url,
+                release["commit_id"],
+                timeout=timeout,
+            )
+        except RepositorySourceError as exc:
+            failures.append({
+                "version": release["version"],
+                "commit_id": release["commit_id"],
+                "error_code": exc.code,
+                "error": str(exc),
+                "diagnostics": dict(exc.diagnostics or {}),
+            })
+            break
+
+        newly_seen = release_ids - seen_ids if baseline_ready else set()
+        matched = sorted(
+            unresolved.intersection(newly_seen),
+            key=lambda value: int(value) if value.isdigit() else value,
+        )
+        for achievement_id in matched:
+            resolved[achievement_id] = release["version"]
+        unresolved.difference_update(matched)
+        seen_ids.update(release_ids)
+        baseline_ready = True
+        manifests.append({
+            **manifest,
+            "version": release["version"],
+            "release_title": release["title"],
+            "first_seen_count": len(newly_seen),
+            "resolved_requested_count": len(matched),
+        })
+        if not unresolved:
+            break
+
+    status = "ok" if not unresolved and not failures else ("partial" if resolved else "unavailable")
+    return resolved, {
+        "status": status,
+        "requested_count": len(requested),
+        "resolved_count": len(resolved),
+        "unresolved_count": len(unresolved),
+        "unresolved_ids": sorted(
+            unresolved,
+            key=lambda value: int(value) if value.isdigit() else value,
+        )[:200],
+        "release_resolution": release_diagnostics,
+        "manifests": manifests,
+        "failures": failures,
+        "rule": "first_available_cnrel_release_snapshot_where_active_id_appears_after_prior_baseline",
+    }
+
+
 def _gitea_owner_repo(repository_url: str) -> tuple[str, str, str] | None:
     match = re.match(r"^(https?://[^/]+)/([^/]+)/([^/#?]+)", str(repository_url or "").rstrip("/"), flags=re.I)
     if not match:
@@ -742,7 +964,7 @@ def _zzz_release_commits(
         for item in page_rows:
             commit_id = item["commit_id"]
             title = item["title"]
-            parsed_version = _valid_auxiliary_version(title)
+            parsed_version = _valid_version(title)
             if not commit_id or not parsed_version:
                 continue
             version = ".".join(parsed_version.split(".")[:2])
@@ -781,11 +1003,21 @@ def _zzz_achievement_ids_for_commit(
     if not coordinates:
         raise RepositorySourceError("Gitea repository URL is not supported", code="unsupported_repository_url")
     host, owner, repo = coordinates
-    paths: list[tuple[str, tuple[str, ...], bool]] = []
+    paths: list[tuple[str, tuple[str, ...], re.Pattern[str], bool]] = []
     if include_normal:
-        paths.append(("normal", ("MPLJPOKFCAP", "GAPDDOJPFGI", "Id", "ID", "id", "AchievementId"), True))
+        paths.append((
+            "normal",
+            ("GJAFKJENFBK", "MPLJPOKFCAP", "GAPDDOJPFGI", "Id", "ID", "id", "AchievementId"),
+            re.compile(r"^AchievementName_(\d+)$"),
+            True,
+        ))
     if include_arcade:
-        paths.append(("arcade", ("NOBPPDIPFPO", "Id", "ID", "id", "AchievementId"), False))
+        paths.append((
+            "arcade",
+            ("PEFODMAOLPK", "NOBPPDIPFPO", "Id", "ID", "id", "AchievementId"),
+            re.compile(r"^ArcadeAchievement_(\d+)_Name$"),
+            False,
+        ))
     encoded_commit = urllib.parse.quote(str(commit_id or "").strip(), safe="")
     base = (
         f"{host}/{urllib.parse.quote(owner, safe='')}/{urllib.parse.quote(repo, safe='')}"
@@ -793,7 +1025,7 @@ def _zzz_achievement_ids_for_commit(
     )
     achievement_ids: set[str] = set()
     manifests: list[dict[str, Any]] = []
-    for source_type, id_keys, required in paths:
+    for source_type, id_keys, name_token_pattern, required in paths:
         filename = "AchievementTemplateTb.json" if source_type == "normal" else "ArcadeAchievementConfigTemplateTb.json"
         url = f"{base}{filename}"
         try:
@@ -815,16 +1047,31 @@ def _zzz_achievement_ids_for_commit(
             })
             continue
         rows = _unwrap_rows(payload)
-        source_ids = {
-            _text_key(_get(row, *id_keys))
-            for row in rows
-            if _text_key(_get(row, *id_keys))
-        }
+        source_ids: set[str] = set()
+        token_derived_count = 0
+        fallback_key_count = 0
+        for row in rows:
+            achievement_id = ""
+            if isinstance(row, dict):
+                for value in row.values():
+                    match = name_token_pattern.fullmatch(str(value or "").strip())
+                    if match:
+                        achievement_id = match.group(1)
+                        token_derived_count += 1
+                        break
+            if not achievement_id:
+                achievement_id = _text_key(_get(row, *id_keys))
+                if achievement_id:
+                    fallback_key_count += 1
+            if achievement_id:
+                source_ids.add(achievement_id)
         achievement_ids.update(source_ids)
         manifests.append({
             "source_type": source_type,
             "row_count": len(rows),
             "id_count": len(source_ids),
+            "token_derived_count": token_derived_count,
+            "fallback_key_count": fallback_key_count,
             **manifest,
         })
     return achievement_ids, {
@@ -853,7 +1100,7 @@ def _resolve_zzz_first_seen_versions(
         current_ref=current_ref,
         timeout=timeout,
     )
-    normalized_baseline = _valid_auxiliary_version(baseline_version)
+    normalized_baseline = _valid_version(baseline_version)
     if normalized_baseline and releases:
         baseline_key = _version_sort_key(normalized_baseline)
         prior = [release for release in releases if _version_sort_key(release["version"]) <= baseline_key]
@@ -928,6 +1175,185 @@ def _resolve_zzz_first_seen_versions(
     }
 
 
+NTE_ACHIEVEMENT_PATH = "DataTable/DT_AchievementConfigInfo.json"
+
+
+def _nte_release_commits(repository_url: str, *, timeout: int = DEFAULT_TIMEOUT) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    owner_repo = _github_owner_repo(repository_url)
+    if not owner_repo:
+        return [], {"status": "unsupported_repository_url", "repository_url": repository_url}
+    owner, repo = owner_repo
+    commits_url = (
+        f"https://api.github.com/repos/{owner}/{repo}/commits"
+        f"?path={urllib.parse.quote(NTE_ACHIEVEMENT_PATH, safe='')}&per_page=100"
+    )
+    try:
+        raw, commit_manifest = _request_bytes(
+            commits_url,
+            timeout=min(timeout, 20),
+            max_bytes=5 * 1024 * 1024,
+            attempts=2,
+        )
+        payload = _decode_json(raw, url=commits_url)
+    except RepositorySourceError as exc:
+        return [], {
+            "status": "unavailable",
+            "repository_url": repository_url,
+            "error_code": exc.code,
+            "error": str(exc),
+            "diagnostics": dict(exc.diagnostics or {}),
+        }
+
+    releases: list[dict[str, Any]] = []
+    readme_manifests: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+    for item in payload if isinstance(payload, list) else []:
+        if not isinstance(item, dict):
+            continue
+        commit_id = str(item.get("sha") or "").strip()
+        commit = item.get("commit") if isinstance(item.get("commit"), dict) else {}
+        message = str(commit.get("message") or "").splitlines()[0].strip()
+        committer = commit.get("committer") if isinstance(commit.get("committer"), dict) else {}
+        created_at = str(committer.get("date") or "").strip()
+        if not commit_id:
+            continue
+        readme_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{urllib.parse.quote(commit_id, safe='')}/README.md"
+        try:
+            readme_raw, readme_manifest = _request_bytes(
+                readme_url,
+                timeout=min(timeout, 15),
+                max_bytes=256 * 1024,
+                attempts=1,
+            )
+            readme = readme_raw.decode("utf-8-sig", errors="strict")
+            readme_manifests.append({"commit_id": commit_id, **readme_manifest})
+        except (RepositorySourceError, UnicodeDecodeError) as exc:
+            failures.append({"commit_id": commit_id, "stage": "readme", "error": str(exc)})
+            continue
+        version_line = re.search(r"Version\s*:\s*([^\r\n]+)", readme, flags=re.I)
+        version_context = version_line.group(1).strip() if version_line else ""
+        if not re.search(r"\bGlobal\b", version_context, flags=re.I):
+            continue
+        if re.search(r"\b(?:CN|CBT)\b", version_context, flags=re.I):
+            continue
+        version_match = re.search(r"\d+\.\d+(?:\.\d+)?", message)
+        if not version_match:
+            version_match = re.search(r"\d+\.\d+(?:\.\d+)?", version_context)
+        if not version_match:
+            failures.append({"commit_id": commit_id, "stage": "version", "message": message, "readme": version_context})
+            continue
+        releases.append({
+            "version": version_match.group(0),
+            "first_seen_version": f"{version_match.group(0)} Global",
+            "commit_id": commit_id,
+            "title": message,
+            "created_at": created_at,
+            "readme_version": version_context,
+        })
+    releases.sort(key=lambda row: (str(row.get("created_at") or ""), _version_sort_key(row.get("version"))))
+    return releases, {
+        "status": "ok" if releases and not failures else ("partial" if releases else "unavailable"),
+        "repository_url": repository_url,
+        "commits_url": commits_url,
+        "release_count": len(releases),
+        "versions": [row["version"] for row in releases],
+        "rule": "global_readme_scope_and_commit_version",
+        "commit_manifest": commit_manifest,
+        "readme_manifests": readme_manifests,
+        "failures": failures,
+    }
+
+
+def _nte_achievement_ids_for_commit(
+    repository_url: str,
+    commit_id: str,
+    *,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> tuple[set[str], dict[str, Any]]:
+    owner_repo = _github_owner_repo(repository_url)
+    if not owner_repo:
+        raise RepositorySourceError("GitHub repository URL is not supported", code="unsupported_repository_url")
+    owner, repo = owner_repo
+    encoded_commit = urllib.parse.quote(str(commit_id or "").strip(), safe="")
+    url = f"https://raw.githubusercontent.com/{owner}/{repo}/{encoded_commit}/{NTE_ACHIEVEMENT_PATH}"
+    raw, manifest = _request_bytes(url, timeout=min(timeout, 25), max_bytes=16 * 1024 * 1024, attempts=2)
+    payload = _decode_json(raw, url=url)
+    container = payload[0] if isinstance(payload, list) and payload and isinstance(payload[0], dict) else {}
+    rows = container.get("Rows") if isinstance(container, dict) else None
+    if not isinstance(rows, dict):
+        raise RepositorySourceError(
+            "NTE_Assets 歷史成就檔缺少 Rows 對照表。",
+            code="source_structure_changed",
+            diagnostics={"url": url, "commit_id": commit_id},
+        )
+    ids = {str(value).strip() for value in rows if str(value).strip()}
+    return ids, {"commit_id": commit_id, "row_count": len(rows), "id_count": len(ids), **manifest}
+
+
+def _resolve_nte_first_seen_versions(
+    achievement_ids: Iterable[str],
+    *,
+    repository_url: str,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> tuple[dict[str, str], dict[str, Any]]:
+    requested = {str(value or "").strip() for value in achievement_ids if str(value or "").strip()}
+    if not requested:
+        return {}, {"status": "skipped", "requested_count": 0}
+    releases, release_diagnostics = _nte_release_commits(repository_url, timeout=timeout)
+    if not releases:
+        return {}, {
+            "status": "unavailable",
+            "requested_count": len(requested),
+            "resolved_count": 0,
+            "unresolved_count": len(requested),
+            "release_resolution": release_diagnostics,
+        }
+    unresolved = set(requested)
+    resolved: dict[str, str] = {}
+    manifests: list[dict[str, Any]] = []
+    failures: list[dict[str, Any]] = []
+    for release in releases:
+        try:
+            release_ids, manifest = _nte_achievement_ids_for_commit(
+                repository_url,
+                release["commit_id"],
+                timeout=timeout,
+            )
+        except RepositorySourceError as exc:
+            failures.append({
+                "version": release["version"],
+                "commit_id": release["commit_id"],
+                "error_code": exc.code,
+                "error": str(exc),
+                "diagnostics": dict(exc.diagnostics or {}),
+            })
+            continue
+        matched = sorted(unresolved.intersection(release_ids))
+        for achievement_id in matched:
+            resolved[achievement_id] = release["first_seen_version"]
+        unresolved.difference_update(matched)
+        manifests.append({
+            **manifest,
+            "version": release["version"],
+            "first_seen_version": release["first_seen_version"],
+            "resolved_new_count": len(matched),
+        })
+        if not unresolved:
+            break
+    status = "ok" if not unresolved and not failures else ("partial" if resolved else "unavailable")
+    return resolved, {
+        "status": status,
+        "requested_count": len(requested),
+        "resolved_count": len(resolved),
+        "unresolved_count": len(unresolved),
+        "unresolved_ids": sorted(unresolved)[:200],
+        "release_resolution": release_diagnostics,
+        "manifests": manifests,
+        "failures": failures,
+        "rule": "first_global_release_snapshot_where_achievement_row_id_exists",
+    }
+
+
 def _raw_base_ref(base: str) -> str:
     match = re.search(r"raw\.githubusercontent\.com/[^/]+/[^/]+/([^/]+)/", str(base or ""))
     if match:
@@ -972,6 +1398,16 @@ def _active_achievement_probe_count(game_id: str, payload: Any) -> tuple[int, in
         if not _as_bool(_get(row, "isDisuse", "IsDisuse", "disused", "Disused"))
     )
     return active, total
+
+
+def _enforce_bundle_budget(manifests: Sequence[Mapping[str, Any]]) -> None:
+    total = sum(max(0, int(item.get("size_bytes") or 0)) for item in manifests)
+    if total > MAX_BUNDLE_BYTES:
+        raise RepositorySourceError(
+            "來源資料組合超過安全大小上限，已停止同步。",
+            code="source_bundle_too_large",
+            diagnostics={"received_bytes": total, "max_bytes": MAX_BUNDLE_BYTES},
+        )
 
 
 def _fetch_genshin_coherent_bundle(definition: RepositoryDefinition, *, timeout: int) -> FetchBundle:
@@ -1034,6 +1470,7 @@ def _fetch_genshin_coherent_bundle(definition: RepositoryDefinition, *, timeout:
     for selected in ranked:
         files: dict[str, Any] = {"achievements": selected["payload"]}
         manifests: list[dict[str, Any]] = [dict(selected["manifest"])]
+        _enforce_bundle_budget(manifests)
         warnings: list[str] = []
         complete = True
         for spec in definition.files:
@@ -1047,6 +1484,7 @@ def _fetch_genshin_coherent_bundle(definition: RepositoryDefinition, *, timeout:
                     raw, manifest = _request_bytes(url, timeout=timeout)
                     files[spec.key] = _decode_json(raw, url=url)
                     manifests.append({"key": spec.key, "path": relative_path, **manifest})
+                    _enforce_bundle_budget(manifests)
                     found = True
                     break
                 except RepositorySourceError as exc:
@@ -1135,6 +1573,7 @@ def fetch_repository_bundle(game_id: str, *, timeout: int = DEFAULT_TIMEOUT) -> 
                     raw, manifest = _request_bytes(url, timeout=timeout)
                     files[spec.key] = _decode_json(raw, url=url)
                     manifests.append({"key": spec.key, "path": relative_path, **manifest})
+                    _enforce_bundle_budget(manifests)
                     used_ref = _raw_base_ref(base) or used_ref
                     found = True
                     break
@@ -1497,7 +1936,11 @@ def _reward_value(reward_row: Any) -> int:
         amounts = []
         for item in item_list:
             if isinstance(item, dict):
-                amounts.append(_as_int(_get(item, "ItemNum", "itemNum", "Count", "count", "Num", "num")))
+                amounts.append(_as_int(_get(
+                    item,
+                    "ItemNum", "itemNum", "ItemCount", "itemCount",
+                    "Count", "count", "Num", "num", "Amount", "amount",
+                )))
         return max(amounts or [0])
     return 0
 
@@ -1730,7 +2173,7 @@ def _format_template_param(value: Any) -> str:
 _TEMPLATE_MARKER_RE = re.compile(
     r"#(?P<one>\d+)(?:\[(?P<format>[^\]]*)\])?|\{(?P<zero>\d+)\}|%(?:\d+\$)?[sdif]"
 )
-_TEXTJOIN_RE = re.compile(r"\{TEXTJOIN#\d+\}", flags=re.IGNORECASE)
+_TEXTJOIN_RE = re.compile(r"\{TEXTJOIN#(?P<id>\d+)\}", flags=re.IGNORECASE)
 
 
 def _format_template_param_with_spec(value: Any, spec: str, *, followed_by_percent: bool = False) -> str:
@@ -1999,7 +2442,6 @@ def parse_wuwa_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
     achievements = _unwrap_rows(files.get("achievements"))
     groups = _unwrap_rows(files.get("groups"))
     categories = _unwrap_rows(files.get("categories"))
-    rewards = _unwrap_rows(files.get("rewards"))
     text_map = _build_text_map(files.get("textmap"))
     if not achievements or not groups or not categories or not text_map:
         raise RepositorySourceError(
@@ -2012,18 +2454,10 @@ def parse_wuwa_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
         category_id = _text_key(_get(row, "Id", "ID", "id"))
         category_by_id[category_id] = _resolve_text(_get(row, "Name", "name"), text_map, fallback=f"分類 {category_id}")
     group_by_id: dict[str, dict[str, Any]] = {}
-    reward_references: set[str] = set()
     for row in groups:
         group_id = _text_key(_get(row, "Id", "ID", "id"))
         group_by_id[group_id] = row
-        reward_id = _text_key(_get(row, "DropId", "dropId"))
-        if reward_id:
-            reward_references.add(reward_id)
-    for row in achievements:
-        reward_id = _text_key(_get(row, "OverrideDropId", "overrideDropId"))
-        if reward_id:
-            reward_references.add(reward_id)
-    reward_map, reward_diagnostics = _build_reward_map(rewards, reference_ids=reward_references)
+    reward_by_level = {1: 5, 2: 10, 3: 20}
     rows: list[dict[str, Any]] = []
     skipped = 0
     unresolved_rewards = 0
@@ -2038,11 +2472,9 @@ def parse_wuwa_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
         parent_category_id = _text_key(_get(group, "Category", "category", "CategoryId", "categoryId"))
         group_name = _resolve_text(_get(group, "Name", "name"), text_map, fallback=f"成就集 {group_id}")
         parent_category_name = category_by_id.get(parent_category_id, "未辨識上層分類")
-        reward_id = _get(row, "OverrideDropId", "overrideDropId")
-        if _text_key(reward_id) in {"", "0", "-1"}:
-            reward_id = _get(group, "DropId", "dropId")
-        reward = int(reward_map.get(_text_key(reward_id)) or 0)
-        if _text_key(reward_id) not in {"", "0", "-1"} and reward <= 0:
+        level = _as_int(_get(row, "Level", "level"))
+        reward = int(reward_by_level.get(level) or 0)
+        if reward <= 0:
             unresolved_rewards += 1
         raw_with_context = dict(row)
         raw_with_context["_tracker_group_context"] = {
@@ -2050,7 +2482,12 @@ def parse_wuwa_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
             "group_name": group_name,
             "parent_category_id": parent_category_id,
             "parent_category_name": parent_category_name,
-            "reward_id": _text_key(reward_id),
+            "completion_drop_id": _text_key(_get(group, "DropId", "dropId")),
+        }
+        raw_with_context["_tracker_reward_resolution"] = {
+            "rule": "achievement_level",
+            "level": level,
+            "reward": reward,
         }
         rows.append(_normalized_row(
             game_id="wuwa",
@@ -2069,9 +2506,9 @@ def parse_wuwa_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
             group_id=group_id,
             group_name=group_name,
             progress_value=_as_int(_get(row, "Progress", "progress", "TargetNum", "targetNum")),
-            level=_as_int(_get(row, "Level", "level")),
+            level=level,
             next_link=_get(row, "NextLink", "nextLink"),
-            reward_id=reward_id,
+            reward_id="",
             raw=raw_with_context,
             provenance={
                 "id": "primary",
@@ -2079,9 +2516,9 @@ def parse_wuwa_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
                 "condition": "primary_textmap_zh_hant",
                 "category": "primary_achievement_group",
                 "parent_category": "primary_navigation_category",
-                "reward": "primary_drop_table" if reward else "secondary_required",
+                "reward": "primary_achievement_level" if reward else "verified_catalog_snapshot_required",
                 "nextLink": "primary",
-                "version": "secondary_authoritative",
+                "version": "repository_history_or_verified_catalog_snapshot",
             },
         ))
     if skipped and len(rows) < max(1, len(achievements) // 2):
@@ -2094,7 +2531,7 @@ def parse_wuwa_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
         "achievement_rows": len(achievements), "parsed_rows": len(rows), "skipped_rows": skipped,
         "group_count": len(groups), "parent_category_count": len(categories), "text_count": len(text_map),
         "category_policy": "achievement_group_name",
-        "reward_diagnostics": reward_diagnostics,
+        "reward_rule": "achievement_level_1_2_3_to_5_10_20",
         "unresolved_reward_references": unresolved_rewards,
     })
 
@@ -2136,7 +2573,10 @@ def parse_genshin_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
     goal_names: dict[str, tuple[str, bool]] = {}
     unresolved_goal_samples: list[dict[str, Any]] = []
     for row in goals:
-        goal_id = _text_key(row.get(goal_id_key))
+        goal_id_value = row.get(goal_id_key)
+        if goal_id_key in {"id", "Id", "goalId", "GoalId"} and goal_id_key not in row:
+            goal_id_value = 0
+        goal_id = _text_key(goal_id_value)
         if not goal_id:
             continue
         value = row.get(goal_name_key) if goal_name_key else None
@@ -2192,6 +2632,42 @@ def parse_genshin_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
             },
         )
 
+    achievement_ids = {
+        _text_key(row.get(achievement_id_key))
+        for row in achievements
+        if _text_key(row.get(achievement_id_key))
+    }
+    predecessor_by_id: dict[str, str] = {}
+    next_by_id: dict[str, str] = {}
+    ambiguous_predecessors: set[str] = set()
+    for row in achievements:
+        achievement_id = _text_key(row.get(achievement_id_key))
+        predecessor_id = _text_key(_get(
+            row,
+            "preStageAchievementId", "PreStageAchievementId",
+            "preAchievementId", "PreAchievementId",
+        ))
+        if not achievement_id or predecessor_id not in achievement_ids:
+            continue
+        predecessor_by_id[achievement_id] = predecessor_id
+        if predecessor_id in next_by_id and next_by_id[predecessor_id] != achievement_id:
+            ambiguous_predecessors.add(predecessor_id)
+            next_by_id.pop(predecessor_id, None)
+        elif predecessor_id not in ambiguous_predecessors:
+            next_by_id[predecessor_id] = achievement_id
+
+    def achievement_level(achievement_id: str) -> int:
+        level = 1
+        current = achievement_id
+        visited = {achievement_id}
+        while current in predecessor_by_id:
+            current = predecessor_by_id[current]
+            if current in visited:
+                return 1
+            visited.add(current)
+            level += 1
+        return level
+
     reward_map, reward_diagnostics = _build_reward_map(rewards)
     reward_ids = set(reward_map)
     explicit_reward_key = next((key for key in ("finishRewardId", "FinishRewardId", "rewardId", "RewardId") if any(key in row for row in achievements[:100])), "")
@@ -2218,7 +2694,10 @@ def parse_genshin_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
         if not achievement_id:
             missing_id += 1
             continue
-        goal_id = _text_key(row.get(group_ref_key))
+        goal_id_value = row.get(group_ref_key)
+        if group_ref_key in {"goalId", "GoalId", "achievementGoalId", "AchievementGoalId"} and group_ref_key not in row:
+            goal_id_value = 0
+        goal_id = _text_key(goal_id_value)
         name_value = row.get(name_key) if name_key else None
         desc_value = row.get(description_key) if description_key else None
         name_template, name_ok = _resolve_text_with_status(name_value, text_map)
@@ -2277,17 +2756,21 @@ def parse_genshin_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
             else _as_bool(_get(row, "isHidden", "IsHidden", "hidden", "Hidden")),
             category_id=goal_id, group_id=goal_id, group_name=category if category != "未辨識分類" else "",
             progress_value=_as_int(_get(row, "progress", "Progress", "progressValue", "ProgressValue"), 1),
-            level=_as_int(_get(row, "stage", "Stage", "level", "Level")),
-            next_link=_get(row, "nextAchievementId", "NextAchievementId", "nextId", "NextId"),
+            level=_as_int(_get(row, "stage", "Stage", "level", "Level"), achievement_level(achievement_id)),
+            next_link=_get(
+                row,
+                "nextAchievementId", "NextAchievementId", "nextId", "NextId",
+                default=next_by_id.get(achievement_id, ""),
+            ),
             reward_id=reward_id, raw=raw_with_mapping,
             provenance={
                 "id": "primary_detected",
                 "name": "primary_textmap_cht" if name else "snapshot_preservation_required",
                 "condition": "primary_textmap_cht" if condition else "snapshot_preservation_required",
                 "category": "primary_textmap_cht" if category != "未辨識分類" else "snapshot_preservation_required",
-                "reward": "primary" if reward else "snapshot_or_secondary_required",
+                "reward": "primary" if reward else "verified_catalog_snapshot_required",
                 "hidden": "primary_isShow_enum",
-                "version": "secondary_authoritative",
+                "version": "repository_history_or_verified_catalog_snapshot",
             },
         ))
     if len(rows) < max(1, len(achievements) // 2):
@@ -2318,6 +2801,8 @@ def parse_genshin_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
         "unresolved_named_template_count": unresolved_templates,
         "unresolved_named_template_samples": unresolved_template_samples,
         "unresolved_samples": unresolved_samples, "unresolved_goal_samples": unresolved_goal_samples,
+        "stage_link_count": len(next_by_id),
+        "ambiguous_stage_predecessor_count": len(ambiguous_predecessors),
         "hash_alias_mode": "signed_unsigned_32bit",
         "detected_fields": {
             "achievement_id": achievement_id_key, "name": name_key, "description": description_key,
@@ -2335,10 +2820,74 @@ def _normalized_show_type(value: Any) -> str:
     return re.sub(r"[^a-z0-9]", "", str(_scalar(value) or "").casefold())
 
 
+def _build_hsr_textjoin_map(
+    config_rows: Sequence[dict[str, Any]],
+    item_rows: Sequence[dict[str, Any]],
+    text_map: Mapping[str, str],
+) -> tuple[dict[str, str], dict[str, Any]]:
+    item_text: dict[str, str] = {}
+    unresolved_items = 0
+    for row in item_rows:
+        item_id = _text_key(_get(row, "TextJoinItemID", "TextJoinItemId", "textJoinItemId", "ID", "id"))
+        text, ok = _resolve_text_with_status(_get(row, "TextJoinText", "textJoinText", "Text", "text"), text_map)
+        if not item_id:
+            continue
+        if ok and text and not _looks_like_unresolved_source_text(text):
+            item_text[item_id] = text
+        else:
+            unresolved_items += 1
+
+    result: dict[str, str] = {}
+    unresolved_defaults = 0
+    for row in config_rows:
+        join_id = _text_key(_get(row, "TextJoinID", "TextJoinId", "textJoinId", "ID", "id"))
+        default_item = _text_key(_get(row, "DefaultItem", "defaultItem"))
+        if not join_id:
+            continue
+        default_text = item_text.get(default_item, "")
+        if default_text:
+            result[join_id] = default_text
+        else:
+            unresolved_defaults += 1
+    return result, {
+        "config_rows": len(config_rows),
+        "item_rows": len(item_rows),
+        "resolved_defaults": len(result),
+        "unresolved_items": unresolved_items,
+        "unresolved_defaults": unresolved_defaults,
+        "rule": "TextJoinConfig.DefaultItem_to_TextJoinItem.TextJoinText",
+    }
+
+
+def _resolve_hsr_textjoin_template(text: str, textjoin_map: Mapping[str, str]) -> tuple[str, bool, dict[str, Any]]:
+    source = str(text or "")
+    requested_ids: list[str] = []
+    unresolved_ids: list[str] = []
+
+    def replace(match: re.Match[str]) -> str:
+        join_id = str(match.group("id") or "")
+        requested_ids.append(join_id)
+        value = str(textjoin_map.get(join_id) or "").strip()
+        if not value:
+            unresolved_ids.append(join_id)
+            return match.group(0)
+        return value
+
+    resolved = _TEXTJOIN_RE.sub(replace, source)
+    ok = not unresolved_ids and not _TEXTJOIN_RE.search(resolved)
+    return resolved, bool(ok), {
+        "status": "resolved" if ok else "unresolved",
+        "requested_ids": list(dict.fromkeys(requested_ids)),
+        "unresolved_ids": list(dict.fromkeys(unresolved_ids)),
+    }
+
+
 def parse_hsr_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
     achievements = _unwrap_rows(files.get("achievements"))
     series = _unwrap_rows(files.get("groups"))
     rewards = _unwrap_rows(files.get("rewards"))
+    textjoin_configs = _unwrap_rows(files.get("textjoin_config"))
+    textjoin_items = _unwrap_rows(files.get("textjoin_items"))
     text_map = _build_text_map(files.get("textmap_main"), files.get("textmap"))
     if not achievements or not series or not text_map:
         raise RepositorySourceError(
@@ -2346,6 +2895,7 @@ def parse_hsr_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
             code="source_structure_changed",
             diagnostics={"achievements": len(achievements), "series": len(series), "text_count": len(text_map)},
         )
+    textjoin_map, textjoin_diagnostics = _build_hsr_textjoin_map(textjoin_configs, textjoin_items, text_map)
     series_map: dict[str, tuple[str, int, bool]] = {}
     for index, row in enumerate(series):
         series_id = _text_key(_get(row, "SeriesID", "SeriesId", "seriesId", "id", "ID"))
@@ -2363,6 +2913,7 @@ def parse_hsr_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
     unresolved_categories = 0
     unresolved_templates: list[dict[str, Any]] = []
     resolved_template_count = 0
+    resolved_textjoin_count = 0
     show_type_counts: dict[str, int] = {}
     hidden_count = 0
     for index, row in enumerate(achievements):
@@ -2388,12 +2939,22 @@ def parse_hsr_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
                 name = ""
             if not condition_template_ok:
                 condition = ""
+        name_textjoin_resolution = {"status": "not_required", "requested_ids": [], "unresolved_ids": []}
+        condition_textjoin_resolution = {"status": "not_required", "requested_ids": [], "unresolved_ids": []}
         if _TEXTJOIN_RE.search(name):
-            unresolved_templates.append({"achievement_id": achievement_id, "field": "name", "reason": "textjoin", "template": name})
-            name = ""
+            name, textjoin_ok, name_textjoin_resolution = _resolve_hsr_textjoin_template(name, textjoin_map)
+            if textjoin_ok:
+                resolved_textjoin_count += 1
+            else:
+                unresolved_templates.append({"achievement_id": achievement_id, "field": "name", "reason": "textjoin", "template": name, **name_textjoin_resolution})
+                name = ""
         if _TEXTJOIN_RE.search(condition):
-            unresolved_templates.append({"achievement_id": achievement_id, "field": "condition", "reason": "textjoin", "template": condition})
-            condition = ""
+            condition, textjoin_ok, condition_textjoin_resolution = _resolve_hsr_textjoin_template(condition, textjoin_map)
+            if textjoin_ok:
+                resolved_textjoin_count += 1
+            else:
+                unresolved_templates.append({"achievement_id": achievement_id, "field": "condition", "reason": "textjoin", "template": condition, **condition_textjoin_resolution})
+                condition = ""
         if not _resolved_text_is_valid(name, resolved_from_textmap=name_ok, allow_numeric_title=True):
             unresolved_names += 1
             name = ""
@@ -2428,6 +2989,8 @@ def parse_hsr_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
             "name_resolved": bool(name), "condition_resolved": bool(condition),
             "name_resolved_from_textmap": bool(name_ok),
             "numeric_title_accepted": bool(name_ok and re.fullmatch(r"\d+", name or "")),
+            "name_textjoin_resolution": name_textjoin_resolution,
+            "condition_textjoin_resolution": condition_textjoin_resolution,
         }
         rows.append(_normalized_row(
             game_id="hsr", achievement_id=achievement_id, name=name, condition=condition, category=series_name,
@@ -2440,7 +3003,7 @@ def parse_hsr_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
                 "id": "primary", "name": "primary_textmap_cht_template_resolved" if name else "snapshot_preservation_required",
                 "condition": "primary_textmap_cht_template_resolved" if condition else "snapshot_preservation_required",
                 "category": "primary_textmap_cht" if series_name != "未辨識分類" else "snapshot_preservation_required",
-                "reward": "primary", "hidden": "ShowType", "version": "secondary_authoritative",
+                "reward": "primary", "hidden": "ShowType", "version": "repository_history_or_verified_catalog_snapshot",
             },
         ))
     if len(rows) < max(1, len(achievements) // 2):
@@ -2456,6 +3019,8 @@ def parse_hsr_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
         "hidden_rule": ["ShowAfterFinish"],
         "hidden_rule_note": "僅 ShowType=ShowAfterFinish 視為隱藏；HideAchievementDesc 只保留為證據，不參與判定。",
         "resolved_template_count": resolved_template_count,
+        "resolved_textjoin_count": resolved_textjoin_count,
+        "textjoin_diagnostics": textjoin_diagnostics,
         "unresolved_template_count": len(unresolved_templates),
         "isolated_template_samples": unresolved_templates[:50],
         "unresolved_names": unresolved_names, "unresolved_conditions": unresolved_conditions,
@@ -2464,15 +3029,15 @@ def parse_hsr_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
 
 
 _ZZZ_NORMAL_KEYS = {
-    "id": ("MPLJPOKFCAP", "GAPDDOJPFGI", "Id", "ID", "id", "AchievementId", "achievementId"),
-    "name": ("EBGMBNKJMLK", "BMBBBEIBOLE", "Name", "name", "Title", "title", "NameTextMapHash", "nameTextMapHash"),
-    "description": ("GGPDIGEPDIB", "MCAHHIIMKLP", "Desc", "desc", "Description", "description", "DescTextMapHash", "descTextMapHash"),
-    "hidden": ("PKIKMKKFCHN", "Hidden", "hidden", "IsHidden", "isHidden"),
-    "group": ("CPIOCKHOICN", "SecondClassId", "secondClassId", "GroupId", "groupId", "CategoryId", "categoryId"),
-    "reward": ("IFDFMDFHNGG", "RewardId", "rewardId", "OnceRewardId", "onceRewardId"),
+    "id": ("GJAFKJENFBK", "MPLJPOKFCAP", "GAPDDOJPFGI", "Id", "ID", "id", "AchievementId", "achievementId"),
+    "name": ("PIELLIBKHEG", "EBGMBNKJMLK", "BMBBBEIBOLE", "Name", "name", "Title", "title", "NameTextMapHash", "nameTextMapHash"),
+    "description": ("MGJIGEMPJPD", "GGPDIGEPDIB", "MCAHHIIMKLP", "Desc", "desc", "Description", "description", "DescTextMapHash", "descTextMapHash"),
+    "hidden": ("MHOLLDPKGMH", "PKIKMKKFCHN", "Hidden", "hidden", "IsHidden", "isHidden"),
+    "group": ("GHDKOLIBPEO", "CPIOCKHOICN", "SecondClassId", "secondClassId", "GroupId", "groupId", "CategoryId", "categoryId"),
+    "reward": ("HKNKGJEEICK", "IFDFMDFHNGG", "RewardId", "rewardId", "OnceRewardId", "onceRewardId"),
     # Achievement description templates use this value as parameter {0}.  In
     # current ZenlessData it references MonsterCardConfigTemplateTb.
-    "template_param_0": ("JKDPFGMHPBF", "TemplateParam", "templateParam", "Param0", "param0", "MonsterCardId", "monsterCardId"),
+    "template_param_0": ("MMKDIIHLDAD", "JKDPFGMHPBF", "TemplateParam", "templateParam", "Param0", "param0", "MonsterCardId", "monsterCardId"),
 }
 _ZZZ_MONSTER_CARD_KEYS = {
     "id": ("DBPDHPIBGHA", "HBKDOIKGNDE", "Id", "ID", "id", "CardId", "cardId", "MonsterCardId", "monsterCardId"),
@@ -2484,18 +3049,18 @@ _ZZZ_GROUP_KEYS = {
     "order": ("GBAFGKHIILE", "Sort", "sort", "Order", "order", "Priority", "priority"),
 }
 _ZZZ_ARCADE_KEYS = {
-    "id": ("NOBPPDIPFPO", "Id", "ID", "id", "AchievementId", "achievementId"),
-    "name": ("EBGMBNKJMLK", "Name", "name", "Title", "title"),
-    "description": ("MIIPOBCGDLJ", "Desc", "desc", "Description", "description"),
-    "group": ("JPBCEMNOIBA", "GroupId", "groupId", "CategoryId", "categoryId"),
+    "id": ("PEFODMAOLPK", "NOBPPDIPFPO", "Id", "ID", "id", "AchievementId", "achievementId"),
+    "name": ("PIELLIBKHEG", "EBGMBNKJMLK", "Name", "name", "Title", "title"),
+    "description": ("KHFAPCDLLCA", "MIIPOBCGDLJ", "Desc", "desc", "Description", "description"),
+    "group": ("ICEKGNCNGDN", "JPBCEMNOIBA", "GroupId", "groupId", "CategoryId", "categoryId"),
     "order": ("EIBFHOIJGAK", "Sort", "sort", "Order", "order", "Priority", "priority"),
-    "progress": ("MPBJALEAGIP", "Progress", "progress", "TargetNum", "targetNum"),
-    "reward": ("IFDFMDFHNGG", "RewardId", "rewardId", "OnceRewardId", "onceRewardId"),
+    "progress": ("BDLJLLGDHDL", "MPBJALEAGIP", "Progress", "progress", "TargetNum", "targetNum"),
+    "reward": ("GBKOAIGLDOC", "IFDFMDFHNGG", "RewardId", "rewardId", "OnceRewardId", "onceRewardId"),
 }
 _ZZZ_ARCADE_GROUP_KEYS = {
-    "id": ("DBPDHPIBGHA", "Id", "ID", "id", "GroupId", "groupId"),
-    "name": ("LHKGAICPJDG", "Name", "name", "Title", "title"),
-    "order": ("DBPDHPIBGHA", "Sort", "sort", "Order", "order", "Priority", "priority"),
+    "id": ("DALBKGGEJEF", "DBPDHPIBGHA", "Id", "ID", "id", "GroupId", "groupId"),
+    "name": ("DGOBKLFGJIL", "LHKGAICPJDG", "Name", "name", "Title", "title"),
+    "order": ("DALBKGGEJEF", "DBPDHPIBGHA", "Sort", "sort", "Order", "order", "Priority", "priority"),
 }
 
 def _zzz_pattern_value(row: Mapping[str, Any], pattern: str) -> tuple[Any, str]:
@@ -2586,6 +3151,26 @@ def _zzz_monster_card_map(
         normalized_references,
         excluded=_ZZZ_MONSTER_CARD_KEYS["name"],
     )
+    inference_method = "reference_column_coverage"
+    if not inferred_id_key and normalized_references:
+        sparse_scores: dict[str, int] = {}
+        excluded_name_keys = set(_ZZZ_MONSTER_CARD_KEYS["name"])
+        for row in rows:
+            for key, value in row.items():
+                key_text = str(key)
+                if key_text in excluded_name_keys or isinstance(value, (dict, list, tuple)):
+                    continue
+                if _text_key(value) in normalized_references:
+                    sparse_scores[key_text] = sparse_scores.get(key_text, 0) + 1
+        ranked_sparse = sorted(sparse_scores.items(), key=lambda item: item[1], reverse=True)
+        if (
+            ranked_sparse
+            and ranked_sparse[0][1] == len(normalized_references)
+            and (len(ranked_sparse) == 1 or ranked_sparse[1][1] < ranked_sparse[0][1])
+        ):
+            inferred_id_key, inferred_matches = ranked_sparse[0]
+            inferred_scores = sparse_scores
+            inference_method = "complete_sparse_reference_set"
     for row in rows:
         card_value, card_key = _zzz_value(row, _ZZZ_MONSTER_CARD_KEYS["id"])
         if card_value in (None, "") and inferred_id_key and inferred_id_key in row:
@@ -2618,6 +3203,7 @@ def _zzz_monster_card_map(
             "inferred_id_key": inferred_id_key,
             "matches": inferred_matches,
             "scores": inferred_scores,
+            "method": inference_method,
         },
     }
 
@@ -2823,13 +3409,13 @@ def parse_zzz_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
                 # Current ZenlessData uses an enum: value 1 is hidden, while 0
                 # and 2 are visible. Generic truthiness incorrectly marked value
                 # 2 as hidden. Semantic IsHidden fields still use normal booleans.
-                if hidden_key == "PKIKMKKFCHN":
+                if hidden_key in {"MHOLLDPKGMH", "PKIKMKKFCHN"}:
                     hidden = _as_int(hidden_value, -1) == 1
-                    hidden_rule = "PKIKMKKFCHN_equals_1"
+                    hidden_rule = f"{hidden_key}_equals_1"
                 else:
                     hidden = _as_bool(hidden_value)
                     hidden_rule = "semantic_boolean"
-                # PKIKMKKFCHN is not an order column. Preserve official file order
+                # The hidden enum field is not an order column. Preserve official file order
                 # until a dedicated sortable field is structurally verified.
                 order_value = index
                 order_key = "source_index"
@@ -2883,7 +3469,7 @@ def parse_zzz_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
                 next_link=_get(row, "NextId", "nextId", "NextAchievementId", "nextAchievementId"),
                 reward_id=reward_id,
                 raw=raw_with_mapping,
-                provenance={"id": "primary_detected", "name": "primary_textmap_cht", "condition": condition_provenance, "category": "primary_textmap_cht", "reward": "primary_once_reward" if reward else "secondary_required", "hidden": "primary" if not is_arcade else "not_applicable", "arcade": is_arcade, "version": "secondary_authoritative"},
+                provenance={"id": "primary_detected", "name": "primary_textmap_cht", "condition": condition_provenance, "category": "primary_textmap_cht", "reward": "primary_once_reward" if reward else "verified_catalog_snapshot_required", "hidden": "primary" if not is_arcade else "not_applicable", "arcade": is_arcade, "version": "repository_history_or_verified_catalog_snapshot"},
             ))
             for label, key in (("id", id_key), ("name", name_key), ("description", desc_key), ("group", group_key), ("order", order_key), ("reward", reward_key), ("condition_template_param_0", template_param_key)):
                 if key:
@@ -2930,490 +3516,229 @@ def parse_zzz_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
     })
 
 
+NTE_CATEGORY_NAMES = {
+    "MainTypeExplore": "探索",
+    "MainTypeFight": "戰鬥",
+    "MainTypeQuest": "任務",
+    "MainTypeInterest": "趣味",
+    "MainTypeDevelop": "養成",
+    "MainTypePlay": "玩法",
+    "MainTypeCity": "城市",
+    "MainTypeSocial": "羈絆",
+}
+
+NTE_PLAYSTATION_ACHIEVEMENT_ID_PATTERN = re.compile(r"Playstation_\d+")
+
+
+def is_nte_playstation_achievement_id(value: Any) -> bool:
+    return bool(NTE_PLAYSTATION_ACHIEVEMENT_ID_PATTERN.fullmatch(str(value or "").strip()))
+
+
+def _nte_rows(value: Any) -> list[tuple[str, dict[str, Any]]]:
+    container = value[0] if isinstance(value, list) and value and isinstance(value[0], dict) else {}
+    rows = container.get("Rows") if isinstance(container, dict) else None
+    if not isinstance(rows, dict):
+        return []
+    return [(str(key).strip(), dict(row)) for key, row in rows.items() if str(key).strip() and isinstance(row, dict)]
+
+
+def _nte_achievement_text(value: Any) -> dict[str, str]:
+    container = value[0] if isinstance(value, list) and value and isinstance(value[0], dict) else {}
+    string_table = container.get("StringTable") if isinstance(container, dict) else None
+    entries = string_table.get("KeysToEntries") if isinstance(string_table, dict) else None
+    return {str(key): str(text) for key, text in entries.items()} if isinstance(entries, dict) else {}
+
+
+def _nte_localized_text(value: Any) -> dict[str, str]:
+    namespace = value.get("ST_Achievement") if isinstance(value, dict) else None
+    return {str(key): str(text) for key, text in namespace.items()} if isinstance(namespace, dict) else {}
+
+
+def _nte_text_reference(row: Mapping[str, Any], field: str, fallback_key: str) -> tuple[str, str, str]:
+    reference = row.get(field)
+    if not isinstance(reference, dict):
+        return fallback_key, "", ""
+    key = str(reference.get("Key") or fallback_key).strip()
+    source = str(reference.get("SourceString") or "").strip()
+    localized = str(reference.get("LocalizedString") or "").strip()
+    return key, source, localized
+
+
+def parse_nte_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
+    achievements = _nte_rows(files.get("achievements"))
+    source_text = _nte_achievement_text(files.get("achievement_text"))
+    traditional_text = _nte_localized_text(files.get("localization_zh_hant"))
+    if not achievements or not source_text or not traditional_text:
+        raise RepositorySourceError(
+            "NTE_Assets 的成就、文字表或繁體中文本地化結構不完整，已停止更新。",
+            code="source_structure_changed",
+            diagnostics={
+                "achievement_rows": len(achievements),
+                "source_text_count": len(source_text),
+                "traditional_text_count": len(traditional_text),
+            },
+        )
+
+    playstation_ids = {
+        achievement_id
+        for achievement_id, _ in achievements
+        if is_nte_playstation_achievement_id(achievement_id)
+    }
+    host_ids = {
+        achievement_id
+        for achievement_id, source_row in achievements
+        if _as_bool(source_row.get("bIsHost"))
+    }
+    if playstation_ids != host_ids:
+        raise RepositorySourceError(
+            "NTE_Assets 的 PlayStation 專屬成就 ID 與 bIsHost 標記不一致，已停止更新。",
+            code="nte_playstation_marker_mismatch",
+            diagnostics={
+                "playstation_id_count": len(playstation_ids),
+                "host_flag_count": len(host_ids),
+                "playstation_id_only": sorted(playstation_ids - host_ids)[:50],
+                "host_flag_only": sorted(host_ids - playstation_ids)[:50],
+            },
+        )
+    eligible_achievements = [
+        (achievement_id, source_row)
+        for achievement_id, source_row in achievements
+        if achievement_id not in playstation_ids
+    ]
+
+    rows: list[dict[str, Any]] = []
+    invalid_ids: list[str] = []
+    unresolved_names = 0
+    unresolved_conditions = 0
+    unresolved_categories = 0
+    hidden_count = 0
+    extra_reward_rows = 0
+    reward_item_counts: dict[str, int] = {}
+    category_counts: dict[str, int] = {}
+    for source_order, (achievement_id, source_row) in enumerate(eligible_achievements, 1):
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", achievement_id) or len(achievement_id) > 64:
+            invalid_ids.append(achievement_id)
+            continue
+        title_key, title_source, title_localized = _nte_text_reference(
+            source_row, "TitleId", f"{achievement_id}_Title"
+        )
+        content_key, content_source, content_localized = _nte_text_reference(
+            source_row, "ContentID", f"{achievement_id}_Content"
+        )
+        name = str(traditional_text.get(title_key) or "").strip()
+        condition = str(traditional_text.get(content_key) or "").strip()
+        if not name:
+            unresolved_names += 1
+        if not condition:
+            unresolved_conditions += 1
+        main_type = str(source_row.get("AchievementMainType") or "").split("::")[-1].strip()
+        category = NTE_CATEGORY_NAMES.get(main_type, "")
+        if not category:
+            unresolved_categories += 1
+            category = "未辨識分類"
+        category_counts[category] = category_counts.get(category, 0) + 1
+
+        rewards: list[dict[str, Any]] = []
+        primary_reward = 0
+        for reward in source_row.get("AwardInfo") if isinstance(source_row.get("AwardInfo"), list) else []:
+            if not isinstance(reward, dict):
+                continue
+            item_id = str(_scalar(reward.get("ItemID")) or "").strip()
+            amount = _as_int(reward.get("Amount"))
+            if not item_id:
+                continue
+            rewards.append({"itemId": item_id, "amount": amount})
+            reward_item_counts[item_id] = reward_item_counts.get(item_id, 0) + 1
+            if item_id == "Annulith":
+                primary_reward += amount
+        if any(reward["itemId"] != "Annulith" for reward in rewards):
+            extra_reward_rows += 1
+
+        hidden = _as_bool(source_row.get("bIsHideNotAchieve"))
+        hidden_count += 1 if hidden else 0
+        raw = dict(source_row)
+        raw["_tracker_text_resolution"] = {
+            "titleKey": title_key,
+            "contentKey": content_key,
+            "titleSourceString": title_source,
+            "contentSourceString": content_source,
+            "titleLocalizedString": title_localized,
+            "contentLocalizedString": content_localized,
+            "traditionalNameResolved": bool(name),
+            "traditionalConditionResolved": bool(condition),
+        }
+        raw["_tracker_rewards"] = rewards
+        rows.append(_normalized_row(
+            game_id="nte",
+            achievement_id=achievement_id,
+            name=name,
+            condition=condition,
+            category=category,
+            source_order=source_order,
+            source_id="nte_assets",
+            version="版本待確認",
+            reward=primary_reward,
+            hidden=hidden,
+            category_id=main_type,
+            group_id=main_type,
+            group_name=category,
+            progress_value=_as_int(source_row.get("Amout"), 1),
+            reward_id="Annulith" if primary_reward else "",
+            raw=raw,
+            provenance={
+                "id": "primary_rows_key_case_sensitive",
+                "name": "primary_localization_zh_hant" if name else "unresolved",
+                "condition": "primary_localization_zh_hant" if condition else "unresolved",
+                "category": "primary_achievement_main_type",
+                "reward": "primary_award_info_annulith_display_full_list_preserved",
+                "hidden": "primary_b_is_hide_not_achieve",
+                "version": {"role": "pending", "source": "nte_assets_git_history"},
+            },
+        ))
+
+    if invalid_ids:
+        raise RepositorySourceError(
+            "NTE_Assets 包含不符合共用安全格式的成就 ID，已停止更新。",
+            code="invalid_achievement_ids",
+            diagnostics={"invalid_count": len(invalid_ids), "samples": invalid_ids[:50]},
+        )
+    return ParsedCatalog(rows, {
+        "achievement_rows": len(achievements),
+        "eligible_achievement_rows": len(eligible_achievements),
+        "parsed_rows": len(rows),
+        "playstation_excluded_count": len(playstation_ids),
+        "playstation_excluded_ids": sorted(playstation_ids),
+        "host_flag_count": len(host_ids),
+        "source_text_count": len(source_text),
+        "traditional_text_count": len(traditional_text),
+        "unresolved_names": unresolved_names,
+        "unresolved_conditions": unresolved_conditions,
+        "unresolved_categories": unresolved_categories,
+        "translation_state": "partial_preserve_verified_snapshot" if unresolved_names or unresolved_conditions or unresolved_categories else "complete",
+        "translation_coverage": {
+            "name": round((len(rows) - unresolved_names) / max(1, len(rows)), 4),
+            "condition": round((len(rows) - unresolved_conditions) / max(1, len(rows)), 4),
+            "category": round((len(rows) - unresolved_categories) / max(1, len(rows)), 4),
+        },
+        "hidden_count": hidden_count,
+        "category_count": len(category_counts),
+        "category_counts": category_counts,
+        "reward_item_counts": reward_item_counts,
+        "extra_reward_rows": extra_reward_rows,
+        "primary_reward_item": "Annulith",
+        "image_processing": "disabled_by_product_scope",
+    })
+
+
 PARSERS = {
     "wuwa": parse_wuwa_bundle,
     "genshin": parse_genshin_bundle,
     "hsr": parse_hsr_bundle,
     "zzz": parse_zzz_bundle,
+    "nte": parse_nte_bundle,
 }
 
 
-
-def _walk_genshin_db_achievement_objects(value: Any) -> Iterable[dict[str, Any]]:
-    """Yield genshin-db achievement objects from API or distribution payloads."""
-    if isinstance(value, dict):
-        has_stages = isinstance(value.get("stage1"), dict)
-        has_identity = isinstance(value.get("id"), (list, tuple, int, str))
-        if has_stages and has_identity and (value.get("achievementGroupName") or value.get("name")):
-            yield value
-            return
-        for nested in value.values():
-            yield from _walk_genshin_db_achievement_objects(nested)
-    elif isinstance(value, list):
-        for nested in value:
-            yield from _walk_genshin_db_achievement_objects(nested)
-
-
-def _replace_genshin_progress_parameter(description: str, progress: Any) -> str:
-    result = str(description or "")
-    progress_text = str(_as_int(progress)) if _as_int(progress) else str(progress or "").strip()
-    if progress_text:
-        result = result.replace("{param0}", progress_text).replace("{PARAM0}", progress_text)
-    return result
-
-
-def _parse_genshin_db_achievement_payload(payload: Any) -> ParsedCatalog:
-    objects: list[dict[str, Any]] = []
-    # genshin-db distribution gzips keep translated objects under
-    # data.<language>.achievements and introduced versions in the separate
-    # version.achievements map.  Rejoin them before flattening stages.
-    if isinstance(payload, dict):
-        data_root = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-        version_root = payload.get("version") if isinstance(payload.get("version"), dict) else {}
-        version_map = version_root.get("achievements") if isinstance(version_root.get("achievements"), dict) else {}
-        language_candidates = (
-            data_root.get("ChineseTraditional"),
-            data_root.get("chinesetraditional"),
-            data_root.get("CHT"),
-        )
-        for language_data in language_candidates:
-            if not isinstance(language_data, dict):
-                continue
-            achievement_map = language_data.get("achievements")
-            if not isinstance(achievement_map, dict):
-                continue
-            for filename, item in achievement_map.items():
-                if not isinstance(item, dict):
-                    continue
-                enriched = dict(item)
-                enriched.setdefault("version", version_map.get(str(filename), ""))
-                enriched["_tracker_genshin_db_filename"] = str(filename)
-                objects.append(enriched)
-            break
-    if not objects:
-        objects = list(_walk_genshin_db_achievement_objects(payload))
-    rows: list[dict[str, Any]] = []
-    object_seen: set[tuple[str, ...]] = set()
-    skipped = 0
-    for item in objects:
-        raw_ids = item.get("id")
-        if isinstance(raw_ids, (int, str)):
-            raw_ids = [raw_ids]
-        ids = [_text_key(value) for value in (raw_ids or []) if _text_key(value)]
-        signature = tuple(ids)
-        if not ids or signature in object_seen:
-            skipped += 1
-            continue
-        object_seen.add(signature)
-        category = _clean_markup(str(item.get("achievementGroupName") or ""))
-        category_id = _text_key(item.get("achievementGroupId"))
-        version = str(item.get("version") or "").strip()
-        hidden = _as_bool(item.get("isHidden"))
-        declared_stages = max(1, _as_int(item.get("stages"), len(ids)))
-        stage_count = min(max(declared_stages, len(ids)), 8)
-        for stage_index in range(1, stage_count + 1):
-            if stage_index > len(ids):
-                break
-            stage = item.get(f"stage{stage_index}")
-            if not isinstance(stage, dict):
-                skipped += 1
-                continue
-            achievement_id = ids[stage_index - 1]
-            if not achievement_id.isdigit():
-                skipped += 1
-                continue
-            name = _clean_markup(str(stage.get("title") or item.get("name") or ""))
-            condition = _clean_markup(_replace_genshin_progress_parameter(stage.get("description") or "", stage.get("progress")))
-            reward_obj = stage.get("reward") if isinstance(stage.get("reward"), dict) else {}
-            reward = _as_int(_get(reward_obj, "count", "amount", "value"))
-            reward_id = _text_key(_get(reward_obj, "id", "rewardId"))
-            next_link = ids[stage_index] if stage_index < len(ids) else ""
-            raw = dict(item)
-            raw["_tracker_completion_bridge"] = {
-                "source_id": GENSHIN_COMPLETION_SOURCE_ID,
-                "stage": stage_index,
-                "stage_count": len(ids),
-            }
-            rows.append(_normalized_row(
-                game_id="genshin",
-                achievement_id=achievement_id,
-                name=name,
-                condition=condition,
-                category=category,
-                source_order=_as_int(achievement_id),
-                source_id="anime_game_data",
-                version=version,
-                reward=reward,
-                hidden=hidden,
-                category_id=category_id,
-                group_id=category_id,
-                group_name=category,
-                progress_value=_as_int(stage.get("progress"), 1),
-                level=stage_index,
-                next_link=next_link,
-                reward_id=reward_id,
-                raw=raw,
-                provenance={
-                    "row": {"role": "completion_bridge", "source": GENSHIN_COMPLETION_SOURCE_ID},
-                    "id": {"role": "completion_bridge", "source": GENSHIN_COMPLETION_SOURCE_ID},
-                    "name": {"role": "completion_bridge", "source": GENSHIN_COMPLETION_SOURCE_ID},
-                    "condition": {"role": "completion_bridge", "source": GENSHIN_COMPLETION_SOURCE_ID},
-                    "category": {"role": "completion_bridge", "source": GENSHIN_COMPLETION_SOURCE_ID},
-                    "reward": {"role": "completion_bridge", "source": GENSHIN_COMPLETION_SOURCE_ID},
-                    "hidden": {"role": "completion_bridge", "source": GENSHIN_COMPLETION_SOURCE_ID},
-                    "version": {"role": "completion_bridge", "source": GENSHIN_COMPLETION_SOURCE_ID},
-                },
-            ))
-    unique: dict[str, dict[str, Any]] = {}
-    duplicates: list[str] = []
-    for row in rows:
-        achievement_id = str(row.get("achievement_id") or "")
-        if achievement_id in unique:
-            duplicates.append(achievement_id)
-            continue
-        unique[achievement_id] = row
-    parsed = list(unique.values())
-    parsed.sort(key=lambda row: (_as_int(row.get("source_order")), _as_int(row.get("achievement_id"))))
-    incomplete = [
-        str(row.get("achievement_id") or "") for row in parsed
-        if not row.get("name") or not row.get("condition") or not row.get("category")
-        or not _valid_auxiliary_version(row.get("version"))
-    ]
-    if duplicates or incomplete:
-        raise RepositorySourceError(
-            "genshin-db 完整成就資料包含重複 ID 或缺少必要欄位，未採用補全資料。",
-            code="genshin_completion_catalog_invalid",
-            diagnostics={
-                "object_count": len(objects), "parsed_count": len(parsed),
-                "duplicate_ids": duplicates[:50], "incomplete_ids": incomplete[:50],
-            },
-        )
-    return ParsedCatalog(parsed, {
-        "object_count": len(objects), "parsed_rows": len(parsed), "skipped_rows": skipped,
-        "duplicate_count": len(duplicates), "incomplete_count": len(incomplete),
-        "source_id": GENSHIN_COMPLETION_SOURCE_ID,
-    })
-
-
-def fetch_genshin_completion_catalog(*, timeout: int = 20) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Fetch full Traditional-Chinese achievement rows used to complete AnimeGameData2 gaps."""
-    failures: list[dict[str, Any]] = []
-    for url in GENSHIN_COMPLETION_SOURCE_URLS:
-        try:
-            raw, manifest = _request_bytes(url, timeout=timeout, max_bytes=40 * 1024 * 1024)
-            if raw[:2] == b"\x1f\x8b":
-                decoded = gzip.decompress(raw)
-            else:
-                decoded = raw
-            payload = _decode_json(decoded, url=url)
-            parsed = _parse_genshin_db_achievement_payload(payload)
-            return parsed.rows, {
-                "status": "ok", "mode": "distribution_gzip", "count": len(parsed.rows),
-                "source_id": GENSHIN_COMPLETION_SOURCE_ID, "source_name": GENSHIN_COMPLETION_SOURCE_NAME,
-                "url": url, "parser": parsed.diagnostics, **manifest,
-            }
-        except Exception as exc:
-            failures.append({
-                "url": url, "error_code": getattr(exc, "code", type(exc).__name__),
-                "error": str(exc), "diagnostics": dict(getattr(exc, "diagnostics", {}) or {}),
-            })
-    try:
-        raw, manifest = _request_bytes(GENSHIN_COMPLETION_API_URL, timeout=timeout, max_bytes=80 * 1024 * 1024)
-        payload = _decode_json(raw, url=GENSHIN_COMPLETION_API_URL)
-        parsed = _parse_genshin_db_achievement_payload(payload)
-        return parsed.rows, {
-            "status": "ok", "mode": "api", "count": len(parsed.rows),
-            "source_id": GENSHIN_COMPLETION_SOURCE_ID, "source_name": GENSHIN_COMPLETION_SOURCE_NAME,
-            "url": GENSHIN_COMPLETION_API_URL, "parser": parsed.diagnostics, **manifest,
-        }
-    except Exception as exc:
-        failures.append({
-            "url": GENSHIN_COMPLETION_API_URL, "error_code": getattr(exc, "code", type(exc).__name__),
-            "error": str(exc), "diagnostics": dict(getattr(exc, "diagnostics", {}) or {}),
-        })
-    return [], {
-        "status": "unavailable", "count": 0, "source_id": GENSHIN_COMPLETION_SOURCE_ID,
-        "source_name": GENSHIN_COMPLETION_SOURCE_NAME, "failures": failures,
-    }
-
-
-def _complete_genshin_primary_row(primary: dict[str, Any], completion: Mapping[str, Any], *, source: str) -> list[str]:
-    """Fill trusted fields that AnimeGameData2 exposes incompletely for new Genshin rows."""
-    completed: list[str] = []
-    try:
-        provenance = json.loads(primary.get("provenance_json") or "{}") if isinstance(primary.get("provenance_json"), str) else dict(primary.get("provenance_json") or {})
-    except (TypeError, json.JSONDecodeError):
-        provenance = {}
-
-    def mark(field: str, value: Any) -> None:
-        primary[field] = value
-        provenance[field] = {
-            "role": "completion_bridge",
-            "source": source,
-            "reason": "fill_primary_incomplete_field",
-            "supplemented_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-        }
-        completed.append(field)
-
-    for field in ("name", "condition"):
-        current = str(primary.get(field) or "").strip()
-        replacement = str(completion.get(field) or "").strip()
-        if (not current or _looks_like_unresolved_source_text(current)) and replacement and not _looks_like_unresolved_source_text(replacement):
-            mark(field, replacement)
-
-    current_category = str(primary.get("category") or "").strip()
-    replacement_category = str(completion.get("category") or "").strip()
-    if (
-        not current_category
-        or current_category in {"未辨識分類", "【街機】未辨識分類"}
-        or _looks_like_unresolved_source_text(current_category)
-    ) and replacement_category and not _looks_like_unresolved_source_text(replacement_category):
-        mark("category", replacement_category)
-
-    replacement_version = _valid_auxiliary_version(completion.get("version"))
-    if replacement_version and not _valid_auxiliary_version(primary.get("version")):
-        mark("version", replacement_version)
-
-    replacement_reward = _as_int(completion.get("reward"))
-    if _as_int(primary.get("reward")) <= 0 and replacement_reward > 0:
-        mark("reward", replacement_reward)
-
-    for field in ("category_id", "group_id", "group_name", "reward_id"):
-        replacement = completion.get(field)
-        if primary.get(field) in (None, "") and replacement not in (None, ""):
-            mark(field, replacement)
-
-    for field in ("progress_value", "level"):
-        replacement = _as_int(completion.get(field))
-        if _as_int(primary.get(field)) <= 0 and replacement > 0:
-            mark(field, replacement)
-
-    if not str(primary.get("next_link") or "").strip() and str(completion.get("next_link") or "").strip():
-        mark("next_link", str(completion.get("next_link") or "").strip())
-
-    if completed:
-        primary["provenance_json"] = json.dumps(provenance, ensure_ascii=False, separators=(",", ":"))
-    return completed
-
-
-def _merge_genshin_completion_rows(
-    primary_rows: Sequence[dict[str, Any]],
-    completion_rows: Sequence[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    primary_by_id = {str(row.get("achievement_id") or ""): dict(row) for row in primary_rows}
-    completion_by_id = {str(row.get("achievement_id") or ""): dict(row) for row in completion_rows}
-    primary_ids = {value for value in primary_by_id if value}
-    completion_ids = {value for value in completion_by_id if value}
-    overlap = primary_ids & completion_ids
-    overlap_ratio = len(overlap) / max(1, len(primary_ids))
-    additions = sorted(completion_ids - primary_ids, key=_as_int)
-    missing_from_completion = sorted(primary_ids - completion_ids, key=_as_int)
-    if overlap_ratio < 0.95:
-        raise RepositorySourceError(
-            "genshin-db 補全資料與 AnimeGameData2 的官方 ID 重疊率不足，未採用補全資料。",
-            code="genshin_completion_identity_mismatch",
-            diagnostics={
-                "primary_count": len(primary_ids), "completion_count": len(completion_ids),
-                "overlap_count": len(overlap), "overlap_ratio": round(overlap_ratio, 6),
-                "missing_from_completion_count": len(missing_from_completion),
-                "missing_from_completion": missing_from_completion[:50],
-            },
-        )
-    if len(additions) > max(300, int(len(primary_ids) * 0.20)):
-        raise RepositorySourceError(
-            "genshin-db 補全資料新增量異常，已停止合併。",
-            code="genshin_completion_addition_spike",
-            diagnostics={"primary_count": len(primary_ids), "completion_count": len(completion_ids), "addition_count": len(additions)},
-        )
-    completed_ids: list[str] = []
-    completed_fields: dict[str, list[str]] = {}
-    for achievement_id in sorted(overlap, key=_as_int):
-        fields = _complete_genshin_primary_row(primary_by_id[achievement_id], completion_by_id[achievement_id], source=GENSHIN_COMPLETION_SOURCE_ID)
-        if fields:
-            primary_by_id[achievement_id]["_completion_bridge_completed"] = True
-            completed_ids.append(achievement_id)
-            completed_fields[achievement_id] = fields
-    merged = list(primary_by_id.values())
-    for achievement_id in additions:
-        row = dict(completion_by_id[achievement_id])
-        row["_completion_bridge_added"] = True
-        merged.append(row)
-    merged.sort(key=lambda row: (_as_int(row.get("source_order")), _as_int(row.get("achievement_id"))))
-    return merged, {
-        "status": "ok", "primary_count": len(primary_ids), "completion_count": len(completion_ids),
-        "overlap_count": len(overlap), "overlap_ratio": round(overlap_ratio, 6),
-        "missing_from_completion_count": len(missing_from_completion),
-        "missing_from_completion": missing_from_completion[:500],
-        "completed_count": len(completed_ids), "completed_ids": completed_ids[:500],
-        "completed_fields": completed_fields,
-        "added_count": len(additions), "added_ids": additions[:500], "merged_count": len(merged),
-    }
-
-
-def load_bundled_genshin_completion_catalog(data_dir: Path) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Load an operator-supplied completion catalog; no game records are bundled."""
-    project_root = Path(__file__).resolve().parents[2]
-    candidate_paths = [
-        Path(data_dir) / "sources" / "genshin" / GENSHIN_BUNDLED_COMPLETION_FILENAME,
-        Path(data_dir) / "genshin" / GENSHIN_BUNDLED_COMPLETION_FILENAME,
-        project_root / "data" / "sources" / "genshin" / GENSHIN_BUNDLED_COMPLETION_FILENAME,
-        Path.cwd() / "data" / "sources" / "genshin" / GENSHIN_BUNDLED_COMPLETION_FILENAME,
-    ]
-    payload: dict[str, Any] | None = None
-    selected_path = ""
-    load_error = ""
-    seen_paths: set[str] = set()
-    for path in candidate_paths:
-        key = str(path.resolve()) if path.exists() else str(path)
-        if key in seen_paths:
-            continue
-        seen_paths.add(key)
-        if not path.is_file():
-            continue
-        try:
-            loaded = json.loads(path.read_text(encoding="utf-8-sig"))
-            if isinstance(loaded, dict) and isinstance(loaded.get("items"), list):
-                payload = loaded
-                selected_path = str(path)
-                break
-            load_error = f"invalid_shape:{path}"
-        except Exception as exc:
-            load_error = f"{type(exc).__name__}:{exc}"
-
-    embedded_used = False
-    if payload is None:
-        raise RepositorySourceError(
-            "純程式碼公開版未附帶補全目錄；請由管理員提供具有使用權的資料檔。",
-            code="bundled_completion_not_supplied",
-            diagnostics={"searched_paths": [str(path) for path in candidate_paths], "load_error": load_error},
-        )
-
-    items = payload.get("items") if isinstance(payload, dict) else None
-    if not isinstance(items, list):
-        raise RepositorySourceError(
-            "內建原神補全資料缺少 items 清單。",
-            code="genshin_bundled_completion_invalid_shape",
-            diagnostics={"path": selected_path, "load_error": load_error},
-        )
-    rows: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for index, item in enumerate(items):
-        if not isinstance(item, dict):
-            raise RepositorySourceError(
-                "內建原神補全資料包含非物件列。",
-                code="genshin_bundled_completion_invalid_row",
-                diagnostics={"path": selected_path, "index": index},
-            )
-        achievement_id = _text_key(item.get("id"))
-        name = _clean_markup(str(item.get("name") or ""))
-        condition = _clean_markup(str(item.get("condition") or ""))
-        category = _clean_markup(str(item.get("category") or ""))
-        version = str(item.get("version") or "").strip()
-        if not achievement_id.isdigit() or achievement_id in seen or not name or not condition or not category or not _valid_auxiliary_version(version):
-            raise RepositorySourceError(
-                "內建原神補全資料包含重複 ID 或缺少必要欄位。",
-                code="genshin_bundled_completion_invalid_row",
-                diagnostics={
-                    "path": selected_path, "index": index, "achievement_id": achievement_id,
-                    "has_name": bool(name), "has_condition": bool(condition), "has_category": bool(category),
-                    "version": version,
-                },
-            )
-        seen.add(achievement_id)
-        raw = {
-            "_tracker_bundled_completion": True,
-            "_tracker_embedded_completion": embedded_used,
-            "source": "genshin-db",
-            "sortOrder": _as_int(item.get("sort_order")),
-            "snapshotVersion": str(payload.get("version") or version),
-        }
-        rows.append(_normalized_row(
-            game_id="genshin",
-            achievement_id=achievement_id,
-            name=name,
-            condition=condition,
-            category=category,
-            source_order=_as_int(item.get("sort_order"), _as_int(achievement_id)),
-            source_id="anime_game_data",
-            version=version,
-            reward=_as_int(item.get("reward")),
-            hidden=_as_bool(item.get("hidden")),
-            category_id=item.get("category_id", ""),
-            group_id=item.get("category_id", ""),
-            group_name=category,
-            progress_value=_as_int(item.get("progress"), 1),
-            level=_as_int(item.get("level")),
-            next_link=item.get("next_link", ""),
-            reward_id="",
-            raw=raw,
-            provenance={
-                "row": {"role": "bundled_completion", "source": "genshin_db_dist"},
-                "id": {"role": "bundled_completion", "source": "genshin_db_dist"},
-                "name": {"role": "bundled_completion", "source": "genshin_db_dist"},
-                "condition": {"role": "bundled_completion", "source": "genshin_db_dist"},
-                "category": {"role": "bundled_completion", "source": "genshin_db_dist"},
-                "reward": {"role": "bundled_completion", "source": "genshin_db_dist"},
-                "hidden": {"role": "bundled_completion", "source": "genshin_db_dist"},
-                "version": {"role": "bundled_completion", "source": "genshin_db_dist"},
-            },
-        ))
-    if not rows:
-        raise RepositorySourceError(
-            "管理員提供的補全目錄沒有可用資料。",
-            code="bundled_completion_empty",
-            diagnostics={"path": selected_path},
-        )
-    rows.sort(key=lambda row: (_as_int(row.get("source_order")), _as_int(row.get("achievement_id"))))
-    return rows, {
-        "status": "ok", "count": len(rows), "path": selected_path,
-        "source_id": "genshin_db_dist", "mode": "embedded_snapshot" if embedded_used else "bundled_snapshot",
-        "snapshot_version": str(payload.get("version") or ""),
-        "embedded_used": embedded_used, "load_error": load_error,
-    }
-
-def _merge_genshin_bundled_rows(
-    primary_rows: Sequence[dict[str, Any]],
-    bundled_rows: Sequence[dict[str, Any]],
-    *,
-    allow_additions: bool = True,
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    by_id = {str(row.get("achievement_id") or ""): dict(row) for row in primary_rows if str(row.get("achievement_id") or "")}
-    additions: list[str] = []
-    completed_ids: list[str] = []
-    completed_fields: dict[str, list[str]] = {}
-    skipped_missing: list[str] = []
-    for row in bundled_rows:
-        achievement_id = str(row.get("achievement_id") or "")
-        if not achievement_id:
-            continue
-        if achievement_id in by_id:
-            fields = _complete_genshin_primary_row(by_id[achievement_id], row, source="genshin_db_dist_bundled")
-            if fields:
-                by_id[achievement_id]["_bundled_completion_completed"] = True
-                completed_ids.append(achievement_id)
-                completed_fields[achievement_id] = fields
-            continue
-        if not allow_additions:
-            skipped_missing.append(achievement_id)
-            continue
-        by_id[achievement_id] = dict(row)
-        by_id[achievement_id]["_bundled_completion_added"] = True
-        additions.append(achievement_id)
-    if len(additions) > 100:
-        raise RepositorySourceError(
-            "內建原神補全資料新增量異常，已停止合併。",
-            code="genshin_bundled_completion_addition_spike",
-            diagnostics={"primary_count": len(primary_rows), "bundled_count": len(bundled_rows), "addition_count": len(additions)},
-        )
-    merged = list(by_id.values())
-    merged.sort(key=lambda row: (_as_int(row.get("source_order")), _as_int(row.get("achievement_id"))))
-    return merged, {
-        "status": "ok", "bundled_count": len(bundled_rows), "added_count": len(additions),
-        "added_ids": sorted(additions, key=_as_int), "completed_count": len(completed_ids),
-        "completed_ids": completed_ids[:500], "completed_fields": completed_fields,
-        "skipped_missing_count": len(skipped_missing), "skipped_missing_ids": skipped_missing[:500],
-        "allow_additions": allow_additions, "merged_count": len(merged),
-    }
 
 def parse_repository_bundle(bundle: FetchBundle) -> ParsedCatalog:
     parser = PARSERS[bundle.definition.game_id]
@@ -3435,831 +3760,7 @@ def parse_repository_bundle(bundle: FetchBundle) -> ParsedCatalog:
     return parsed
 
 
-def _walk_json(value: Any) -> Iterable[dict[str, Any]]:
-    if isinstance(value, dict):
-        yield value
-        for nested in value.values():
-            yield from _walk_json(nested)
-    elif isinstance(value, list):
-        for nested in value:
-            yield from _walk_json(nested)
-
-
-def _extract_next_data(html_text: str) -> Any:
-    match = re.search(r'<script[^>]+id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>', html_text, flags=re.I | re.S)
-    if match:
-        return json.loads(html.unescape(match.group(1)))
-    for match in re.finditer(r'<script[^>]+type=["\']application/json["\'][^>]*>(.*?)</script>', html_text, flags=re.I | re.S):
-        try:
-            value = json.loads(html.unescape(match.group(1)))
-            if value:
-                return value
-        except json.JSONDecodeError:
-            continue
-    return None
-
-
-class _VisibleTextParser(HTMLParser):
-    """Extract user-visible text without treating JavaScript as page content."""
-
-    _ignored_tags = {"script", "style", "noscript", "template", "svg"}
-
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self._ignored_depth = 0
-        self.parts: list[str] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag.casefold() in self._ignored_tags:
-            self._ignored_depth += 1
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag.casefold() in self._ignored_tags and self._ignored_depth:
-            self._ignored_depth -= 1
-
-    def handle_data(self, data: str) -> None:
-        if self._ignored_depth:
-            return
-        text = re.sub(r"\s+", " ", data).strip()
-        if text:
-            self.parts.append(text)
-
-
-def _html_visible_text(html_text: str) -> str:
-    parser = _VisibleTextParser()
-    try:
-        parser.feed(html_text)
-        parser.close()
-    except Exception:
-        # A malformed tail must not discard all text already parsed.
-        pass
-    return " ".join(parser.parts)
-
-
-def _extract_stardb_reported_count(html_text: str) -> int:
-    """Read the tracker total, preferring the user-visible catalogue counter.
-
-    StarDB pages may contain internal pagination totals that are one greater
-    than the actual visible achievement count.  A visible ``Showing ... of``
-    or ``Completed ... /`` counter is therefore authoritative; named JSON
-    properties are used only when no visible counter exists.
-    """
-    visible = _html_visible_text(html_text)
-    patterns = (
-        r"\bshowing\s+[\d,]+\s*(?:-|–|—|to)\s*[\d,]+\s+of\s+([\d,]+)\s+achievements?\b",
-        r"\bcompleted\s+[\d,]+\s*/\s*([\d,]+)\s+achievements?\b",
-        r"\bof\s+([\d,]+)\s+achievements?\b",
-        r"(?:顯示|显示)\s*[\d,]+\s*(?:-|–|—|至|到)\s*[\d,]+\s*(?:，|,)?\s*(?:共|總共|总共)\s*([\d,]+)\s*(?:項|项)?成就",
-        r"(?:已完成|完成)\s*[\d,]+\s*/\s*([\d,]+)\s*(?:項|项)?成就",
-        r"(?:共|總共|总共)\s*([\d,]+)\s*(?:項|项)?成就",
-    )
-    visible_values: list[int] = []
-    for pattern in patterns:
-        for match in re.finditer(pattern, visible, flags=re.I):
-            value = _as_int(match.group(1).replace(",", ""))
-            if value > 0:
-                visible_values.append(value)
-    if visible_values:
-        return max(visible_values)
-
-    raw_search = html.unescape(html_text)
-    raw_search = raw_search.replace(r"\u002F", "/").replace(r"\u002f", "/")
-    raw_search = raw_search.replace(r"\u002D", "-").replace(r"\u002d", "-")
-    raw_search = raw_search.replace(r"\n", " ").replace(r"\t", " ")
-    for pattern in patterns:
-        matches = [_as_int(value.replace(",", "")) for value in re.findall(pattern, raw_search, flags=re.I)]
-        matches = [value for value in matches if value > 0]
-        if matches:
-            return max(matches)
-
-    for pattern in (
-        r'["\'](?:totalAchievements|achievementCount|totalCount)["\']\s*:\s*([\d,]+)',
-        r'["\']total["\']\s*:\s*([\d,]+)\s*,\s*["\'](?:page|pageSize|limit)["\']',
-    ):
-        matches = [_as_int(value.replace(",", "")) for value in re.findall(pattern, html_text, flags=re.I)]
-        matches = [value for value in matches if value > 0]
-        if matches:
-            return max(matches)
-    return 0
-
-
-def _stardb_detail_url(game_id: str, achievement_id: str) -> str:
-    identifier = urllib.parse.quote(str(achievement_id).strip(), safe="")
-    prefixes = {
-        "hsr": "https://stardb.gg/en/database/achievements/",
-        "genshin": "https://stardb.gg/en/genshin/database/achievements/",
-        "zzz": "https://stardb.gg/en/zzz/database/achievements/",
-    }
-    prefix = prefixes.get(game_id)
-    if not prefix:
-        raise RepositorySourceError("此遊戲沒有 StarDB 詳細頁設定。", code="stardb_detail_not_configured")
-    return prefix + identifier
-
-
-def _extract_stardb_detail_version(html_text: str) -> str:
-    visible = _html_visible_text(html_text)
-    # Detail pages expose the introduced version as a compact Vx.y label.
-    candidates = re.findall(r"(?<![\w.])V\s*(\d+\.\d+(?:\.\d+)?)(?![\w.])", visible, flags=re.I)
-    if not candidates:
-        candidates = re.findall(
-            r"(?:version|released?\s+in|版本)\s*[:：]?\s*(\d+\.\d+(?:\.\d+)?)",
-            visible,
-            flags=re.I,
-        )
-    if candidates:
-        return candidates[0]
-    raw_search = html.unescape(html_text).replace(r"\u002E", ".").replace(r"\u002e", ".")
-    raw_search = raw_search.replace(r'\\"', '"').replace(r"\\'", "'")
-    for pattern in (
-        r'["\\]?(?:version|releaseVersion|gameVersion|addedVersion)["\\]?\s*:\s*["\\]?V?(\d+\.\d+(?:\.\d+)?)',
-        r'(?<![\w.])V\s*(\d+\.\d+(?:\.\d+)?)(?![\w.])',
-    ):
-        match = re.search(pattern, raw_search, flags=re.I)
-        if match:
-            return match.group(1)
-    return ""
-
-
-def _parse_stardb_embedded_rows(html_text: str) -> list[dict[str, Any]]:
-    payload = _extract_next_data(html_text)
-    if payload is None:
-        return []
-    candidates: list[dict[str, Any]] = []
-    for row in _walk_json(payload):
-        achievement_id = _text_key(_get(row, "id", "ID", "achievementId", "achievement_id"))
-        name = str(_get(row, "name", "title", "achievementName", default="") or "").strip()
-        condition = str(_get(row, "description", "condition", "desc", default="") or "").strip()
-        version = str(_get(row, "version", "releaseVersion", "gameVersion", "addedVersion", default="") or "").strip()
-        reward_value = _get(row, "reward", "rewardAmount", "points", "rewardValue")
-        if achievement_id and name and (condition or reward_value is not None or version):
-            candidates.append({
-                "achievement_id": achievement_id,
-                "name": _clean_markup(name),
-                "condition": _clean_markup(condition),
-                "version": version,
-                "category": str(_get(row, "category", "series", "groupName", "achievementGroup", default="") or "").strip(),
-                "reward": _as_int(reward_value),
-                "hidden": _as_bool(_get(row, "hidden", "isHidden")),
-                "_auxiliary_origin": "remote_stardb_embedded",
-            })
-    unique: dict[str, dict[str, Any]] = {}
-    for row in candidates:
-        key = row["achievement_id"] or f"{_normalize_compare_text(row['name'])}|{_normalize_compare_text(row['condition'])}"
-        current = unique.get(key)
-        if current is None or (not current.get("version") and row.get("version")):
-            unique[key] = row
-    return list(unique.values())
-
-
-def fetch_stardb_secondary(
-    game_id: str,
-    *,
-    timeout: int = 15,
-    primary_rows: Sequence[dict[str, Any]] | None = None,
-    verified_snapshot_rows: Sequence[dict[str, Any]] | None = None,
-    detail_limit: int = 64,
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Validate StarDB live and resolve only versions absent from the verified snapshot.
-
-    StarDB's tracker can return a server-rendered application shell without a
-    bulk JSON catalogue. The tracker page is therefore used as a live index and
-    health check. Existing immutable version data comes from the last verified
-    catalogue; newly discovered official IDs are resolved through StarDB's
-    public detail pages one by one.
-    """
-    definition = definition_for(game_id)
-    if not definition.secondary_url:
-        return [], {"status": "not_configured"}
-    try:
-        raw, manifest = _request_bytes(definition.secondary_url, timeout=timeout, max_bytes=20 * 1024 * 1024)
-        text = raw.decode("utf-8-sig", errors="replace")
-        embedded_rows = _parse_stardb_embedded_rows(text)
-        reported_count = _extract_stardb_reported_count(text)
-        if embedded_rows:
-            return embedded_rows, {
-                "status": "ok",
-                "verification_mode": "embedded_catalogue",
-                "count": len(embedded_rows),
-                "reported_count": reported_count or len(embedded_rows),
-                "resolved_detail_count": 0,
-                **manifest,
-            }
-        if reported_count < definition.minimum_count:
-            return [], {
-                "status": "unavailable",
-                "reason": (
-                    f"StarDB 已回應 HTTP {manifest.get('http_status') or 200}，但找不到可信的成就總數；"
-                    "已停止把頁面外殼誤判為可用資料。"
-                ),
-                "error_code": "stardb_live_index_not_found",
-                "reported_count": reported_count,
-                "minimum_count": definition.minimum_count,
-                "verification_mode": "live_index",
-                **manifest,
-            }
-
-        snapshot_versions: dict[str, str] = {}
-        for source in verified_snapshot_rows or ():
-            achievement_id = _text_key(_get(source, "achievement_id", "id", "ID"))
-            version = _valid_auxiliary_version(_get(source, "version"))
-            if achievement_id and version:
-                snapshot_versions[achievement_id] = version
-
-        pending: list[dict[str, Any]] = []
-        for source in primary_rows or ():
-            achievement_id = _text_key(_get(source, "achievement_id", "id", "ID"))
-            if (
-                achievement_id
-                and achievement_id not in snapshot_versions
-                and not _valid_auxiliary_version(_get(source, "version"))
-            ):
-                pending.append(dict(source))
-
-        if len(pending) > max(0, detail_limit):
-            return [], {
-                "status": "partial",
-                "reason": (
-                    f"StarDB 即時索引正常，但有 {len(pending)} 個新成就版本待解析，"
-                    f"超過單次安全上限 {detail_limit}；未對來源發出大量請求。"
-                ),
-                "error_code": "stardb_detail_resolution_limit",
-                "verification_mode": "live_index",
-                "reported_count": reported_count,
-                "pending_detail_count": len(pending),
-                "detail_limit": detail_limit,
-                "count": 0,
-                **manifest,
-            }
-
-        resolved: list[dict[str, Any]] = []
-        detail_manifests: list[dict[str, Any]] = []
-        unresolved_ids: list[str] = []
-        for source in pending:
-            achievement_id = _text_key(_get(source, "achievement_id", "id", "ID"))
-            detail_url = _stardb_detail_url(game_id, achievement_id)
-            try:
-                detail_raw, detail_manifest = _request_bytes(
-                    detail_url,
-                    timeout=timeout,
-                    max_bytes=8 * 1024 * 1024,
-                )
-                detail_text = detail_raw.decode("utf-8-sig", errors="replace")
-                version = _extract_stardb_detail_version(detail_text)
-                detail_manifests.append({
-                    "achievement_id": achievement_id,
-                    "url": detail_url,
-                    "http_status": detail_manifest.get("http_status"),
-                    "elapsed_ms": detail_manifest.get("elapsed_ms"),
-                    "version": version,
-                })
-                if not version:
-                    unresolved_ids.append(achievement_id)
-                    continue
-                resolved.append({
-                    "achievement_id": achievement_id,
-                    "name": _clean_markup(str(_get(source, "name", "title", default="") or "")),
-                    "condition": _clean_markup(str(_get(source, "condition", "description", "desc", default="") or "")),
-                    "version": version,
-                    "category": _clean_markup(str(_get(source, "category", "groupName", default="") or "")),
-                    "reward": _as_int(_get(source, "reward", "rewardAmount")),
-                    "hidden": _as_bool(_get(source, "hidden", "isHidden")),
-                    "_auxiliary_origin": "remote_stardb_detail",
-                })
-            except Exception:
-                unresolved_ids.append(achievement_id)
-                detail_manifests.append({"achievement_id": achievement_id, "url": detail_url, "status": "request_failed"})
-
-        status = "ok" if not unresolved_ids else "partial"
-        diagnostics: dict[str, Any] = {
-            "status": status,
-            "verification_mode": (
-                "live_index_with_detail_resolution" if pending
-                else ("live_index_with_verified_snapshot" if verified_snapshot_rows else "live_index")
-            ),
-            "reported_count": reported_count,
-            "count": len(resolved),
-            "resolved_detail_count": len(resolved),
-            "pending_detail_count": len(pending),
-            "unresolved_detail_count": len(unresolved_ids),
-            "unresolved_detail_ids": unresolved_ids[:100],
-            "detail_manifest": detail_manifests[:100],
-            **manifest,
-        }
-        if unresolved_ids:
-            diagnostics.update({
-                "reason": f"StarDB 即時索引正常，但仍有 {len(unresolved_ids)} 個新成就詳細頁無法確認版本。",
-                "error_code": "stardb_detail_version_unresolved",
-            })
-        return resolved, diagnostics
-    except Exception as exc:
-        code = exc.code if isinstance(exc, RepositorySourceError) else "secondary_unavailable"
-        diagnostics = dict(exc.diagnostics) if isinstance(exc, RepositorySourceError) else {}
-        return [], {"status": "unavailable", "reason": str(exc), "error_code": code, **diagnostics}
-
-def _catalog_snapshot_secondary(data_dir: Path, game_id: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    path = Path(data_dir) / "catalogs" / game_id / "achievements.json"
-    if not path.is_file():
-        return [], {"status": "missing", "path": str(path)}
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8-sig"))
-        items = payload.get("items") if isinstance(payload, dict) else None
-        rows: list[dict[str, Any]] = []
-        for item in items if isinstance(items, list) else []:
-            if not isinstance(item, dict):
-                continue
-            achievement_id = _text_key(_get(item, "achievement_id", "id", "ID"))
-            name = _clean_markup(str(_get(item, "name", "title", default="") or ""))
-            if not achievement_id or not name:
-                continue
-            rows.append({
-                "achievement_id": achievement_id, "name": name,
-                "condition": _clean_markup(str(_get(item, "condition", "description", "desc", default="") or "")),
-                "version": str(_get(item, "version", default="") or "").strip(),
-                "category": _clean_markup(str(_get(item, "category", "groupName", default="") or "")),
-                "reward": _as_int(_get(item, "reward", "rewardAmount")),
-                "hidden": _as_bool(_get(item, "hidden", "isHidden")),
-                "source_order": _as_int(_get(item, "source_order", "sourceOrder", "order")),
-                "source": str(_get(item, "source", default="verified_catalog_snapshot") or "verified_catalog_snapshot"),
-                "category_id": _text_key(_get(item, "categoryId", "category_id")),
-                "group_id": _text_key(_get(item, "groupId", "group_id")),
-                "group_name": _clean_markup(str(_get(item, "groupName", "group_name", default="") or "")),
-                "progress_value": _as_int(_get(item, "progress", "progress_value")),
-                "level": _as_int(_get(item, "level")),
-                "next_link": _text_key(_get(item, "nextLink", "next_link")),
-                "reward_id": _text_key(_get(item, "rewardId", "reward_id")),
-                "_auxiliary_origin": "verified_catalog_snapshot",
-            })
-        return rows, {"status": "ok", "count": len(rows), "path": str(path)}
-    except Exception as exc:
-        return [], {"status": "invalid", "reason": str(exc), "path": str(path)}
-
-def _convert_tree_to_traditional(value: Any) -> Any:
-    try:
-        from opencc import OpenCC
-        converter = OpenCC("s2twp")
-    except Exception:
-        return value
-
-    def walk(item: Any) -> Any:
-        if isinstance(item, str):
-            return converter.convert(item)
-        if isinstance(item, list):
-            return [walk(child) for child in item]
-        if isinstance(item, dict):
-            return {key: walk(child) for key, child in item.items()}
-        return item
-
-    return walk(value)
-
-
-def fetch_wuwa_secondary(*, data_dir: Path, timeout: int = 15) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    definition = definition_for("wuwa")
-    api_url = "https://api.kurobbs.com/wiki/core/catalogue/item/getEntryDetail"
-    page_url = definition.secondary_url
-    entry_id = "1220879855033786368"
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
-
-    def headers(devcode: str = "") -> dict[str, str]:
-        result = {
-            "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
-            "Origin": "https://wiki.kurobbs.com",
-            "Referer": page_url,
-            "Source": "h5",
-            "User-Agent": USER_AGENT,
-            "Wiki_type": "9",
-        }
-        if devcode:
-            result["Devcode"] = devcode
-        return result
-
-    errors: list[str] = []
-    payload: Any = None
-    try:
-        try:
-            opener.open(urllib.request.Request(page_url, headers=headers()), timeout=min(timeout, 10)).read(128)
-        except Exception:
-            pass
-        for body_value in ({"id": entry_id, "wiki_type": "9"}, {"id": entry_id}):
-            body = urllib.parse.urlencode(body_value).encode("ascii")
-            for devcode in ("", hashlib.sha256(f"{time.time_ns()}".encode()).hexdigest()[:32]):
-                try:
-                    request = urllib.request.Request(api_url, data=body, headers=headers(devcode), method="POST")
-                    with opener.open(request, timeout=timeout) as response:
-                        raw = response.read(MAX_FILE_BYTES + 1)
-                    if len(raw) > MAX_FILE_BYTES:
-                        raise RepositorySourceError("鳴潮輔助來源回應過大。", code="source_file_too_large")
-                    value = json.loads(raw.decode("utf-8", errors="replace"))
-                    if isinstance(value, dict) and value.get("data"):
-                        payload = _convert_tree_to_traditional(value)
-                        break
-                    errors.append("官方回傳缺少 data")
-                except Exception as exc:
-                    errors.append(f"{type(exc).__name__}: {exc}")
-            if payload is not None:
-                break
-    except Exception as exc:
-        errors.append(f"{type(exc).__name__}: {exc}")
-
-    origin = "remote_kuro"
-    if payload is None:
-        cache_file = Path(data_dir) / "sources" / "wuwa" / "raw-official-achievements.json"
-        if cache_file.is_file():
-            try:
-                payload = json.loads(cache_file.read_text(encoding="utf-8-sig"))
-                origin = "cached_kuro_payload"
-            except Exception as exc:
-                errors.append(f"cache: {exc}")
-    if payload is not None:
-        try:
-            from backend.wuwa_catalog import extract_wuwa_achievements
-            official_traditional_payload: dict[str, Any] | None = None
-            official_traditional_file = Path(data_dir) / "sources" / "wuwa" / "official-zh-tw-text.json"
-            if official_traditional_file.is_file():
-                try:
-                    loaded = json.loads(official_traditional_file.read_text(encoding="utf-8-sig"))
-                    if isinstance(loaded, dict):
-                        official_traditional_payload = loaded
-                except Exception as exc:
-                    errors.append(f"official-zh-tw-text: {type(exc).__name__}: {exc}")
-            parsed = extract_wuwa_achievements(payload, official_traditional_payload)
-            rows = [{
-                "achievement_id": _text_key(_get(item, "id", "achievement_id")),
-                "name": _clean_markup(str(item.get("name") or "")),
-                "condition": _clean_markup(str(item.get("condition") or "")),
-                "version": str(item.get("version") or "").strip(),
-                "category": _clean_markup(str(item.get("category") or "")),
-                "reward": _as_int(item.get("reward")),
-                "hidden": _as_bool(item.get("hidden")),
-                "_auxiliary_origin": origin,
-            } for item in parsed]
-            return rows, {
-                "status": "ok", "count": len(rows), "origin": origin, "errors": errors[-6:],
-                "official_traditional_mapping": bool(official_traditional_payload),
-            }
-        except Exception as exc:
-            errors.append(f"parse: {type(exc).__name__}: {exc}")
-    return [], {"status": "unavailable", "reason": "wuwa_auxiliary_unavailable", "errors": errors[-8:]}
-
-
-def _combine_auxiliary_rows(remote_rows: Sequence[dict[str, Any]], snapshot_rows: Sequence[dict[str, Any]], *, game_id: str = "") -> list[dict[str, Any]]:
-    result: list[dict[str, Any]] = []
-    by_id: dict[str, dict[str, Any]] = {}
-    by_pair: dict[str, dict[str, Any]] = {}
-    for source_rows in (remote_rows, snapshot_rows):
-        for source in source_rows:
-            row = dict(source)
-            origin = str(row.get("_auxiliary_origin") or "unknown")
-            field_origins = {
-                field: origin for field in ("name", "condition", "version", "category", "reward", "hidden", "source_order")
-                if row.get(field) not in (None, "")
-            }
-            row["_field_origins"] = field_origins
-            achievement_id = str(row.get("achievement_id") or "").strip()
-            pair = f"{_normalize_compare_text(row.get('name'))}|{_normalize_compare_text(row.get('condition'))}"
-            current = by_id.get(achievement_id) if achievement_id else None
-            # Different official IDs may legitimately share the same name and
-            # condition (multi-stage or mutually exclusive achievements). Only
-            # Wuwa needs cross-ID pairing because its legacy auxiliary IDs differ
-            # from WW_Data IDs.
-            if current is None and pair != "|" and (not achievement_id or game_id == "wuwa"):
-                current = by_pair.get(pair)
-            if current is None:
-                result.append(row)
-                if achievement_id:
-                    by_id[achievement_id] = row
-                if pair != "|":
-                    by_pair[pair] = row
-                continue
-            current_origins = current.setdefault("_field_origins", {})
-            for field_name in ("name", "condition", "version", "category", "reward", "hidden", "source_order", "category_id", "group_id", "group_name", "progress_value", "level", "next_link", "reward_id", "source"):
-                incoming = row.get(field_name)
-                current_value = current.get(field_name)
-                missing = current_value in (None, "") or (field_name in {"reward", "source_order"} and not _as_int(current_value))
-                if missing and incoming not in (None, ""):
-                    current[field_name] = incoming
-                    current_origins[field_name] = origin
-                elif origin == "verified_catalog_snapshot" and incoming not in (None, ""):
-                    current[f"_snapshot_{field_name}"] = incoming
-            if origin == "verified_catalog_snapshot":
-                current["_snapshot_row_available"] = True
-    return result
-
-def fetch_auxiliary_secondary(
-    game_id: str,
-    *,
-    data_dir: Path,
-    timeout: int = 15,
-    verified_snapshot_rows: Sequence[dict[str, Any]] | None = None,
-    primary_rows: Sequence[dict[str, Any]] | None = None,
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    if verified_snapshot_rows is None:
-        snapshot_rows, snapshot_diagnostics = _catalog_snapshot_secondary(data_dir, game_id)
-    else:
-        snapshot_rows = []
-        for source in verified_snapshot_rows:
-            row = dict(source)
-            achievement_id = _text_key(_get(row, "achievement_id", "id", "ID"))
-            name = _clean_markup(str(_get(row, "name", "title", default="") or ""))
-            if not achievement_id or not name:
-                continue
-            row.update({
-                "achievement_id": achievement_id, "name": name,
-                "condition": _clean_markup(str(_get(row, "condition", "description", "desc", default="") or "")),
-                "version": str(_get(row, "version", default="") or "").strip(),
-                "category": _clean_markup(str(_get(row, "category", "groupName", default="") or "")),
-                "reward": _as_int(_get(row, "reward", "rewardAmount")),
-                "hidden": _as_bool(_get(row, "hidden", "isHidden")),
-                "source_order": _as_int(_get(row, "source_order", "sourceOrder", "order")),
-                "_auxiliary_origin": "verified_catalog_snapshot",
-            })
-            snapshot_rows.append(row)
-        snapshot_diagnostics = {"status": "ok", "count": len(snapshot_rows), "source": "current_sqlite_catalog"}
-
-    if game_id == "wuwa":
-        remote_rows, remote_diagnostics = fetch_wuwa_secondary(data_dir=data_dir, timeout=timeout)
-    else:
-        remote_rows, remote_diagnostics = fetch_stardb_secondary(
-            game_id,
-            timeout=timeout,
-            primary_rows=primary_rows,
-            verified_snapshot_rows=snapshot_rows,
-        )
-    combined = _combine_auxiliary_rows(remote_rows, snapshot_rows, game_id=game_id)
-    remote_status = str(remote_diagnostics.get("status") or "")
-    remote_ok = remote_status == "ok"
-    return combined, {
-        "status": "ok" if remote_ok else ("partial" if remote_status == "partial" and snapshot_rows else ("fallback_snapshot" if snapshot_rows else "unavailable")),
-        "count": len(combined),
-        "remote_count": len(remote_rows),
-        "snapshot_count": len(snapshot_rows),
-        "remote": remote_diagnostics,
-        "snapshot": snapshot_diagnostics,
-        "verification_mode": remote_diagnostics.get("verification_mode"),
-        "remote_reported_count": int(remote_diagnostics.get("reported_count") or 0),
-        "version_authority": "remote_detail_for_new_ids_and_last_verified_snapshot_for_existing_ids",
-        "snapshot_role": "preserve_last_verified_auxiliary_fields",
-        "snapshot_is_fallback": not remote_ok,
-    }
-
-
-def _unique_secondary_index(rows: Sequence[dict[str, Any]], key_builder) -> dict[str, dict[str, Any]]:
-    result: dict[str, dict[str, Any] | None] = {}
-    for row in rows:
-        key = str(key_builder(row) or "")
-        if not key:
-            continue
-        if key not in result:
-            result[key] = row
-        elif result[key] is not row:
-            result[key] = None
-    return {key: row for key, row in result.items() if isinstance(row, dict)}
-
-
-def _wuwa_match_text(value: Any) -> str:
-    """Normalize Wuwa text only for identity matching, never for display."""
-    try:
-        from backend.wuwa_catalog import normalize_official_lookup
-        return normalize_official_lookup(value)
-    except Exception:
-        return _normalize_compare_text(value)
-
-
-def _wuwa_match_category(value: Any) -> str:
-    try:
-        from backend.wuwa_categories import canonicalize_wuwa_category
-        value = canonicalize_wuwa_category(str(value or ""))
-    except Exception:
-        pass
-    return _wuwa_match_text(value)
-
-
-def _wuwa_field_aliases(row: Mapping[str, Any], field_name: str) -> tuple[str, ...]:
-    values: list[str] = []
-    for key in (field_name, f"_snapshot_{field_name}"):
-        value = str(row.get(key) or "").strip()
-        if value and value not in values:
-            values.append(value)
-    aliases = row.get(f"{field_name}_aliases")
-    if isinstance(aliases, list):
-        for value in aliases:
-            text = str(value or "").strip()
-            if text and text not in values:
-                values.append(text)
-    return tuple(values)
-
-
-def _plan_wuwa_auxiliary_matches(
-    primary_rows: Sequence[dict[str, Any]],
-    secondary_rows: Sequence[dict[str, Any]],
-) -> tuple[dict[int, dict[str, Any]], dict[str, Any]]:
-    """Build a safe one-to-one Wuwa auxiliary identity bridge.
-
-    Wuwa's official wiki uses legacy FNV IDs while WW_Data uses numeric IDs.
-    Exact display text is preferred.  Orthographic differences are resolved by
-    normalized one-to-one keys, followed by a strict mutual-best fuzzy pass in
-    the same category.  Ambiguous candidates are intentionally left unmatched.
-    """
-    primary = list(primary_rows)
-    secondary = list(secondary_rows)
-    matches: dict[int, dict[str, Any]] = {}
-    used_secondary: set[int] = set()
-    method_counts: dict[str, int] = {}
-    match_evidence: list[dict[str, Any]] = []
-
-    def unmatched_primary() -> list[dict[str, Any]]:
-        return [row for row in primary if id(row) not in matches]
-
-    def unmatched_secondary() -> list[dict[str, Any]]:
-        return [row for row in secondary if id(row) not in used_secondary]
-
-    def register(primary_row: dict[str, Any], secondary_row: dict[str, Any], method: str, confidence: float, evidence: Mapping[str, Any] | None = None) -> None:
-        if id(primary_row) in matches or id(secondary_row) in used_secondary:
-            return
-        item = {
-            "secondary": secondary_row,
-            "method": method,
-            "confidence": round(float(confidence), 6),
-            "evidence": dict(evidence or {}),
-        }
-        matches[id(primary_row)] = item
-        used_secondary.add(id(secondary_row))
-        method_counts[method] = method_counts.get(method, 0) + 1
-        match_evidence.append({
-            "official_id": str(primary_row.get("achievement_id") or ""),
-            "legacy_id": str(secondary_row.get("achievement_id") or ""),
-            "method": method,
-            "confidence": item["confidence"],
-            **item["evidence"],
-        })
-
-    def single_key_stage(method: str, primary_key, secondary_key, confidence: float) -> None:
-        secondary_index = _unique_secondary_index(unmatched_secondary(), secondary_key)
-        proposals: dict[int, list[dict[str, Any]]] = {}
-        primary_by_id: dict[int, dict[str, Any]] = {}
-        for row in unmatched_primary():
-            key = str(primary_key(row) or "")
-            candidate = secondary_index.get(key) if key else None
-            if candidate is None:
-                continue
-            proposals.setdefault(id(candidate), []).append(row)
-            primary_by_id[id(row)] = row
-        for candidate_id, proposed_rows in proposals.items():
-            if len(proposed_rows) != 1:
-                continue
-            row = proposed_rows[0]
-            candidate = next((item for item in secondary if id(item) == candidate_id), None)
-            if candidate is not None:
-                register(row, candidate, method, confidence)
-
-    def alias_keys(row: Mapping[str, Any], fields: tuple[str, ...]) -> tuple[str, ...]:
-        groups: list[tuple[str, ...]] = []
-        for field_name in fields:
-            values = _wuwa_field_aliases(row, field_name)
-            normalized = tuple(dict.fromkeys(
-                (_wuwa_match_category(value) if field_name == "category" else _wuwa_match_text(value))
-                for value in values
-                if str(value or "").strip()
-            ))
-            if not normalized:
-                return ()
-            groups.append(normalized)
-        keys = [""]
-        for group in groups:
-            keys = [f"{prefix}|{value}" if prefix else value for prefix in keys for value in group]
-        return tuple(dict.fromkeys(keys))
-
-    def alias_stage(method: str, fields: tuple[str, ...], confidence: float) -> None:
-        secondary_key_rows: dict[str, set[int]] = {}
-        secondary_by_id = {id(row): row for row in unmatched_secondary()}
-        for row_id, row in secondary_by_id.items():
-            for key in alias_keys(row, fields):
-                secondary_key_rows.setdefault(key, set()).add(row_id)
-        unique_secondary = {key: next(iter(ids)) for key, ids in secondary_key_rows.items() if len(ids) == 1}
-        proposals: dict[int, set[int]] = {}
-        primary_by_id = {id(row): row for row in unmatched_primary()}
-        for row_id, row in primary_by_id.items():
-            candidate_ids = {unique_secondary[key] for key in alias_keys(row, fields) if key in unique_secondary}
-            if len(candidate_ids) == 1:
-                candidate_id = next(iter(candidate_ids))
-                proposals.setdefault(candidate_id, set()).add(row_id)
-        for candidate_id, primary_ids in proposals.items():
-            if len(primary_ids) != 1:
-                continue
-            primary_id = next(iter(primary_ids))
-            register(primary_by_id[primary_id], secondary_by_id[candidate_id], method, confidence)
-
-    # Preserve the existing exact methods first so diagnostics remain comparable.
-    single_key_stage("official_id", lambda row: str(row.get("achievement_id") or "").strip(), lambda row: str(row.get("achievement_id") or "").strip(), 1.0)
-    single_key_stage(
-        "name_condition",
-        lambda row: f"{_normalize_compare_text(row.get('name'))}|{_normalize_compare_text(row.get('condition'))}",
-        lambda row: f"{_normalize_compare_text(row.get('name'))}|{_normalize_compare_text(row.get('condition'))}",
-        1.0,
-    )
-    single_key_stage(
-        "name_category",
-        lambda row: f"{_normalize_compare_text(row.get('name'))}|{_normalize_compare_text(row.get('category'))}",
-        lambda row: f"{_normalize_compare_text(row.get('name'))}|{_normalize_compare_text(row.get('category'))}",
-        0.99,
-    )
-    single_key_stage("unique_name", lambda row: _normalize_compare_text(row.get("name")), lambda row: _normalize_compare_text(row.get("name")), 0.98)
-
-    # Use current verified snapshot text as aliases instead of dropping a row
-    # merely because the live wiki and game data use different orthography.
-    alias_stage("wuwa_normalized_name_condition", ("name", "condition"), 0.98)
-    alias_stage("wuwa_normalized_condition_category", ("condition", "category"), 0.96)
-    alias_stage("wuwa_normalized_name_category", ("name", "category"), 0.95)
-
-    # Future wording changes may not yet exist in the bundled snapshot.  Resolve
-    # only mutual-best, same-category, high-condition-similarity pairs.
-    remaining_primary = unmatched_primary()
-    remaining_secondary = unmatched_secondary()
-    primary_best: dict[int, list[tuple[float, int, float, float]]] = {}
-    secondary_best: dict[int, list[tuple[float, int, float, float]]] = {}
-
-    def similarity(left: Any, right: Any) -> float:
-        return SequenceMatcher(None, _wuwa_match_text(left), _wuwa_match_text(right), autojunk=False).ratio()
-
-    for primary_index, primary_row in enumerate(remaining_primary):
-        candidates: list[tuple[float, int, float, float]] = []
-        primary_category = _wuwa_match_category(primary_row.get("category"))
-        if not primary_category:
-            continue
-        for secondary_index, secondary_row in enumerate(remaining_secondary):
-            if primary_category != _wuwa_match_category(secondary_row.get("category")):
-                continue
-            name_similarity = similarity(primary_row.get("name"), secondary_row.get("name"))
-            condition_similarity = similarity(primary_row.get("condition"), secondary_row.get("condition"))
-            score = 0.46 * name_similarity + 0.49 * condition_similarity + 0.05
-            candidates.append((score, secondary_index, name_similarity, condition_similarity))
-        candidates.sort(key=lambda value: (value[0], value[2], value[3]), reverse=True)
-        if candidates:
-            primary_best[primary_index] = candidates
-
-    for secondary_index, secondary_row in enumerate(remaining_secondary):
-        candidates: list[tuple[float, int, float, float]] = []
-        secondary_category = _wuwa_match_category(secondary_row.get("category"))
-        if not secondary_category:
-            continue
-        for primary_index, primary_row in enumerate(remaining_primary):
-            if secondary_category != _wuwa_match_category(primary_row.get("category")):
-                continue
-            name_similarity = similarity(primary_row.get("name"), secondary_row.get("name"))
-            condition_similarity = similarity(primary_row.get("condition"), secondary_row.get("condition"))
-            score = 0.46 * name_similarity + 0.49 * condition_similarity + 0.05
-            candidates.append((score, primary_index, name_similarity, condition_similarity))
-        candidates.sort(key=lambda value: (value[0], value[2], value[3]), reverse=True)
-        if candidates:
-            secondary_best[secondary_index] = candidates
-
-    fuzzy_ambiguous: list[dict[str, Any]] = []
-    for primary_index, candidates in primary_best.items():
-        score, secondary_index, name_similarity, condition_similarity = candidates[0]
-        reverse = secondary_best.get(secondary_index) or []
-        primary_margin = score - (candidates[1][0] if len(candidates) > 1 else 0.0)
-        secondary_margin = score - (reverse[1][0] if len(reverse) > 1 else 0.0)
-        mutual = bool(reverse and reverse[0][1] == primary_index)
-        accepted = (
-            mutual
-            and score >= 0.70
-            and name_similarity >= 0.45
-            and condition_similarity >= 0.85
-            and primary_margin >= 0.08
-            and secondary_margin >= 0.08
-        )
-        primary_row = remaining_primary[primary_index]
-        secondary_row = remaining_secondary[secondary_index]
-        evidence = {
-            "score": round(score, 6),
-            "name_similarity": round(name_similarity, 6),
-            "condition_similarity": round(condition_similarity, 6),
-            "primary_margin": round(primary_margin, 6),
-            "secondary_margin": round(secondary_margin, 6),
-            "mutual_best": mutual,
-        }
-        if accepted:
-            register(primary_row, secondary_row, "wuwa_mutual_fuzzy", score, evidence)
-        elif score >= 0.60:
-            fuzzy_ambiguous.append({
-                "official_id": str(primary_row.get("achievement_id") or ""),
-                "legacy_id": str(secondary_row.get("achievement_id") or ""),
-                **evidence,
-            })
-
-    return matches, {
-        "matched": len(matches),
-        "match_methods": method_counts,
-        "match_evidence": match_evidence[:500],
-        "unmatched_primary": len(primary) - len(matches),
-        "unmatched_secondary": len(secondary) - len(used_secondary),
-        "fuzzy_ambiguous_count": len(fuzzy_ambiguous),
-        "fuzzy_ambiguous": fuzzy_ambiguous[:500],
-        "one_to_one": len({id(value["secondary"]) for value in matches.values()}) == len(matches),
-    }
-
-
-def _valid_auxiliary_version(value: Any) -> str:
+def _valid_version(value: Any) -> str:
     text = str(value or "").strip()
     if not text or text in {"未標示", "版本待確認", "待確認", "unknown", "Unknown"}:
         return ""
@@ -4267,315 +3768,156 @@ def _valid_auxiliary_version(value: Any) -> str:
     return match.group(0) if match else ""
 
 
-def supplement_from_secondary(
-    primary_rows: list[dict[str, Any]],
-    secondary_rows: Sequence[dict[str, Any]],
-    secondary_id: str,
+def preserve_from_verified_catalog(
+    primary_rows: Sequence[dict[str, Any]],
+    verified_snapshot_rows: Sequence[dict[str, Any]],
     *,
-    game_id: str = "",
+    game_id: str,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    by_id = _unique_secondary_index(secondary_rows, lambda row: str(row.get("achievement_id") or "").strip())
-    by_pair = _unique_secondary_index(
-        secondary_rows,
-        lambda row: f"{_normalize_compare_text(row.get('name'))}|{_normalize_compare_text(row.get('condition'))}" if row.get("name") and row.get("condition") else "",
-    )
-    by_name_category = _unique_secondary_index(
-        secondary_rows,
-        lambda row: f"{_normalize_compare_text(row.get('name'))}|{_normalize_compare_text(row.get('category'))}" if row.get("name") and row.get("category") else "",
-    )
-    by_name = _unique_secondary_index(secondary_rows, lambda row: _normalize_compare_text(row.get("name")))
-    wuwa_match_plan: dict[int, dict[str, Any]] = {}
-    wuwa_match_diagnostics: dict[str, Any] = {}
-    if game_id == "wuwa":
-        wuwa_match_plan, wuwa_match_diagnostics = _plan_wuwa_auxiliary_matches(primary_rows, secondary_rows)
-
-    supplemented_fields: list[dict[str, str]] = []
-    version_overrides: list[dict[str, str]] = []
-    conflicts: list[dict[str, str]] = []
-    isolated: list[dict[str, Any]] = []
-    match_methods: dict[str, int] = {"official_id": 0, "name_condition": 0, "name_category": 0, "unique_name": 0}
-    merged_rows: list[dict[str, Any]] = []
-    used_secondary: set[int] = set()
-    supplemented_at = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-
-    for primary in primary_rows:
-        row = dict(primary)
-        secondary: dict[str, Any] | None = None
-        method = ""
-        match_confidence = 0.0
-        match_evidence: dict[str, Any] = {}
-        achievement_id = str(row.get("achievement_id") or "").strip()
-        if game_id == "wuwa":
-            planned = wuwa_match_plan.get(id(primary))
-            if planned:
-                secondary = planned.get("secondary")
-                method = str(planned.get("method") or "")
-                match_confidence = float(planned.get("confidence") or 0.0)
-                match_evidence = dict(planned.get("evidence") or {})
-        else:
-            if achievement_id and achievement_id in by_id:
-                secondary, method = by_id[achievement_id], "official_id"
-            if secondary is None and row.get("name") and row.get("condition"):
-                pair = f"{_normalize_compare_text(row.get('name'))}|{_normalize_compare_text(row.get('condition'))}"
-                if pair in by_pair:
-                    secondary, method = by_pair[pair], "name_condition"
-            if secondary is None and row.get("name") and row.get("category"):
-                name_category = f"{_normalize_compare_text(row.get('name'))}|{_normalize_compare_text(row.get('category'))}"
-                if name_category in by_name_category:
-                    secondary, method = by_name_category[name_category], "name_category"
-            if secondary is None and row.get("name"):
-                name_key = _normalize_compare_text(row.get("name"))
-                if name_key in by_name:
-                    secondary, method = by_name[name_key], "unique_name"
-            if secondary is not None:
-                match_confidence = {"official_id": 1.0, "name_condition": 1.0, "name_category": 0.99, "unique_name": 0.98}.get(method, 0.0)
-
-        try:
-            provenance = json.loads(row.get("provenance_json") or "{}") if isinstance(row.get("provenance_json"), str) else {}
-        except json.JSONDecodeError:
-            provenance = {}
-        if secondary:
-            used_secondary.add(id(secondary))
-            match_methods[method] = match_methods.get(method, 0) + 1
-            auxiliary_achievement_id = str(secondary.get("achievement_id") or "").strip()
-            field_origins = secondary.get("_field_origins") if isinstance(secondary.get("_field_origins"), dict) else {}
-            for field_name in ("name", "condition", "category"):
-                primary_value = str(row.get(field_name) or "").strip()
-                secondary_value = str(secondary.get(field_name) or "").strip()
-                primary_missing = (
-                    not primary_value or _looks_like_unresolved_source_text(primary_value)
-                    or primary_value.startswith(("成就集 ", "成就系列 ", "分類 "))
-                    or primary_value in {"未辨識分類", "【街機】未辨識分類"}
-                )
-                if primary_missing and secondary_value and not _looks_like_unresolved_source_text(secondary_value):
-                    row[field_name] = secondary_value
-                    provenance[field_name] = {
-                        "role": "preservation" if field_origins.get(field_name) == "verified_catalog_snapshot" else "secondary",
-                        "source": secondary_id, "reason": "primary_missing_or_unresolved",
-                        "supplemented_at": supplemented_at, "match_method": method,
-                        "origin": field_origins.get(field_name) or secondary.get("_auxiliary_origin"),
-                    }
-                    supplemented_fields.append({"achievement_id": achievement_id, "field": field_name, "source": secondary_id, "reason": "primary_missing_or_unresolved", "supplemented_at": supplemented_at})
-                elif primary_value and secondary_value and _normalize_compare_text(primary_value) != _normalize_compare_text(secondary_value):
-                    conflicts.append({"achievement_id": achievement_id, "field": field_name, "primary": primary_value, "secondary": secondary_value, "match_method": method})
-
-            version_origin = str(field_origins.get("version") or secondary.get("_auxiliary_origin") or "")
-            secondary_version = _valid_auxiliary_version(secondary.get("version"))
-            current_version = str(row.get("version") or "").strip()
-            if secondary_version:
-                reason = "auxiliary_version_authority" if version_origin != "verified_catalog_snapshot" else "preserve_last_verified_auxiliary_version"
-                if current_version != secondary_version:
-                    version_overrides.append({"achievement_id": achievement_id, "primary": current_version, "secondary": secondary_version, "source": secondary_id, "match_method": method})
-                row["version"] = secondary_version
-                provenance["version"] = {
-                    "role": "secondary" if version_origin != "verified_catalog_snapshot" else "preservation",
-                    "source": secondary_id, "reason": reason, "supplemented_at": supplemented_at,
-                    "match_method": method, "origin": version_origin,
-                }
-            elif not _valid_auxiliary_version(current_version):
-                row["version"] = "版本待確認"
-                provenance["version"] = {"role": "secondary", "source": secondary_id, "reason": "auxiliary_version_missing", "supplemented_at": supplemented_at, "match_method": method}
-
-            if not int(row.get("reward") or 0) and int(secondary.get("reward") or 0):
-                row["reward"] = int(secondary.get("reward") or 0)
-                reward_origin = str(field_origins.get("reward") or secondary.get("_auxiliary_origin") or "")
-                reward_reason = "preserve_verified_catalog_reward" if reward_origin == "verified_catalog_snapshot" else "primary_reward_unresolved"
-                provenance["reward"] = {
-                    "role": "preservation" if reward_origin == "verified_catalog_snapshot" else "secondary",
-                    "source": secondary_id, "reason": reward_reason, "supplemented_at": supplemented_at,
-                    "match_method": method, "origin": reward_origin,
-                }
-                supplemented_fields.append({"achievement_id": achievement_id, "field": "reward", "source": secondary_id, "reason": reward_reason, "supplemented_at": supplemented_at})
-
-            if game_id == "genshin":
-                snapshot_order = secondary.get("_snapshot_source_order") if secondary.get("_snapshot_source_order") is not None else (
-                    secondary.get("source_order") if field_origins.get("source_order") == "verified_catalog_snapshot" else None
-                )
-                if snapshot_order is not None and _as_int(snapshot_order) > 0:
-                    row["source_order"] = _as_int(snapshot_order)
-                    provenance["source_order"] = {
-                        "role": "preservation",
-                        "source": secondary_id,
-                        "reason": "preserve_verified_catalog_order",
-                        "supplemented_at": supplemented_at,
-                        "match_method": method,
-                        "origin": "verified_catalog_snapshot",
-                    }
-
-            if game_id == "zzz":
-                try:
-                    raw = json.loads(row.get("raw_json") or "{}")
-                except (TypeError, json.JSONDecodeError):
-                    raw = {}
-                detected_order = ((raw.get("_tracker_detected_fields") or {}).get("order") if isinstance(raw, dict) else "")
-                snapshot_order = secondary.get("_snapshot_source_order") if secondary.get("_snapshot_source_order") is not None else (secondary.get("source_order") if field_origins.get("source_order") == "verified_catalog_snapshot" else None)
-                if detected_order == "source_index" and snapshot_order is not None:
-                    row["source_order"] = _as_int(snapshot_order, _as_int(row.get("source_order")))
-                    provenance["source_order"] = {"role": "preservation", "source": secondary_id, "reason": "primary_order_field_unverified", "supplemented_at": supplemented_at}
-            row["secondary_source_id"] = secondary_id
-            row["_auxiliary_achievement_id"] = auxiliary_achievement_id
-            row["_auxiliary_match_method"] = method
-            row["_auxiliary_match_confidence"] = match_confidence
-            row["_auxiliary_match_evidence"] = match_evidence
-            row["_auxiliary_match_origin"] = str(secondary.get("_auxiliary_origin") or "")
-            provenance["identity_bridge"] = {
-                "role": "identity_bridge",
-                "source": secondary_id,
-                "legacy_id": auxiliary_achievement_id,
-                "official_id": achievement_id,
-                "match_method": method,
-                "confidence": round(match_confidence, 6),
-                "evidence": match_evidence,
-                "supplemented_at": supplemented_at,
-            }
-        else:
-            if not _valid_auxiliary_version(row.get("version")):
-                row["version"] = "版本待確認"
-            provenance["version"] = {"role": "secondary", "source": secondary_id, "reason": "no_safe_auxiliary_match", "supplemented_at": supplemented_at}
-            row["_auxiliary_match_method"] = ""
-            row["_auxiliary_match_origin"] = ""
-        row["provenance_json"] = json.dumps(provenance, ensure_ascii=False, separators=(",", ":"))
-        merged_rows.append(row)
-
-    # Preserve verified current rows that the new primary source could not map.
-    # This prevents false deletions and, for Wuwa, keeps legacy internal IDs until
-    # the WW_Data identity bridge is explicitly confirmed.
-    existing_primary_ids = {str(row.get("achievement_id") or "") for row in merged_rows}
-    preserved_snapshot_rows = 0
-    preserved_snapshot_details: list[dict[str, Any]] = []
-    for secondary in secondary_rows:
-        snapshot_available = bool(secondary.get("_snapshot_row_available"))
-        if id(secondary) in used_secondary or (
-            str(secondary.get("_auxiliary_origin") or "") != "verified_catalog_snapshot" and not snapshot_available
-        ):
-            continue
-        achievement_id = str(secondary.get("achievement_id") or "").strip()
-        if not achievement_id or achievement_id in existing_primary_ids:
-            continue
-        def snapshot_value(field_name: str, default: Any = "") -> Any:
-            value = secondary.get(f"_snapshot_{field_name}") if snapshot_available else None
-            return value if value not in (None, "") else secondary.get(field_name, default)
-        preserved = _normalized_row(
-            game_id=game_id, achievement_id=achievement_id, name=str(snapshot_value("name") or ""),
-            condition=str(snapshot_value("condition") or ""), category=str(snapshot_value("category", "未辨識分類") or "未辨識分類"),
-            source_order=_as_int(snapshot_value("source_order")), source_id=str(snapshot_value("source", "verified_catalog_snapshot") or "verified_catalog_snapshot"),
-            version=str(snapshot_value("version", "版本待確認") or "版本待確認"), reward=_as_int(snapshot_value("reward")),
-            hidden=_as_bool(snapshot_value("hidden")), category_id=snapshot_value("category_id"),
-            group_id=snapshot_value("group_id"), group_name=str(snapshot_value("group_name") or ""),
-            progress_value=_as_int(snapshot_value("progress_value")), level=_as_int(snapshot_value("level")),
-            next_link=snapshot_value("next_link"), reward_id=snapshot_value("reward_id"),
-            raw={"_tracker_preserved_snapshot": True},
-            provenance={
-                "row": {"role": "preservation", "source": secondary_id, "reason": "primary_row_unmatched", "supplemented_at": supplemented_at},
-                "version": {"role": "preservation", "source": secondary_id, "reason": "preserve_last_verified_auxiliary_version", "supplemented_at": supplemented_at},
-            },
-        )
-        preserved["secondary_source_id"] = secondary_id
-        preserved["_auxiliary_match_method"] = "snapshot_preservation"
-        preserved["_auxiliary_match_origin"] = "verified_catalog_snapshot"
-        merged_rows.append(preserved)
-        existing_primary_ids.add(achievement_id)
-        preserved_snapshot_rows += 1
-        preserved_snapshot_details.append({
-            "achievement_id": achievement_id,
-            "name": str(preserved.get("name") or ""),
-            "condition": str(preserved.get("condition") or ""),
-            "version": str(preserved.get("version") or ""),
-            "category": str(preserved.get("category") or ""),
-            "source": str(preserved.get("source") or ""),
-            "reason": "primary_row_unmatched",
-        })
-
-    safe_rows: list[dict[str, Any]] = []
+    snapshot_by_id = {
+        str(row.get("achievement_id") or row.get("id") or "").strip(): dict(row)
+        for row in verified_snapshot_rows
+        if str(row.get("achievement_id") or row.get("id") or "").strip()
+    }
+    primary_ids = {
+        str(row.get("achievement_id") or row.get("id") or "").strip()
+        for row in primary_rows
+        if str(row.get("achievement_id") or row.get("id") or "").strip()
+    }
+    preserved_at = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    preserved_versions = 0
     preserved_unresolved_existing: list[dict[str, Any]] = []
-    for row in merged_rows:
-        reasons: list[str] = []
-        name = str(row.get("name") or "").strip()
-        condition = str(row.get("condition") or "").strip()
-        category = str(row.get("category") or "").strip()
-        short_numeric_title = bool(re.fullmatch(r"\d{1,4}", name))
+    isolated: list[dict[str, Any]] = []
+    safe_rows: list[dict[str, Any]] = []
+
+    for source in primary_rows:
+        row = dict(source)
+        achievement_id = str(row.get("achievement_id") or row.get("id") or "").strip()
+        snapshot = snapshot_by_id.get(achievement_id) or {}
         try:
-            row_provenance = json.loads(row.get("provenance_json") or "{}") if isinstance(row.get("provenance_json"), str) else dict(row.get("provenance_json") or {})
+            provenance = json.loads(row.get("provenance_json") or "{}") if isinstance(row.get("provenance_json"), str) else dict(row.get("provenance_json") or {})
         except (TypeError, json.JSONDecodeError):
-            row_provenance = {}
-        name_provenance = str(row_provenance.get("name") or "")
-        verified_numeric_title = bool(short_numeric_title and (
-            "textmap" in name_provenance.casefold()
-            or str(row.get("_auxiliary_match_origin") or "") == "verified_catalog_snapshot"
-        ))
-        name_unresolved = (not name or (_looks_like_unresolved_source_text(name) and not verified_numeric_title))
-        condition_unresolved = not condition or _looks_like_unresolved_source_text(condition)
-        category_unresolved = (not category or category in {"未辨識分類", "【街機】未辨識分類"} or _looks_like_unresolved_source_text(category))
-        if name_unresolved:
-            reasons.append("name_unresolved")
-        if condition_unresolved:
-            reasons.append("condition_unresolved")
-        if category_unresolved:
-            reasons.append("category_unresolved")
-        if not _valid_auxiliary_version(row.get("version")):
-            reasons.append("version_unresolved")
-        reward_id = str(row.get("reward_id") or "").strip()
-        if reward_id not in {"", "0", "-1"} and int(row.get("reward") or 0) <= 0:
-            reasons.append("reward_unresolved")
-        matched_existing = bool(row.get("_auxiliary_match_method"))
-        if game_id == "wuwa" and row.get("_wuwa_historical_backfill") and not matched_existing:
-            reasons.append("historical_backfill_unverified")
-        # A row already present in the verified catalogue is kept unchanged to
-        # prevent a false deletion. Its unresolved legacy field is reported for
-        # review, while new/unmatched rows remain isolated.
-        only_wuwa_pending_version = (
-            game_id == "wuwa"
-            and reasons == ["version_unresolved"]
-            and not matched_existing
-            and bool(row.get("_wuwa_allow_pending_version"))
-        )
-        if only_wuwa_pending_version:
-            try:
-                pending_provenance = json.loads(row.get("provenance_json") or "{}") if isinstance(row.get("provenance_json"), str) else dict(row.get("provenance_json") or {})
-            except (TypeError, json.JSONDecodeError):
-                pending_provenance = {}
-            pending_provenance["version"] = {
-                "role": "pending",
-                "source": secondary_id,
-                "reason": "wuwa_primary_complete_but_auxiliary_version_unavailable",
-                "supplemented_at": supplemented_at,
+            provenance = {}
+
+        current_version = _valid_version(row.get("version"))
+        snapshot_version = _valid_version(snapshot.get("version"))
+        if not current_version and snapshot_version:
+            row["version"] = snapshot_version
+            provenance["version"] = {
+                "role": "preservation",
+                "source": "verified_catalog_snapshot",
+                "reason": "preserve_existing_verified_version",
+                "preserved_at": preserved_at,
             }
+            preserved_versions += 1
+        elif not current_version:
             row["version"] = "版本待確認"
-            row["provenance_json"] = json.dumps(pending_provenance, ensure_ascii=False, separators=(",", ":"))
-            safe_rows.append(row)
-            continue
-        if reasons and matched_existing and "version_unresolved" not in reasons and "reward_unresolved" not in reasons:
-            preserved_unresolved_existing.append({
-                "achievement_id": str(row.get("achievement_id") or ""), "name": name,
-                "reasons": reasons, "auxiliary_match_method": row.get("_auxiliary_match_method") or "",
-            })
-            safe_rows.append(row)
-            continue
-        if reasons:
-            isolated.append({
-                "achievement_id": str(row.get("achievement_id") or ""), "name": name,
-                "reasons": reasons, "auxiliary_match_method": row.get("_auxiliary_match_method") or "",
-                "reward_id": reward_id,
-            })
+
+        row["secondary_source_id"] = ""
+        row["provenance_json"] = json.dumps(provenance, ensure_ascii=False, separators=(",", ":"), default=str)
+        reasons: list[str] = []
+        name_text = str(row.get("name") or "").strip()
+        name_provenance = json.dumps(provenance.get("name") or "", ensure_ascii=False, default=str).casefold()
+        verified_numeric_title = bool(re.fullmatch(r"\d{1,4}", name_text) and "textmap" in name_provenance)
+        if not name_text or (_looks_like_unresolved_source_text(name_text) and not verified_numeric_title):
+            reasons.append("name_unresolved")
+        if not str(row.get("condition") or "").strip() or _looks_like_unresolved_source_text(row.get("condition")):
+            reasons.append("condition_unresolved")
+        if not str(row.get("category") or "").strip() or str(row.get("category") or "").strip() in {"未辨識分類", "【街機】未辨識分類"}:
+            reasons.append("category_unresolved")
+        if not _valid_version(row.get("version")):
+            reasons.append("version_unresolved")
+        if game_id == "wuwa" and row.get("_wuwa_historical_backfill"):
+            reasons.append("historical_backfill_requires_review")
+        reward_id = str(row.get("reward_id") or "").strip()
+        if reward_id not in {"", "0", "-1"} and _as_int(row.get("reward")) <= 0:
+            reasons.append("reward_unresolved")
+        if game_id == "wuwa" and _as_int(row.get("reward")) <= 0 and "reward_unresolved" not in reasons:
+            reasons.append("reward_unresolved")
+
+        allow_pending_wuwa_version = game_id == "wuwa" and reasons == ["version_unresolved"]
+        if reasons and not allow_pending_wuwa_version:
+            if snapshot:
+                preserved = dict(snapshot)
+                preserved["achievement_id"] = achievement_id
+                preserved["secondary_source_id"] = ""
+                try:
+                    preserved_provenance = json.loads(preserved.get("provenance_json") or "{}") if isinstance(preserved.get("provenance_json"), str) else dict(preserved.get("provenance_json") or {})
+                except (TypeError, json.JSONDecodeError):
+                    preserved_provenance = {}
+                preserved_provenance["row"] = {
+                    "role": "preservation",
+                    "source": "verified_catalog_snapshot",
+                    "reason": "primary_fields_unresolved",
+                    "preserved_at": preserved_at,
+                }
+                preserved["provenance_json"] = json.dumps(preserved_provenance, ensure_ascii=False, separators=(",", ":"), default=str)
+                safe_rows.append(preserved)
+                preserved_unresolved_existing.append({
+                    "achievement_id": achievement_id,
+                    "name": str(row.get("name") or snapshot.get("name") or ""),
+                    "condition": str(row.get("condition") or ""),
+                    "version": str(row.get("version") or ""),
+                    "category": str(row.get("category") or ""),
+                    "reward": _as_int(row.get("reward")),
+                    "reasons": reasons,
+                })
+                continue
+            isolated_row = dict(row)
+            isolated_row["achievement_id"] = achievement_id
+            isolated_row["reasons"] = reasons
+            isolated_row["source_item_id"] = achievement_id
+            isolated_row["reward_id"] = reward_id
+            isolated.append(isolated_row)
             continue
         safe_rows.append(row)
 
+    preserved_snapshot_details: list[dict[str, Any]] = []
+    for achievement_id in sorted(set(snapshot_by_id) - primary_ids, key=lambda value: int(value) if value.isdigit() else value):
+        snapshot = dict(snapshot_by_id[achievement_id])
+        snapshot["achievement_id"] = achievement_id
+        snapshot["secondary_source_id"] = ""
+        snapshot["_verified_snapshot_preserved"] = True
+        try:
+            provenance = json.loads(snapshot.get("provenance_json") or "{}") if isinstance(snapshot.get("provenance_json"), str) else dict(snapshot.get("provenance_json") or {})
+        except (TypeError, json.JSONDecodeError):
+            provenance = {}
+        provenance["row"] = {
+            "role": "preservation",
+            "source": "verified_catalog_snapshot",
+            "reason": "primary_row_unmatched",
+            "preserved_at": preserved_at,
+        }
+        snapshot["provenance_json"] = json.dumps(provenance, ensure_ascii=False, separators=(",", ":"), default=str)
+        safe_rows.append(snapshot)
+        preserved_snapshot_details.append({
+            "achievement_id": achievement_id,
+            "name": str(snapshot.get("name") or ""),
+            "condition": str(snapshot.get("condition") or ""),
+            "version": str(snapshot.get("version") or ""),
+            "category": str(snapshot.get("category") or ""),
+            "source": str(snapshot.get("source") or "verified_catalog_snapshot"),
+            "reason": "primary_row_unmatched",
+        })
+
     return safe_rows, {
-        "secondary_matched": sum(match_methods.values()), "match_methods": match_methods,
-        "supplemented_count": len(supplemented_fields), "supplemented_fields": supplemented_fields[:500],
-        "version_authority": "auxiliary", "version_override_count": len(version_overrides),
-        "version_overrides": version_overrides[:500],
+        "status": "ok" if not isolated else "partial",
+        "mode": "primary_repository_with_verified_catalog_preservation",
+        "version_authority": "primary_repository_history_and_verified_catalog_snapshot",
+        "primary_count": len(primary_rows),
+        "snapshot_count": len(snapshot_by_id),
+        "matched_snapshot_count": len(primary_ids.intersection(snapshot_by_id)),
+        "preserved_version_count": preserved_versions,
         "version_pending_count": sum(1 for row in safe_rows if row.get("version") == "版本待確認"),
-        "conflict_count": len(conflicts), "conflicts": conflicts[:500],
-        "secondary_only_count": max(0, len(secondary_rows) - len(used_secondary)),
-        "wuwa_identity_matching": wuwa_match_diagnostics if game_id == "wuwa" else {},
-        "preserved_snapshot_rows": preserved_snapshot_rows,
+        "preserved_snapshot_rows": len(preserved_snapshot_details),
         "preserved_snapshot_details": preserved_snapshot_details,
         "preserved_unresolved_existing_count": len(preserved_unresolved_existing),
         "preserved_unresolved_existing": preserved_unresolved_existing[:500],
-        "isolated_count": len(isolated), "isolated_rows": isolated[:500],
-        "safe_count": len(safe_rows), "supplemented_at": supplemented_at,
+        "isolated_count": len(isolated),
+        "isolated_rows": isolated[:500],
+        "safe_count": len(safe_rows),
     }
+
 
 def source_cache_path(data_dir: Path, game_id: str) -> Path:
     return Path(data_dir) / "sources" / game_id / "repository-primary-cache.json"
@@ -4611,6 +3953,83 @@ def _normalize_candidate_source_order(rows: list[dict[str, Any]], *, source_id: 
     return normalized
 
 
+def _apply_nte_first_seen_versions(
+    rows: list[dict[str, Any]],
+    *,
+    existing_rows: Sequence[dict[str, Any]],
+    first_seen_by_id: Mapping[str, str],
+) -> dict[str, Any]:
+    existing_by_id = {
+        str(row.get("achievement_id") or row.get("id") or "").strip(): dict(row)
+        for row in existing_rows
+        if str(row.get("achievement_id") or row.get("id") or "").strip()
+    }
+    resolved = 0
+    preserved = 0
+    unresolved: list[str] = []
+    for row in rows:
+        achievement_id = str(row.get("achievement_id") or "").strip()
+        existing = existing_by_id.get(achievement_id) or {}
+        exact = str(first_seen_by_id.get(achievement_id) or "").strip()
+        previous_version = _valid_version(existing.get("version"))
+        try:
+            provenance = json.loads(row.get("provenance_json") or "{}") if isinstance(row.get("provenance_json"), str) else dict(row.get("provenance_json") or {})
+        except (TypeError, json.JSONDecodeError):
+            provenance = {}
+        try:
+            previous_provenance = json.loads(existing.get("provenance_json") or "{}") if isinstance(existing.get("provenance_json"), str) else dict(existing.get("provenance_json") or {})
+        except (TypeError, json.JSONDecodeError):
+            previous_provenance = {}
+        if exact:
+            exact_version = _valid_version(exact)
+            row["version"] = ".".join(exact_version.split(".")[:2]) if exact_version else "版本待確認"
+            provenance["version"] = {
+                "role": "primary_history",
+                "source": "nte_assets_git_history",
+                "firstSeenVersion": exact,
+                "versionSource": "git-history",
+                "rule": "first_global_release_snapshot_where_achievement_row_id_exists",
+            }
+            resolved += 1
+        elif previous_version:
+            row["version"] = ".".join(previous_version.split(".")[:2])
+            previous_version_provenance = previous_provenance.get("version")
+            provenance["version"] = (
+                dict(previous_version_provenance)
+                if isinstance(previous_version_provenance, dict)
+                else {
+                    "role": "preservation",
+                    "source": "verified_catalog_snapshot",
+                    "versionSource": "git-history",
+                }
+            )
+            preserved += 1
+        else:
+            row["version"] = "版本待確認"
+            provenance["version"] = {
+                "role": "unresolved",
+                "source": "nte_assets_git_history",
+                "versionSource": "git-history",
+                "reason": "no_reliable_global_history_evidence",
+            }
+            unresolved.append(achievement_id)
+        try:
+            raw = json.loads(row.get("raw_json") or "{}") if isinstance(row.get("raw_json"), str) else dict(row.get("raw_json") or {})
+        except (TypeError, json.JSONDecodeError):
+            raw = {}
+        raw["_tracker_version"] = dict(provenance["version"])
+        row["raw_json"] = json.dumps(raw, ensure_ascii=False, separators=(",", ":"), default=str)
+        row["provenance_json"] = json.dumps(provenance, ensure_ascii=False, separators=(",", ":"), default=str)
+    return {
+        "status": "ok" if not unresolved else ("partial" if resolved or preserved else "unavailable"),
+        "version_source": "nte_assets_git_history",
+        "resolved_count": resolved,
+        "preserved_count": preserved,
+        "unresolved_count": len(unresolved),
+        "unresolved_ids": unresolved[:200],
+    }
+
+
 def _apply_wuwa_new_row_primary_defaults(
     rows: list[dict[str, Any]],
     *,
@@ -4618,11 +4037,11 @@ def _apply_wuwa_new_row_primary_defaults(
     existing_ids: set[str],
     version_by_id: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    source_version = _valid_auxiliary_version(source_ref)
+    source_version = _valid_version(source_ref)
     first_seen_by_id = {
-        str(key or "").strip(): _valid_auxiliary_version(value)
+        str(key or "").strip(): _valid_version(value)
         for key, value in dict(version_by_id or {}).items()
-        if str(key or "").strip() and _valid_auxiliary_version(value)
+        if str(key or "").strip() and _valid_version(value)
     }
     reward_by_level = {1: 5, 2: 10, 3: 20}
     version_filled = 0
@@ -4633,14 +4052,15 @@ def _apply_wuwa_new_row_primary_defaults(
     filled_at = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     for row in rows:
         achievement_id = str(row.get("achievement_id") or "").strip()
-        if not achievement_id or achievement_id in existing_ids:
+        if not achievement_id:
             continue
+        is_existing = achievement_id in existing_ids
         try:
             provenance = json.loads(row.get("provenance_json") or "{}") if isinstance(row.get("provenance_json"), str) else dict(row.get("provenance_json") or {})
         except (TypeError, json.JSONDecodeError):
             provenance = {}
         first_seen_version = first_seen_by_id.get(achievement_id, "")
-        if first_seen_version and not _valid_auxiliary_version(row.get("version")):
+        if first_seen_version:
             row["version"] = first_seen_version
             provenance["version"] = {
                 "role": "primary_branch_history",
@@ -4651,19 +4071,19 @@ def _apply_wuwa_new_row_primary_defaults(
                 "supplemented_at": filled_at,
             }
             version_filled += 1
-            if source_version and _version_less_than(first_seen_version, source_version):
+            if not is_existing and source_version and _version_less_than(first_seen_version, source_version):
                 row["_wuwa_historical_backfill"] = True
                 provenance["version"]["historical_backfill"] = True
                 provenance["version"]["review_reason"] = "not_first_seen_in_current_source_ref"
                 historical_backfill += 1
-            else:
+            elif not is_existing:
                 current_release += 1
-        elif not _valid_auxiliary_version(row.get("version")):
+        elif not is_existing and not _valid_version(row.get("version")):
             row["_wuwa_version_unresolved_by_branch_history"] = True
             version_unresolved += 1
         level = _as_int(row.get("level"))
         inferred_reward = reward_by_level.get(level, 0)
-        if _as_int(row.get("reward")) <= 0 and inferred_reward > 0:
+        if not is_existing and _as_int(row.get("reward")) <= 0 and inferred_reward > 0:
             row["reward"] = inferred_reward
             provenance["reward"] = {
                 "role": "primary_level_rule",
@@ -4691,19 +4111,19 @@ def _apply_hsr_new_row_primary_versions(
     version_by_id: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     first_seen_by_id = {
-        str(key or "").strip(): _valid_auxiliary_version(value)
+        str(key or "").strip(): _valid_version(value)
         for key, value in dict(version_by_id or {}).items()
-        if str(key or "").strip() and _valid_auxiliary_version(value)
+        if str(key or "").strip() and _valid_version(value)
     }
     version_filled = 0
     version_unresolved = 0
     filled_at = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     for row in rows:
         achievement_id = str(row.get("achievement_id") or "").strip()
-        if not achievement_id or achievement_id in existing_ids:
+        if not achievement_id:
             continue
         version = first_seen_by_id.get(achievement_id, "")
-        if version and not _valid_auxiliary_version(row.get("version")):
+        if version:
             try:
                 provenance = json.loads(row.get("provenance_json") or "{}") if isinstance(row.get("provenance_json"), str) else dict(row.get("provenance_json") or {})
             except (TypeError, json.JSONDecodeError):
@@ -4718,10 +4138,53 @@ def _apply_hsr_new_row_primary_versions(
             }
             row["provenance_json"] = json.dumps(provenance, ensure_ascii=False, separators=(",", ":"))
             version_filled += 1
-        elif not _valid_auxiliary_version(row.get("version")):
+        elif achievement_id not in existing_ids and not _valid_version(row.get("version")):
             version_unresolved += 1
     return {
         "version_source": "turn_based_game_data_gitlab_release_history",
+        "version_filled": version_filled,
+        "version_unresolved_count": version_unresolved,
+    }
+
+
+def _apply_genshin_new_row_primary_versions(
+    rows: list[dict[str, Any]],
+    *,
+    existing_ids: set[str],
+    version_by_id: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    first_seen_by_id = {
+        str(key or "").strip(): _valid_version(value)
+        for key, value in dict(version_by_id or {}).items()
+        if str(key or "").strip() and _valid_version(value)
+    }
+    version_filled = 0
+    version_unresolved = 0
+    filled_at = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+    for row in rows:
+        achievement_id = str(row.get("achievement_id") or "").strip()
+        if not achievement_id:
+            continue
+        version = first_seen_by_id.get(achievement_id, "")
+        if version:
+            try:
+                provenance = json.loads(row.get("provenance_json") or "{}") if isinstance(row.get("provenance_json"), str) else dict(row.get("provenance_json") or {})
+            except (TypeError, json.JSONDecodeError):
+                provenance = {}
+            row["version"] = version
+            provenance["version"] = {
+                "role": "primary_repository_history",
+                "source": "anime_game_data",
+                "reason": "genshin_gitlab_first_seen_release_version",
+                "first_seen_version": version,
+                "supplemented_at": filled_at,
+            }
+            row["provenance_json"] = json.dumps(provenance, ensure_ascii=False, separators=(",", ":"))
+            version_filled += 1
+        elif achievement_id not in existing_ids and not _valid_version(row.get("version")):
+            version_unresolved += 1
+    return {
+        "version_source": "anime_game_data_gitlab_release_history",
         "version_filled": version_filled,
         "version_unresolved_count": version_unresolved,
     }
@@ -4734,19 +4197,19 @@ def _apply_zzz_new_row_primary_versions(
     version_by_id: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     first_seen_by_id = {
-        str(key or "").strip(): _valid_auxiliary_version(value)
+        str(key or "").strip(): _valid_version(value)
         for key, value in dict(version_by_id or {}).items()
-        if str(key or "").strip() and _valid_auxiliary_version(value)
+        if str(key or "").strip() and _valid_version(value)
     }
     version_filled = 0
     version_unresolved = 0
     filled_at = time.strftime("%Y-%m-%dT%H:%M:%S%z")
     for row in rows:
         achievement_id = str(row.get("achievement_id") or "").strip()
-        if not achievement_id or achievement_id in existing_ids:
+        if not achievement_id:
             continue
         version = first_seen_by_id.get(achievement_id, "")
-        if version and not _valid_auxiliary_version(row.get("version")):
+        if version:
             try:
                 provenance = json.loads(row.get("provenance_json") or "{}") if isinstance(row.get("provenance_json"), str) else dict(row.get("provenance_json") or {})
             except (TypeError, json.JSONDecodeError):
@@ -4761,7 +4224,7 @@ def _apply_zzz_new_row_primary_versions(
             }
             row["provenance_json"] = json.dumps(provenance, ensure_ascii=False, separators=(",", ":"))
             version_filled += 1
-        elif not _valid_auxiliary_version(row.get("version")):
+        elif achievement_id not in existing_ids and not _valid_version(row.get("version")):
             version_unresolved += 1
     return {
         "version_source": "zenless_data_gitea_release_history",
@@ -4804,14 +4267,13 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
         "version_unresolved_count": 0,
     }
     if game_id == "wuwa":
-        new_primary_ids = {
+        primary_ids = {
             str(row.get("achievement_id") or "").strip()
             for row in primary_rows
             if str(row.get("achievement_id") or "").strip()
-            and str(row.get("achievement_id") or "").strip() not in existing_ids
         }
         wuwa_first_seen_versions, wuwa_version_history = _resolve_wuwa_first_seen_versions(
-            new_primary_ids,
+            primary_ids,
             repository_url=definition.repository_url,
             current_ref=bundle.source_ref,
             timeout=timeout,
@@ -4823,15 +4285,32 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
             version_by_id=wuwa_first_seen_versions,
         )
         primary_default_inference["first_seen_version_resolution"] = wuwa_version_history
-    elif game_id == "hsr":
-        new_primary_ids = {
+    elif game_id == "genshin":
+        primary_ids = {
             str(row.get("achievement_id") or "").strip()
             for row in primary_rows
             if str(row.get("achievement_id") or "").strip()
-            and str(row.get("achievement_id") or "").strip() not in existing_ids
+        }
+        genshin_first_seen_versions, genshin_version_history = _resolve_genshin_first_seen_versions(
+            primary_ids,
+            repository_url=definition.repository_url,
+            current_ref=bundle.source_ref or "main",
+            timeout=timeout,
+        )
+        primary_default_inference = _apply_genshin_new_row_primary_versions(
+            primary_rows,
+            existing_ids=existing_ids,
+            version_by_id=genshin_first_seen_versions,
+        )
+        primary_default_inference["first_seen_version_resolution"] = genshin_version_history
+    elif game_id == "hsr":
+        primary_ids = {
+            str(row.get("achievement_id") or "").strip()
+            for row in primary_rows
+            if str(row.get("achievement_id") or "").strip()
         }
         hsr_first_seen_versions, hsr_version_history = _resolve_hsr_first_seen_versions(
-            new_primary_ids,
+            primary_ids,
             repository_url=definition.repository_url,
             current_ref=bundle.source_ref or "main",
             timeout=timeout,
@@ -4843,12 +4322,6 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
         )
         primary_default_inference["first_seen_version_resolution"] = hsr_version_history
     elif game_id == "zzz":
-        new_primary_rows = [
-            row for row in primary_rows
-            if str(row.get("achievement_id") or "").strip()
-            and str(row.get("achievement_id") or "").strip() not in existing_ids
-        ]
-
         def is_arcade_row(row: Mapping[str, Any]) -> bool:
             try:
                 tags = json.loads(str(row.get("tags_json") or "[]"))
@@ -4858,26 +4331,22 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
 
         normal_ids = {
             str(row.get("achievement_id") or "").strip()
-            for row in new_primary_rows
+            for row in primary_rows
+            if str(row.get("achievement_id") or "").strip()
             if not is_arcade_row(row)
         }
         arcade_ids = {
             str(row.get("achievement_id") or "").strip()
-            for row in new_primary_rows
+            for row in primary_rows
+            if str(row.get("achievement_id") or "").strip()
             if is_arcade_row(row)
         }
-        existing_versions = [
-            _valid_auxiliary_version(row.get("version"))
-            for row in (verified_snapshot_rows or [])
-            if _valid_auxiliary_version(row.get("version"))
-        ]
-        baseline_version = max(existing_versions, key=_version_sort_key) if existing_versions else ""
         zzz_first_seen_versions, zzz_version_history = _resolve_zzz_first_seen_versions(
             normal_ids,
             arcade_ids,
             repository_url=definition.repository_url,
             current_ref=bundle.source_ref or "master",
-            baseline_version=baseline_version,
+            baseline_version="",
             timeout=timeout,
         )
         primary_default_inference = _apply_zzz_new_row_primary_versions(
@@ -4886,62 +4355,29 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
             version_by_id=zzz_first_seen_versions,
         )
         primary_default_inference["first_seen_version_resolution"] = zzz_version_history
-    completion_diagnostics: dict[str, Any] = {"status": "not_applicable", "count": 0}
-    completion_merge: dict[str, Any] = {"status": "not_applicable", "added_count": 0}
-    if game_id == "genshin":
-        remote_rows, remote_diagnostics = fetch_genshin_completion_catalog(timeout=min(max(timeout, 20), 45))
-        remote_merge: dict[str, Any] = {"status": "unavailable", "added_count": 0}
-        if remote_rows:
-            try:
-                primary_rows, remote_merge = _merge_genshin_completion_rows(primary_rows, remote_rows)
-            except RepositorySourceError as exc:
-                remote_merge = {
-                    "status": "rejected", "error_code": exc.code, "reason": str(exc),
-                    "diagnostics": dict(exc.diagnostics or {}), "added_count": 0,
-                }
-        bundled_rows, bundled_diagnostics = load_bundled_genshin_completion_catalog(Path(data_dir))
-        bundled_merge: dict[str, Any] = {"status": "missing", "added_count": 0}
-        if bundled_rows:
-            allow_bundled_additions = not (
-                remote_rows
-                and str(remote_merge.get("status") or "") == "ok"
-                and int(remote_merge.get("added_count") or 0) > 0
-            )
-            primary_rows, bundled_merge = _merge_genshin_bundled_rows(
-                primary_rows,
-                bundled_rows,
-                allow_additions=allow_bundled_additions,
-            )
-        total_added = int(remote_merge.get("added_count") or 0) + int(bundled_merge.get("added_count") or 0)
-        total_completed = int(remote_merge.get("completed_count") or 0) + int(bundled_merge.get("completed_count") or 0)
-        completion_diagnostics = {
-            "status": "ok" if remote_rows or bundled_rows else "unavailable",
-            "count": max(len(remote_rows), len(bundled_rows)),
-            "mode": "remote_with_bundled_fallback" if remote_rows else "bundled_snapshot",
-            "url": str(remote_diagnostics.get("url") or "bundled://genshin/6.7"),
-            "remote": remote_diagnostics,
-            "bundled": bundled_diagnostics,
+    elif game_id == "nte":
+        new_primary_ids = {
+            str(row.get("achievement_id") or "").strip()
+            for row in primary_rows
+            if str(row.get("achievement_id") or "").strip()
+            and str(row.get("achievement_id") or "").strip() not in existing_ids
         }
-        completion_merge = {
-            "status": "ok" if total_added or remote_rows or bundled_rows else "unavailable",
-            "added_count": total_added,
-            "completed_count": total_completed,
-            "trusted_count": total_added + total_completed,
-            "remote": remote_merge,
-            "bundled": bundled_merge,
-            "merged_count": len(primary_rows),
-            "added_ids": list(dict.fromkeys(list(remote_merge.get("added_ids") or []) + list(bundled_merge.get("added_ids") or []))),
-            "completed_ids": list(dict.fromkeys(list(remote_merge.get("completed_ids") or []) + list(bundled_merge.get("completed_ids") or []))),
-        }
-
-    secondary_rows, secondary_diagnostics = fetch_auxiliary_secondary(
-        game_id,
-        data_dir=Path(data_dir),
-        timeout=min(timeout, 15),
-        verified_snapshot_rows=verified_snapshot_rows,
-        primary_rows=primary_rows,
+        nte_first_seen_versions, nte_version_history = _resolve_nte_first_seen_versions(
+            new_primary_ids,
+            repository_url=definition.repository_url,
+            timeout=timeout,
+        )
+        primary_default_inference = _apply_nte_first_seen_versions(
+            primary_rows,
+            existing_rows=verified_snapshot_rows or [],
+            first_seen_by_id=nte_first_seen_versions,
+        )
+        primary_default_inference["first_seen_version_resolution"] = nte_version_history
+    rows, catalog_preservation = preserve_from_verified_catalog(
+        primary_rows,
+        verified_snapshot_rows or [],
+        game_id=game_id,
     )
-    rows, secondary_merge = supplement_from_secondary(primary_rows, secondary_rows, definition.secondary_id, game_id=game_id)
     source_order_normalized_count = _normalize_candidate_source_order(rows, source_id=definition.primary_id)
     if len(rows) < definition.minimum_count:
         raise RepositorySourceError(
@@ -4949,83 +4385,47 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
             code="catalog_below_minimum_after_validation",
             diagnostics={
                 "safe_count": len(rows), "minimum_count": definition.minimum_count,
-                "secondary_merge": secondary_merge, "parser": parsed.diagnostics,
-                "completion_source": completion_diagnostics, "completion_merge": completion_merge,
+                "catalog_preservation": catalog_preservation, "parser": parsed.diagnostics,
             },
         )
     for row in rows:
         row["source_ref"] = bundle.source_ref
+    for row in catalog_preservation.get("isolated_rows") or []:
+        row["source_ref"] = bundle.source_ref
 
     category_count = int(parsed.diagnostics.get("group_count") or parsed.diagnostics.get("series_count") or parsed.diagnostics.get("normal_group_count") or parsed.diagnostics.get("category_count") or 0)
-    secondary_status = str(secondary_diagnostics.get("status") or "unavailable")
-    animegamedata2_parsed_count = len(parsed.rows)
     candidate_parsed_count = len(primary_rows)
-    completion_merge_added_count = int(completion_merge.get("added_count") or 0)
-    completion_marker_keys = (
-        "_completion_bridge_added",
-        "_completion_bridge_completed",
-        "_bundled_completion_added",
-        "_bundled_completion_completed",
-    )
-    completion_trusted_count = sum(
-        1 for row in rows
-        if any(row.get(key) for key in completion_marker_keys)
-        and not str(row.get("_auxiliary_match_method") or "").strip()
-    )
-    completion_added_count = completion_trusted_count or completion_merge_added_count
-    completion_completed_count = max(0, completion_trusted_count - min(completion_trusted_count, completion_merge_added_count))
-    remote_reported_count = int(secondary_diagnostics.get("remote_reported_count") or 0)
-    completion_observation_count = int(completion_diagnostics.get("count") or 0) if game_id == "genshin" else 0
-    if game_id == "genshin" and completion_observation_count:
-        expected_observation_count = max(len(rows), remote_reported_count, completion_observation_count)
-        missing_source_row_count = max(0, expected_observation_count - len(rows))
-    else:
-        expected_observation_count = max(candidate_parsed_count, remote_reported_count)
-        missing_source_row_count = max(0, expected_observation_count - candidate_parsed_count)
-    isolated_count = int(secondary_merge.get("isolated_count") or 0)
-    source_complete = missing_source_row_count == 0
-    if not source_complete:
-        pairing_status = "source_incomplete"
-    elif game_id == "genshin" and completion_observation_count and len(rows) >= expected_observation_count:
-        pairing_status = "ok"
-    else:
-        pairing_status = "ok" if secondary_status == "ok" and not isolated_count else ("partial" if rows else "unresolved")
-
-    secondary_matched_count = int(secondary_merge.get("secondary_matched") or 0)
-    matched_count = min(expected_observation_count, secondary_matched_count + completion_trusted_count)
+    isolated_count = int(catalog_preservation.get("isolated_count") or 0)
+    preserved_unresolved_count = int(catalog_preservation.get("preserved_unresolved_existing_count") or 0)
+    unresolved_count = isolated_count + preserved_unresolved_count
+    expected_observation_count = candidate_parsed_count
+    matched_count = max(0, candidate_parsed_count - unresolved_count)
+    missing_source_row_count = unresolved_count
+    source_complete = unresolved_count == 0
+    pairing_status = "ok" if source_complete else ("partial" if rows else "unresolved")
     official_unmatched_count = max(0, expected_observation_count - matched_count)
-    match_methods = dict(secondary_merge.get("match_methods") or {})
-    if completion_trusted_count:
-        match_methods["completion_bridge_official_id"] = completion_trusted_count
     cross_validation = {
         "pairing_status": pairing_status,
         "source_complete": source_complete,
         "primary_parsed_count": candidate_parsed_count,
-        "animegamedata2_parsed_count": animegamedata2_parsed_count,
-        "completion_bridge_count": int(completion_diagnostics.get("count") or 0),
-        "completion_bridge_added_count": completion_added_count,
-        "completion_bridge_completed_count": completion_completed_count,
-        "completion_bridge_trusted_count": completion_trusted_count,
-        "source_reported_count": remote_reported_count,
+        "source_reported_count": candidate_parsed_count,
         "missing_source_row_count": missing_source_row_count,
-        "unmatched_detail_available": bool(secondary_merge.get("isolated_rows")),
+        "unmatched_detail_available": bool(catalog_preservation.get("isolated_rows")),
         "official_observations": expected_observation_count,
         "observation_count": expected_observation_count,
         "matched": matched_count,
         "official_unmatched_count": official_unmatched_count,
         "match_coverage": round(matched_count / max(1, expected_observation_count), 6),
-        "match_methods": match_methods,
+        "match_methods": {"primary_official_id": matched_count},
         "category_count": category_count,
         "individual_content_entries": len(rows),
         "excluded_category_nodes": 0,
-        "secondary_status": secondary_status,
-        "secondary": secondary_merge,
-        "completion_source": completion_diagnostics,
-        "completion_merge": completion_merge,
+        "validation_mode": "primary_repository_history_with_verified_catalog_preservation",
+        "catalog_preservation": catalog_preservation,
         "source_order_normalized_count": source_order_normalized_count,
     }
     source_conflicts: dict[str, list[dict[str, Any]]] = {}
-    for item in secondary_merge.get("isolated_rows") or []:
+    for item in catalog_preservation.get("isolated_rows") or []:
         achievement_id = str(item.get("achievement_id") or "")
         if achievement_id:
             source_conflicts.setdefault(achievement_id, []).append({
@@ -5033,7 +4433,7 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
                 "message": "此來源列仍有無法安全確認的欄位，已隔離且不會寫入正式資料。",
                 "reasons": list(item.get("reasons") or []),
             })
-    for item in secondary_merge.get("preserved_unresolved_existing") or []:
+    for item in catalog_preservation.get("preserved_unresolved_existing") or []:
         achievement_id = str(item.get("achievement_id") or "")
         if achievement_id:
             source_conflicts.setdefault(achievement_id, []).append({
@@ -5042,7 +4442,7 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
                 "reasons": list(item.get("reasons") or []),
             })
     suspected_removed_details = [
-        dict(item) for item in (secondary_merge.get("preserved_snapshot_details") or [])
+        dict(item) for item in (catalog_preservation.get("preserved_snapshot_details") or [])
         if isinstance(item, dict) and str(item.get("achievement_id") or "").strip()
     ]
     suspected_removed_ids = [str(item["achievement_id"]) for item in suspected_removed_details]
@@ -5067,21 +4467,6 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
             "id": definition.primary_id, "name": definition.primary_name, "url": definition.repository_url,
             "role": "primary", "mode": "remote_repository", "purpose": "official_catalog",
         },
-        "completion_source": ({
-            "id": GENSHIN_COMPLETION_SOURCE_ID,
-            "name": GENSHIN_COMPLETION_SOURCE_NAME,
-            "url": str(completion_diagnostics.get("url") or GENSHIN_COMPLETION_SOURCE_URLS[0]),
-            "role": "completion_bridge",
-            "mode": str(completion_diagnostics.get("mode") or "remote_reference"),
-            "purpose": "complete_missing_official_rows",
-            "added_count": completion_added_count,
-            "completed_count": completion_completed_count,
-            "trusted_count": completion_trusted_count,
-        } if game_id == "genshin" else {}),
-        "secondary_source": {
-            "id": definition.secondary_id, "name": definition.secondary_name, "url": definition.secondary_url,
-            "role": "secondary", "mode": "remote_reference", "purpose": "cross_validation",
-        },
         "source_ref": bundle.source_ref,
         "fetched_at": bundle.fetched_at,
         "count": len(rows),
@@ -5089,50 +4474,39 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
         "warnings": bundle.warnings,
         "parser_diagnostics": parsed.diagnostics,
         "primary_default_inference": primary_default_inference,
-        "completion_diagnostics": completion_diagnostics,
-        "completion_merge": completion_merge,
-        "secondary_diagnostics": secondary_diagnostics,
+        "catalog_preservation": catalog_preservation,
         "cross_validation": cross_validation,
         "source_conflicts": source_conflicts,
         "suspected_removed_count": len(suspected_removed_ids),
         "suspected_removed_ids": suspected_removed_ids,
         "suspected_removed_details": suspected_removed_details,
         "primary_fields_authoritative": True,
-        "secondary_overwrite_allowed": ["version"],
-        "version_authority": (
-            "primary_repository_release_history_then_secondary"
-            if game_id in {"hsr", "zzz"} else "completion_bridge_then_secondary"
-        ),
+        "version_authority": "primary_repository_history_then_verified_catalog_snapshot",
         "local_game_files_used": False,
         "guide_data_used": False,
         "source_complete": source_complete,
         "missing_source_row_count": missing_source_row_count,
         "requires_admin_confirmation": pairing_status != "ok",
-        "diagnostic_preview": pairing_status == "source_incomplete",
-        "apply_blocked": pairing_status == "source_incomplete",
-        "apply_block_reason": (
-            f"主要來源與補全資料合計只解析出 {candidate_parsed_count} 項，但輔助來源回報共有 {expected_observation_count} 項，"
-            f"仍缺少 {missing_source_row_count} 項完整成就內容；本次只能建立診斷預覽。"
-            if pairing_status == "source_incomplete" else ""
-        ),
+        "diagnostic_preview": False,
+        "apply_blocked": False,
+        "apply_block_reason": "",
         "source_notice": {
-            "kind": (
-                "primary_catalog_completed" if (completion_added_count or completion_completed_count) and pairing_status == "ok"
-                else ("primary_catalog_incomplete" if pairing_status == "source_incomplete"
-                      else ("auxiliary_unavailable_or_rows_isolated" if pairing_status != "ok" else "source_validated"))
-            ),
+            "kind": "primary_rows_isolated" if pairing_status != "ok" else "source_validated",
             "message": (
-                f"AnimeGameData2 提供 {animegamedata2_parsed_count} 項；完整成就資料補齊 {completion_trusted_count} 項，"
-                f"本次候選共 {candidate_parsed_count} 項，可逐筆建立新增差異。"
-                if (completion_added_count or completion_completed_count) and pairing_status == "ok"
-                else (f"主要來源與補全資料的可解析內容比來源總數少 {missing_source_row_count} 項；不能宣告資料一致，也不能套用此預覽。"
-                      if pairing_status == "source_incomplete"
-                      else ("輔助來源未能即時驗證或部分來源列已隔離；已保留現有正式資料，不會以代碼、空值或錯誤欄位覆蓋。"
-                            if pairing_status != "ok" else "主要與輔助來源已完成安全驗證。"))
+                f"主要來源有 {unresolved_count} 筆內容無法安全解析，已隔離或保留正式值；現有正式資料與版本不會被空值或錯誤欄位覆蓋。"
+                if pairing_status != "ok"
+                else "主要來源資料與版本歷史已完成安全驗證；既有已確認版本由正式資料快照保留。"
             ),
         },
     }
-    cache_rows = [{key: value for key, value in row.items() if not str(key).startswith("_")} for row in rows]
+    cache_rows = [
+        {
+            key: value
+            for key, value in row.items()
+            if not str(key).startswith("_") and str(key) != "secondary_source_id"
+        }
+        for row in rows
+    ]
     cache = write_source_cache(data_dir, game_id, rows=cache_rows, metadata=metadata)
     metadata["cache_file"] = cache.relative_to(Path(data_dir).parent).as_posix() if Path(data_dir).parent in cache.parents else cache.name
     source_payload = {
@@ -5140,13 +4514,9 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
         "source_architecture_version": SOURCE_ARCHITECTURE_VERSION,
         "game_id": game_id,
         "primary_source_id": definition.primary_id,
-        "completion_source_id": GENSHIN_COMPLETION_SOURCE_ID if game_id == "genshin" else "",
-        "secondary_source_id": definition.secondary_id,
         "file_manifest": bundle.manifests,
         "parser_diagnostics": parsed.diagnostics,
-        "completion_diagnostics": completion_diagnostics,
-        "completion_merge": completion_merge,
-        "secondary_diagnostics": secondary_diagnostics,
+        "catalog_preservation": catalog_preservation,
         "cross_validation": cross_validation,
     }
     return rows, metadata, source_payload
@@ -5180,31 +4550,6 @@ def test_repository_source(game_id: str, role: str, *, timeout: int = 15) -> dic
                 "error": str(exc),
                 "error_code": exc.code,
             }
-    if role == "secondary":
-        if game_id == "wuwa":
-            try:
-                _, manifest = _request_bytes(definition.secondary_url, timeout=timeout, max_bytes=5 * 1024 * 1024)
-                return {"ok": True, "status": "ok", "source": definition.secondary_name, "tested_url": definition.secondary_url, "http_status": manifest.get("http_status"), "elapsed_ms": int((time.monotonic() - started) * 1000), "diagnostics": manifest, "error": ""}
-            except RepositorySourceError as exc:
-                return {"ok": False, "status": "error", "source": definition.secondary_name, "tested_url": definition.secondary_url, "http_status": exc.diagnostics.get("http_status"), "elapsed_ms": int((time.monotonic() - started) * 1000), "diagnostics": exc.diagnostics, "error": str(exc), "error_code": exc.code}
-        rows, diagnostics = fetch_stardb_secondary(game_id, timeout=timeout)
-        ok = diagnostics.get("status") == "ok"
-        reported_count = int(diagnostics.get("reported_count") or 0)
-        parsed_count = max(len(rows), reported_count)
-        return {
-            "ok": ok,
-            "status": "ok" if ok else "error",
-            "source": definition.secondary_name,
-            "tested_url": definition.secondary_url,
-            "http_status": diagnostics.get("http_status"),
-            "elapsed_ms": int((time.monotonic() - started) * 1000),
-            "diagnostics": {
-                **diagnostics,
-                "parsed_count": parsed_count,
-                "resolved_row_count": len(rows),
-            },
-            "error": "" if ok else str(diagnostics.get("reason") or "輔助來源無法解析。"),
-        }
     if role == "fallback":
         return {"ok": True, "status": "ok", "source": "目前正式目錄（僅供故障保護）", "tested_url": "", "http_status": None, "elapsed_ms": 0, "diagnostics": {"note": "主要來源失敗時不會以空資料覆蓋，也不會自動用快取套用更新。"}, "error": ""}
     raise RepositorySourceError("來源角色無效。", code="invalid_source_role")

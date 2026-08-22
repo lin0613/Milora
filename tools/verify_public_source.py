@@ -50,9 +50,14 @@ for path in ROOT.rglob("*.py"):
     except SyntaxError as exc:
         errors.append(f"python syntax: {path.relative_to(ROOT)}:{exc.lineno}:{exc.msg}")
 
+for path in (ROOT / "site").rglob("*"):
+    if not path.is_file():
+        continue
+    relative = path.relative_to(ROOT).as_posix()
+    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    if relative != "site/assets/shared/guide.js" and re.search(r"<img\b", text, flags=re.IGNORECASE):
+        errors.append(f"site still contains an img element: {relative}")
 site_text = "\n".join(path.read_text(encoding="utf-8-sig", errors="replace") for path in (ROOT / "site").rglob("*") if path.is_file())
-if re.search(r"<img\b", site_text, flags=re.IGNORECASE):
-    errors.append("site still contains an img element")
 if re.search(r"(?:/assets/(?:games|social)/|favicon\.(?:png|ico|svg))", site_text, flags=re.IGNORECASE):
     errors.append("site still references removed image assets")
 

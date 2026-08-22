@@ -1,10 +1,10 @@
 {
   "project_name": "Milora_tool",
-  "version": "1.2.6.10",
+  "version": "1.3.0.15",
   "license": "GPL-3.0-only",
   "scope": "Files present before inventory and hash manifest generation",
-  "file_count": 76,
-  "total_bytes": 2438549,
+  "file_count": 80,
+  "total_bytes": 2769975,
   "files": [
     {
       "path": ".achievement-hub-root",
@@ -38,18 +38,18 @@
     },
     {
       "path": "backend/core/game_registry.py",
-      "size": 9756,
-      "sha256": "6c848f74535bad8a7414eec2c50c79c69e4aff83715ccfc8369d8f83a4e684a9"
+      "size": 9922,
+      "sha256": "1a8735252e958baa9030c9aa862cb1c70fef222d8b293c1961a710c6fe385906"
     },
     {
       "path": "backend/core/paths.py",
-      "size": 3309,
-      "sha256": "3a350b17715488ef93db55faa0377233eabb8b96acbed7f2eacba8e5cb64477a"
+      "size": 2909,
+      "sha256": "7357cf6bff88d74eee1dfb770602b3714674884705bfc88e8c15f592e9f6c21b"
     },
     {
       "path": "backend/main.py",
-      "size": 678231,
-      "sha256": "00961e607793b3fded1409982abd7d0debc6fb305a3de6776bc42d0c795ef77f"
+      "size": 743956,
+      "sha256": "767b0b75c21aca6f7b58a1b7436bb910e62d1b5dafa3b38aea6534d6545ff03d"
     },
     {
       "path": "backend/services/__init__.py",
@@ -68,18 +68,18 @@
     },
     {
       "path": "backend/services/catalog_repository.py",
-      "size": 4905,
-      "sha256": "32026beae1ef281c4b96d88e30faa8d55ba14ea46493b968bdb24170389bcec4"
+      "size": 5036,
+      "sha256": "f40ba67f46226b9826bd3c7aff139334ceb8b62f13b32df54f4090ba4841b178"
     },
     {
       "path": "backend/services/catalog_sorting.py",
-      "size": 3811,
-      "sha256": "0d506002286756e162db7c9bac7ad7da0e03214fd9e1e6b2aa3f777bb634ba24"
+      "size": 4170,
+      "sha256": "77be98cf02641ad7e1045963a37f3fbe84f372f30f1d2a841f8523fdbe1b2993"
     },
     {
       "path": "backend/services/game_data_sources.py",
-      "size": 255091,
-      "sha256": "84fcaa6d7bb4b7ab380663816be2e728dad7f1589aed049de14c52c7b5c528f2"
+      "size": 205096,
+      "sha256": "d506bdfa95531d80acfcc583dcf2bb68f18953042284c72ea450ece76e478db4"
     },
     {
       "path": "backend/services/governance_contract.py",
@@ -87,9 +87,14 @@
       "sha256": "1831271ad87cd829ca8e1b02fbbf827cbe6dc3429e9f00a967d9e3ed7a400afa"
     },
     {
+      "path": "backend/services/guide_content.py",
+      "size": 7419,
+      "sha256": "04a3c59c24e1de4dca5fe2e8b2c2c8d6f58c0787f1a4b31b61e7f3d4dc142019"
+    },
+    {
       "path": "backend/services/official_id_model.py",
-      "size": 34053,
-      "sha256": "89829422ff8b8a8cea69d9db0a14d682c1bdc94aeef66eb3d7d85524d5f94a54"
+      "size": 35787,
+      "sha256": "e4704b1f35e68c17e2e2626857a19178630d89a5766dd4f0e58a0a2407076d89"
     },
     {
       "path": "backend/services/relation_governance.py",
@@ -98,8 +103,8 @@
     },
     {
       "path": "backend/services/source_pipeline.py",
-      "size": 2036,
-      "sha256": "b7e1ca89a8ea1416286f3141e095bc9a43395226a6d98d1cf49bf5d26fb02dc7"
+      "size": 2091,
+      "sha256": "28ed5ac573ea4a143442dffdff9bc79f05e66b32302feb3743bfeea34e616385"
     },
     {
       "path": "backend/services/sync_engine.py",
@@ -110,11 +115,6 @@
       "path": "backend/test_mail.py",
       "size": 624,
       "sha256": "494a4d42f9efb196886e6e6bacf17b6bb675ec9c5938e77d7b57fb1f3731a449"
-    },
-    {
-      "path": "backend/wuwa_catalog.py",
-      "size": 29038,
-      "sha256": "2a11f04475800df90cc1e6c4d6f36b92659810bdf140c255c6fbc2091b20cc61"
     },
     {
       "path": "backend/wuwa_categories.py",
@@ -134,12 +134,12 @@
     {
       "path": "README.md",
       "size": 1043,
-      "sha256": "ba7e849c175d13dd43a687e7611994b136ce6accdc632ce693fa569c7a4ba002"
+      "sha256": "0c00278f1ea3260006d115e6ec311f6dba208e5301503bb2c5a04756e7f359fd"
     },
     {
       "path": "release-info.json",
-      "size": 356,
-      "sha256": "4705b8348f2273214a7f8a95c5fe8666d36e04a2cfd12762e5aa05d196b61c94"
+      "size": 352,
+      "sha256": "0666f3ddd546e4eebe1784ac39340472e119208faa407652bd13d59914246fb4"
     },
     {
       "path": "requirements.txt",
@@ -203,8 +203,8 @@
     },
     {
       "path": "scripts/start_backend.ps1",
-      "size": 7874,
-      "sha256": "257f63127c86c920e61231df22cdb30802d9e12f5a91ddfcb7fedd941d0dc947"
+      "size": 7733,
+      "sha256": "39e87b87833e47d3a65422222dcaf1397d426b5f462e89c7acdb34d39c1af4db"
     },
     {
       "path": "scripts/stop_backend.ps1",
@@ -223,13 +223,13 @@
     },
     {
       "path": "site/_projects/account/index.html",
-      "size": 38553,
-      "sha256": "77c00718429693671317d81a646f05875b0415bdfd9e87c105e8fc92f00b18b2"
+      "size": 45843,
+      "sha256": "29f15ce48030f59ee170336fadd8f754e449b4e6d40e291b6336d5d0e778aa4e"
     },
     {
       "path": "site/_projects/admin/index.html",
-      "size": 471527,
-      "sha256": "0acb37291af8dab12a2cf02701230a80617528a68883178b4bbc5a9f4fec4fc4"
+      "size": 502123,
+      "sha256": "e5c934327dbff1976376d0718b2bf0362822670a27ac973e70ee6f4f64b9d4f9"
     },
     {
       "path": "site/_projects/game-template/index.html",
@@ -238,8 +238,13 @@
     },
     {
       "path": "site/_projects/genshin/index.html",
-      "size": 103589,
-      "sha256": "b17846c8777e8131822a312fc6789e6e6011e30eb3d81fd3b0a321ee70e0fbd6"
+      "size": 107084,
+      "sha256": "ee16a7f7b2d6439b7e79890fd58dc0a1497eb4395d4b05c482f31fdf1ffc8e65"
+    },
+    {
+      "path": "site/_projects/guide/index.html",
+      "size": 9341,
+      "sha256": "604639059cbdc75f0bd226ab4594fdd1dc181b5ddbb48b05a9661aae9a6901d7"
     },
     {
       "path": "site/_projects/hna/index.html",
@@ -248,38 +253,43 @@
     },
     {
       "path": "site/_projects/home/index.html",
-      "size": 7805,
-      "sha256": "0a90b54ebf1700bf06edb373a15620e29aa1ae649d75c7e7c89c4fe34b3f8912"
+      "size": 7924,
+      "sha256": "6308f4a466963b54fcda9dee02fc9e53dd64e67d12785404cccfc998d41ce9d1"
     },
     {
       "path": "site/_projects/hsr/index.html",
-      "size": 103367,
-      "sha256": "82e1b31f396266299fdffc8effbc54322cfdbe5fddec6577e4daf8b115f4c8b5"
+      "size": 106914,
+      "sha256": "a38f0a2e654cbbce01418d901fc2c155e2052597266e773b24c71cba54e1aaa7"
+    },
+    {
+      "path": "site/_projects/nte/index.html",
+      "size": 107643,
+      "sha256": "ea79fd530353ad1c2bfa9e7b5690b5d40607d125be857947277f6d29ba589850"
     },
     {
       "path": "site/_projects/redeem/index.html",
-      "size": 24940,
-      "sha256": "d1ae53b89e029e4d7a914027e16a0a8af27a9686437572e200726052d31d0489"
+      "size": 24866,
+      "sha256": "212c3a328ba4e82ac34a2641f1af40ee22add51e6175c6b49555982cdbc1890e"
     },
     {
       "path": "site/_projects/wuwa/index.html",
-      "size": 102360,
-      "sha256": "cfd5651667f69f416e65387adc7b8f85786922449406632bad2e5507ff4a4d45"
+      "size": 105835,
+      "sha256": "91b414927eb66d819452574fbf962fa98e7f767c8cc61660dea4664ae1bb299b"
     },
     {
       "path": "site/_projects/zzz/index.html",
-      "size": 103302,
-      "sha256": "0f936fa025f526b11cc553dab1dccef5d6f0ab73d5d1d63659b9e170d31c82bb"
+      "size": 106795,
+      "sha256": "c8029e5bf6efa1cd22e4ec30c05c680fd77f9c71e06065a8f19ccabcffc99a1f"
     },
     {
       "path": "site/assets/shared/admin-console.css",
-      "size": 64349,
-      "sha256": "2a79a338bab2408c44d61ba14c4c26c5902a0de2ea57edc4c4a071c27fa6a250"
+      "size": 165470,
+      "sha256": "749b2014b691780fa0bf7b5b123e272057ed2dd39940c243a3e889aa371d25a9"
     },
     {
       "path": "site/assets/shared/admin-console.js",
-      "size": 86535,
-      "sha256": "ec23bf52917aeda01403283f589a774c57ca7e9616d64192b8ce976ab40c65d9"
+      "size": 119298,
+      "sha256": "ff47d59bbad00329f60df4b778c06a37bac70b5df636ee35c09f88ccc3ffab3e"
     },
     {
       "path": "site/assets/shared/announcement-reader.css",
@@ -307,34 +317,44 @@
       "sha256": "80fe118768586b09df3e94a7dcc55f2801ff62984c510bfe9f017771c15ada8d"
     },
     {
+      "path": "site/assets/shared/guide.css",
+      "size": 11416,
+      "sha256": "cbc72cb480200cfe2f3e89191e3bf44884fccc3cf2ffbc571a92c7f6fb0ad415"
+    },
+    {
+      "path": "site/assets/shared/guide.js",
+      "size": 18916,
+      "sha256": "6284f72ed777139cdeaba07fc0a09cf6be5c7d2051152ae7a0157405f47d3b1c"
+    },
+    {
       "path": "site/assets/shared/runtime.js",
-      "size": 2547,
-      "sha256": "787ddd25ff2dc1fbdc1ae264ef2186df6ceeea994f7becd1b92c1098f60e1ba4"
+      "size": 2553,
+      "sha256": "4d7dbe5d94a35f63876651e5fce11001da0600b2b584098d22b8a917ca30650c"
     },
     {
       "path": "site/game-manifest.json",
-      "size": 8607,
-      "sha256": "680631f38526cba71a167d00640729cbfbb03229ad2d105dc343d7abdde9ecff"
+      "size": 8765,
+      "sha256": "5145af7984ed0215500feced5edf1634660ec1b5905c14c2272a2afb39330fdd"
     },
     {
       "path": "site/index.html",
-      "size": 62315,
-      "sha256": "a05a40f31433a09b6a5f29f77efb1fe44967b3c85f362f2a192cbc0f0f863e38"
+      "size": 66109,
+      "sha256": "970bf94cfe97009753fac45be5fdb3a20f74e7b46a29b2300355d0b514d61a52"
     },
     {
       "path": "site/robots.txt",
-      "size": 252,
-      "sha256": "d393161958ca1ae5a9225e5483dd612481fdde7736e5ba2117973376657ad48d"
+      "size": 257,
+      "sha256": "af59d2e9ce2de9e47e660a2218905c11533808d181cf63b2d8138898430e8f5b"
     },
     {
       "path": "site/sitemap.xml",
-      "size": 699,
-      "sha256": "298186bb2bfa016aef45e1f5d715b3b328eb9175461022b159ed5507a8a4c667"
+      "size": 316,
+      "sha256": "e987f57f64ee11f4dfd26543b5bed8b2ee6c073f0003c719063bb4dfa9ca8954"
     },
     {
       "path": "site/web.config",
-      "size": 1680,
-      "sha256": "e48c326601287d0a1ba58f0a299ed8fd6cceda852880bcaad8e48a8c9723a787"
+      "size": 2814,
+      "sha256": "30eaeec023957290f433010e59c258c05dc96e45e763049448f0e33852223759"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -343,13 +363,13 @@
     },
     {
       "path": "tools/maintenance/add_game.py",
-      "size": 4957,
-      "sha256": "ab158f550273aa06e5c6198981799cf600b53bb36ca12a299579099126720c7e"
+      "size": 4926,
+      "sha256": "6efb6cf56e54f85c102996cee3db62b7d606c93622e0f87d2fa11d8f84278b38"
     },
     {
       "path": "tools/maintenance/build_open_source.py",
-      "size": 28730,
-      "sha256": "fc7b39be695244aa05a5cf50bf1956edfebd7b8763beacc3117531c19d972171"
+      "size": 26055,
+      "sha256": "6d1380571970ef9e5be16c600e88ecedf3e5292e41fc771a7e1225389bd57385"
     },
     {
       "path": "tools/maintenance/create_safety_backup.py",
@@ -358,8 +378,8 @@
     },
     {
       "path": "tools/verify_public_source.py",
-      "size": 3885,
-      "sha256": "047f7bdaf4657c69245cb6129f1737d8de4314dcdf2323f666263bb63833464f"
+      "size": 4151,
+      "sha256": "1557507f776d73538d7e15c48d99bae7a40125dbb693e0f15ef301e2186ffa58"
     },
     {
       "path": "verify_installation.cmd",

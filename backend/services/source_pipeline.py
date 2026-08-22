@@ -4,7 +4,7 @@ import re
 import urllib.error
 from typing import Any
 
-PIPELINE_VERSION = "source-architecture-preview-generation-guard-v4"
+PIPELINE_VERSION = "source-architecture-preview-generation-guard-v8"
 
 
 
@@ -33,10 +33,11 @@ def source_error_code(exc: BaseException) -> str:
 
 def adapter_id(game_id: str) -> str:
     return {
-        "hsr": "hsr_turn_based_game_data_gitlab_release_history_adapter_v2",
-        "genshin": "genshin_anime_game_data2_adapter_parser_recovery_decision_control",
-        "zzz": "zzz_zenless_data_gitea_release_history_adapter_v2",
-        "wuwa": "wuwa_ww_data_adapter_parser_recovery_decision_control",
+        "hsr": "hsr_turn_based_game_data_gitlab_release_history_adapter_v4",
+        "genshin": "genshin_anime_game_data2_gitlab_release_history_adapter_v2",
+        "zzz": "zzz_zenless_data_gitea_release_history_adapter_v4",
+        "nte": "nte_assets_github_global_release_history_adapter_v2",
+        "wuwa": "wuwa_ww_data_github_branch_history_adapter_v4",
     }.get(str(game_id or ""), f"{game_id}_repository_adapter_parser_recovery_decision_control")
 
 

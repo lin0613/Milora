@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="查詢各遊戲目前可用與已過期兌換碼、獎勵、來源、適用服務器及兌換連結。">
 <meta name="robots" content="noindex,follow">
-<link rel="canonical" href="http://127.0.0.1:8000/redeem/">
+<link rel="canonical" href="https://miloratool.tdvr.tw/redeem/">
 <meta name="color-scheme" content="dark">
 <link rel="stylesheet" href="/assets/shared/common.css">
 <script defer src="/assets/shared/runtime.js?v=20260713-responsive-mobile-shell-1220"></script>
@@ -183,7 +183,7 @@ $("redeemBody").addEventListener("click",async event=>{
  const button=event.target.closest(".copyBtn");
  if(!button)return;
  const code=button.dataset.code||"";
- try{await copyText(code);button.textContent="已複製";showToast("兌換碼已複製成功");setTimeout(()=>button.textContent="複製",900)}catch{showToast("複製失敗，請手動選取兌換碼。","error")}
+ try{await copyText(code);showToast("兌換碼已複製成功")}catch{showToast("複製失敗，請手動選取兌換碼。","error")}
 });
 async function openNotificationSettings(){setSettingsMessage("正在載入設定……");$("notificationPreferenceList").innerHTML='<div class="empty">正在載入設定……</div>';$("notificationSettingsDialog").showModal();try{await loadNotificationPreferences();setSettingsMessage("")}catch(error){setSettingsMessage(error.message,"error")}}
 document.querySelectorAll(".notificationSettingsBtn").forEach(button=>button.addEventListener("click",openNotificationSettings));

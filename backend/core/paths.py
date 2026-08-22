@@ -12,12 +12,14 @@ GAME_ASSETS_DIR = ASSETS_DIR / "games"
 HUB_INDEX = SITE_DIR / "index.html"
 ACCOUNT_INDEX = PROJECTS_DIR / "account" / "index.html"
 ADMIN_INDEX = PROJECTS_DIR / "admin" / "index.html"
+GUIDE_INDEX = PROJECTS_DIR / "guide" / "index.html"
 
 # Runtime state
 DATA_DIR = ROOT / "data"
 LOG_DIR = ROOT / "logs"
 BACKUP_DIR = ROOT / "backups"
 OUTBOX_DIR = DATA_DIR / "outbox"
+GUIDE_MEDIA_DIR = DATA_DIR / "guide-media"
 
 # Structured game data
 CATALOGS_DIR = DATA_DIR / "catalogs"
@@ -56,6 +58,7 @@ WUWA_CATALOG_FILE = game_catalog_file("wuwa")
 HSR_CATALOG_FILE = game_catalog_file("hsr")
 GENSHIN_CATALOG_FILE = game_catalog_file("genshin")
 ZZZ_CATALOG_FILE = game_catalog_file("zzz")
+NTE_CATALOG_FILE = game_catalog_file("nte")
 
 # Canonical relation paths
 WUWA_STAGE_GROUPS_FILE = game_relation_file("wuwa", "stage")
@@ -66,23 +69,13 @@ GENSHIN_STAGE_GROUPS_FILE = game_relation_file("genshin", "stage")
 GENSHIN_CHOICE_GROUPS_FILE = game_relation_file("genshin", "exclusive")
 ZZZ_STAGE_GROUPS_FILE = game_relation_file("zzz", "stage")
 ZZZ_CHOICE_GROUPS_FILE = game_relation_file("zzz", "exclusive")
+NTE_STAGE_GROUPS_FILE = game_relation_file("nte", "stage")
+NTE_CHOICE_GROUPS_FILE = game_relation_file("nte", "exclusive")
 
-# Wuthering Waves sources
-WUWA_SOURCE_DIR = game_source_dir("wuwa")
-CACHE_FILE = WUWA_SOURCE_DIR / "raw-official-achievements.json"
-META_FILE = WUWA_SOURCE_DIR / "sync-info.json"
-OFFICIAL_ZH_TW_FILE = WUWA_SOURCE_DIR / "official-zh-tw-text.json"
-# Honkai: Star Rail sources
-HSR_SOURCE_DIR = game_source_dir("hsr")
-HSR_OFFICIAL_ORDER_FILE = HSR_SOURCE_DIR / "official-order.json"
-HSR_OFFICIAL_REWARD_FILE = HSR_SOURCE_DIR / "official-rewards.json"
-HSR_ACHIEVEMENTS_CACHE_FILE = HSR_SOURCE_DIR / "hoyowiki-official-achievements.json"
-HSR_ACHIEVEMENTS_FALLBACK_CACHE_FILE = HSR_SOURCE_DIR / "field-fallback.json"
-HSR_ACHIEVEMENTS_METADATA_CACHE_FILE = HSR_SOURCE_DIR / "achievement-metadata.json"
 # Static game images. These are the single source of truth for every page/API.
 GAME_ICON_FILES = {
     game_id: game_icon_file(game_id)
-    for game_id in ("wuwa", "hsr", "genshin", "zzz", "hna")
+    for game_id in ("wuwa", "hsr", "genshin", "zzz", "nte", "hna")
 }
 
 
@@ -92,6 +85,7 @@ def ensure_runtime_directories() -> None:
         LOG_DIR,
         BACKUP_DIR,
         OUTBOX_DIR,
+        GUIDE_MEDIA_DIR,
         CATALOGS_DIR,
         RELATIONS_DIR,
         SOURCES_DIR,

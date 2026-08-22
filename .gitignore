@@ -3,15 +3,12 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-
-# Runtime and operator-provided content are intentionally excluded from source control.
 data/
 logs/
 backups/
 site/assets/games/
 site/assets/social/
 site/favicon.*
-
 .vscode/
 .idea/
 .DS_Store
