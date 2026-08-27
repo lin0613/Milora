@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- 20260813-source-isolation-review-decisions-1290 -->
+<!-- 20260828-nte-multi-reward-preview-1326 -->
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8">
@@ -25,10 +25,11 @@ input,select{width:100%;background:#0b121a;color:var(--text);border:1px solid va
 .notice{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:11px 0 14px;padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.02);color:var(--muted);line-height:1.55}.notice strong{color:var(--text)}
 .layout{display:grid;grid-template-columns:300px 1fr;gap:14px}.side{position:sticky;top:99px;max-height:calc(100vh - 116px);overflow:auto}.side h3{margin:0 0 10px}.sideTitle{margin:16px 0 6px;color:#c8d5e1;font-size:14px}
 .groupBtn{width:100%;text-align:left;padding:10px 11px;margin:3px 0;background:transparent;color:var(--text);border:1px solid transparent;border-radius:10px}.groupBtn:hover,.groupBtn.active{background:var(--panel2);border-color:var(--line)}.groupBtn small{float:right;color:var(--muted)}
-.tools{display:flex;gap:7px;flex-wrap:wrap}.tools button{flex:1 1 auto}.list{display:grid;gap:10px}.achievement{display:grid;grid-template-columns:auto 1fr auto;gap:13px;align-items:start;padding:15px;border:1px solid var(--line);border-radius:15px;background:var(--panel)}.achievement.done{opacity:.67}.achievement.done h3{text-decoration:line-through}.achievement.choiceLocked{opacity:.55}.check{width:23px;height:23px;accent-color:var(--a);margin-top:3px}.check:disabled{cursor:not-allowed;filter:grayscale(.45)}.achievement h3{margin:0 0 7px;font-size:17px}.desc{color:#c9d5e0;line-height:1.55;white-space:pre-wrap}.meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.tag{font-size:12px;padding:4px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}.tag.version{color:#9fc0ff}.tag.hiddenTag{color:#ffb0b7;border-color:rgba(255,127,139,.4)}.tag.choiceTag{display:none}.choiceNote{margin-top:7px;font-size:12px;color:#ffe09a}.relatedGroup{position:relative;display:grid;gap:8px;padding:24px 8px 8px;border:1px solid rgba(126,107,255,.72);border-radius:16px;background:linear-gradient(180deg,rgba(91,70,225,.12),rgba(91,70,225,.035))}.relatedGroupLabel{position:absolute;top:-1px;left:16px;padding:4px 13px 5px;border:1px solid rgba(126,107,255,.72);border-top:0;border-radius:0 0 9px 9px;background:#796de5;color:#090b19;font-size:12px;font-weight:950;letter-spacing:.04em}.relatedGroup.stageGroup{border-color:rgba(98,219,201,.72);background:linear-gradient(180deg,rgba(98,219,201,.12),rgba(98,219,201,.035))}.relatedGroup.stageGroup .relatedGroupLabel{border-color:rgba(98,219,201,.72);background:#62dbc9}.relatedGroup .achievement{border-color:rgba(126,107,255,.42);border-radius:11px;background:rgba(8,12,29,.76)}.reward{white-space:nowrap;color:var(--gold);font-weight:900}.empty{text-align:center;color:var(--muted);padding:50px}.pager{display:flex;align-items:center;justify-content:center;gap:10px;margin:16px 0}.pager span{color:var(--muted)}
+.tools{display:flex;gap:7px;flex-wrap:wrap}.tools button{flex:1 1 auto}.list{display:grid;gap:10px}.achievement{display:grid;grid-template-columns:auto 1fr auto;gap:13px;align-items:start;padding:15px;border:1px solid var(--line);border-radius:15px;background:var(--panel)}.achievement.done{opacity:.67}.achievement.done h3{text-decoration:line-through}.achievement.choiceLocked{opacity:.55}.check{width:23px;height:23px;accent-color:var(--a);margin-top:3px}.check:disabled{cursor:not-allowed;filter:grayscale(.45)}.achievement h3{margin:0 0 7px;font-size:17px}.desc{color:#c9d5e0;line-height:1.55;white-space:pre-wrap}.meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.tag{font-size:12px;padding:4px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}.tag.version{color:#9fc0ff}.tag.hiddenTag{color:#ffb0b7;border-color:rgba(255,127,139,.4)}.tag.choiceTag{display:none}.choiceNote{margin-top:7px;font-size:12px;color:#ffe09a}.relatedGroup{position:relative;display:grid;gap:8px;padding:24px 8px 8px;border:1px solid rgba(126,107,255,.72);border-radius:16px;background:linear-gradient(180deg,rgba(91,70,225,.12),rgba(91,70,225,.035))}.relatedGroupLabel{position:absolute;top:-1px;left:16px;padding:4px 13px 5px;border:1px solid rgba(126,107,255,.72);border-top:0;border-radius:0 0 9px 9px;background:#796de5;color:#090b19;font-size:12px;font-weight:950;letter-spacing:.04em}.relatedGroup.stageGroup{border-color:rgba(98,219,201,.72);background:linear-gradient(180deg,rgba(98,219,201,.12),rgba(98,219,201,.035))}.relatedGroup.stageGroup .relatedGroupLabel{border-color:rgba(98,219,201,.72);background:#62dbc9}.relatedGroup .achievement{border-color:rgba(126,107,255,.42);border-radius:11px;background:rgba(8,12,29,.76)}.reward{white-space:nowrap;color:var(--gold);font-weight:900}.rewardGroup{position:relative}.rewardSummary{display:flex;align-items:center;justify-content:flex-end;gap:7px;white-space:nowrap;color:var(--gold);font-weight:900}.rewardMore{padding:2px 6px;border:1px solid rgba(255,212,119,.32);border-radius:999px;background:rgba(255,212,119,.07);color:var(--gold);font-size:12px;font-weight:900;line-height:1.35}.rewardMore:hover,.rewardMore:focus-visible{border-color:rgba(255,212,119,.72);background:rgba(255,212,119,.14);outline:none}.rewardPreview{display:none;position:absolute;z-index:18;top:calc(100% + 8px);right:0;width:max-content;min-width:210px;max-width:min(300px,calc(100vw - 28px));padding:11px 12px;border:1px solid rgba(255,212,119,.34);border-radius:12px;background:#0a1119;box-shadow:0 14px 36px rgba(0,0,0,.48);color:var(--text);text-align:left}.rewardPreviewTitle{margin-bottom:7px;color:var(--muted);font-size:12px;font-weight:800}.rewardPreviewRow{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:4px 0}.rewardPreviewRow strong{color:var(--gold);white-space:nowrap}.rewardGroup:focus-within .rewardPreview,.rewardGroup.touchOpen .rewardPreview{display:block}.empty{text-align:center;color:var(--muted);padding:50px}.pager{display:flex;align-items:center;justify-content:center;gap:10px;margin:16px 0}.pager span{color:var(--muted)}
 dialog{width:min(850px,calc(100% - 22px));border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--text);padding:0;box-shadow:0 30px 90px rgba(0,0,0,.6)}dialog::backdrop{background:rgba(0,0,0,.7);backdrop-filter:blur(3px)}.dialogHead{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line)}.dialogHead h2{margin:0}.dialogBody{padding:18px}.dialogBody textarea{width:100%;min-height:260px;background:#091018;color:var(--text);border:1px solid var(--line);border-radius:12px;padding:12px;resize:vertical}.diagActions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.small{font-size:13px;color:var(--muted);line-height:1.55}.error{color:#ffadb5}
 @media(max-width:1100px){.pageLayout{grid-template-columns:1fr}.gameSelectorPanel{position:static;display:grid;grid-template-columns:auto minmax(220px,320px) 1fr;align-items:center;gap:12px}.gameSelectorTitle{margin:0}.gameSelectorCurrent{margin:0}.gameSelectorHint{margin:0}.stats{grid-template-columns:repeat(3,1fr)}.controls{grid-template-columns:1fr 1fr}.layout{grid-template-columns:1fr}.side{position:static;max-height:none}}
-@media(max-width:570px){.wrap{padding:11px}.pageLayout{padding:11px}.gameSelectorPanel{display:block}.gameSelectorTitle{margin-bottom:8px}.gameSelectorCurrent{margin-top:10px}.gameSelectorHint{margin-top:9px}.top{align-items:flex-start;flex-direction:column}.stats{grid-template-columns:1fr 1fr}.controls{grid-template-columns:1fr}.notice{align-items:flex-start;flex-direction:column}.achievement{grid-template-columns:auto 1fr}.reward{grid-column:2}.num{font-size:23px}}
+@media(hover:hover) and (pointer:fine){.rewardGroup:hover .rewardPreview{display:block}}
+@media(max-width:570px){.wrap{padding:11px}.pageLayout{padding:11px}.gameSelectorPanel{display:block}.gameSelectorTitle{margin-bottom:8px}.gameSelectorCurrent{margin-top:10px}.gameSelectorHint{margin-top:9px}.top{align-items:flex-start;flex-direction:column}.stats{grid-template-columns:1fr 1fr}.controls{grid-template-columns:1fr}.notice{align-items:flex-start;flex-direction:column}.achievement{grid-template-columns:auto 1fr}.reward{grid-column:2}.rewardPreview{left:0;right:auto}.num{font-size:23px}}
 
 .authScreen{min-height:100vh;display:grid;place-items:center;padding:24px}
 .authCard{width:min(460px,100%);padding:25px;background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:0 24px 80px rgba(0,0,0,.45)}
@@ -370,7 +371,7 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
 const OFFICIAL_PAGE="https://github.com/Waifus-Grace/NTE_Assets";
 const GAME_ID="nte";
 const GAME_API_BASE="/api/games/nte";
-const NTE_PAGE_BUILD="20260813-source-isolation-review-decisions-1290";
+const NTE_PAGE_BUILD="20260828-nte-multi-reward-preview-1326";
 const SIDEBAR_ACCOUNT_BUILD="20260621-sidebar-tools-v6";
 document.documentElement.dataset.nteBuild=NTE_PAGE_BUILD;
 const DATA_KEY="異環成就資料_v1_官方順序";
@@ -915,6 +916,35 @@ function isCollectionCandidate(value){
 }
 function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function uniq(arr){return [...new Set(arr.filter(Boolean))]}
+const NTE_REWARD_NAMES={
+ Annulith:"環石",Vehicle020_skin_1_Painting:"Swift Cab－塗裝",Vehicle020_skin_1_CeilingLight:"Swift Cab－車頂燈",
+ PrisonCoin:"止疼片",Fons:"方斯",Title_Bagel_001:"稱號「唄果新廚」",Title_Bagel_002:"稱號「唄果主廚」",
+ Title_Bagel_003:"稱號「唄果總廚」",Title_PrisonFight_001:"稱號「格鬥之王」",Title_FinalTower_001:"稱號「獵龍高手」",
+ Title_FinalTower_002:"稱號「綿綿英雄」",Title_FinalTower_003:"稱號「沃倫傳奇」"
+};
+function normalizeAchievementRewards(item){
+ const rows=Array.isArray(item?.rewards)?item.rewards:[];
+ const rewards=rows.map(row=>({itemId:clean(row?.itemId),amount:Number(row?.amount||0)})).filter(row=>row.itemId&&row.amount>0);
+ if(!rewards.length&&Number(item?.reward||0)>0)rewards.push({itemId:"Annulith",amount:Number(item.reward)});
+ return rewards;
+}
+function rewardsWithPrimaryAmount(item,amount){
+ const rewards=normalizeAchievementRewards(item).map(reward=>({...reward}));
+ const primary=rewards.find(reward=>reward.itemId==="Annulith");
+ if(primary)primary.amount=amount;
+ else if(amount>0)rewards.unshift({itemId:"Annulith",amount});
+ return rewards.filter(reward=>reward.amount>0);
+}
+function rewardDisplayName(itemId){return NTE_REWARD_NAMES[itemId]||`其他獎勵（${itemId}）`}
+function rewardAmountText(amount){return Number(amount||0).toLocaleString("zh-TW")}
+function renderAchievementReward(item){
+ const rewards=normalizeAchievementRewards(item);
+ if(!rewards.length)return '<div class="reward">獎勵未標示</div>';
+ const primary=rewards[0],primaryText=`${rewardDisplayName(primary.itemId)} × ${rewardAmountText(primary.amount)}`;
+ if(rewards.length===1)return `<div class="reward">${esc(primaryText)}</div>`;
+ const extraCount=rewards.length-1;
+ return `<div class="rewardGroup"><div class="rewardSummary"><span>${esc(primaryText)}</span><button class="rewardMore" type="button" aria-expanded="false" aria-label="預覽全部 ${rewards.length} 項獎勵">＋${extraCount} 項</button></div><div class="rewardPreview" role="tooltip"><div class="rewardPreviewTitle">全部獎勵</div>${rewards.map(reward=>`<div class="rewardPreviewRow"><span>${esc(rewardDisplayName(reward.itemId))}</span><strong>× ${esc(rewardAmountText(reward.amount))}</strong></div>`).join("")}</div></div>`;
+}
 function extractExactVersion(v){
  const s=clean(v);
  if(!s)return "";
@@ -1079,7 +1109,7 @@ function renderAchievementCard(x){
   const completionTitle=isAdmin?`${Number(stat.completed_count||0)} / ${eligibleUserCount} 位有效帳號完成`:`全站完成度 ${pct.toFixed(2)}%`;
   completionHtml=`<div class="achievementCompletion" title="${completionTitle}"><div class="achievementCompletionFill" style="width:${pct}%"></div><div class="achievementCompletionText"><span>${completionLabel}</span><strong>${pct.toFixed(2)}%</strong></div></div>`;
  }
- return `<article class="achievement ${done?"done":""} ${choiceLocked||stageLocked?"choiceLocked":""}"><input class="check" type="checkbox" data-id="${esc(x.id)}" ${done?"checked":""} ${choiceLocked?'disabled title="此互斥組已有其他成就被選擇；請先取消原選項"':stageLocked?'disabled':""}><div><h3>${esc(achievementDisplayName(x))}</h3><div class="desc">${esc(achievementDisplayConditionForView(x))}</div><div class="meta"><span class="tag version">版本 ${esc(x.version)}</span><span class="tag">分類：${esc(collection)}</span>${x.hidden?'<span class="tag hiddenTag">隱藏成就</span>':""}${tags}</div></div><div class="achievementSide"><div class="reward">${x.reward?`環石 × ${x.reward}`:"獎勵未標示"}</div><button class="secondary inlineAction achievementReportBtn" data-id="${esc(x.id)}">回報問題</button><a class="secondary inlineAction achievementGuideBtn" href="/nte/${encodeURIComponent(x.id)}" target="_blank" rel="noopener">攻略</a></div>${completionHtml}</article>`;
+ return `<article class="achievement ${done?"done":""} ${choiceLocked||stageLocked?"choiceLocked":""}"><input class="check" type="checkbox" data-id="${esc(x.id)}" ${done?"checked":""} ${choiceLocked?'disabled title="此互斥組已有其他成就被選擇；請先取消原選項"':stageLocked?'disabled':""}><div><h3>${esc(achievementDisplayName(x))}</h3><div class="desc">${esc(achievementDisplayConditionForView(x))}</div><div class="meta"><span class="tag version">版本 ${esc(x.version)}</span><span class="tag">分類：${esc(collection)}</span>${x.hidden?'<span class="tag hiddenTag">隱藏成就</span>':""}${tags}</div></div><div class="achievementSide">${renderAchievementReward(x)}<button class="secondary inlineAction achievementReportBtn" data-id="${esc(x.id)}">回報問題</button><a class="secondary inlineAction achievementGuideBtn" href="/nte/${encodeURIComponent(x.id)}" target="_blank" rel="noopener">攻略</a></div>${completionHtml}</article>`;
 }
 function render(options={}){if(!options.skipFilterOptions)updateDependentFilters();
  restoreTrackerPageControls();
@@ -1195,10 +1225,11 @@ function applyServerCustomizations(items){
   const condition=override.condition||old?.condition||""
   const version=(hasBase&&(!override.version||override.version==="未標示"))?(old.version||"未標示"):(override.version||old?.version||"未標示")
   const category=(hasBase&&(!override.category||override.category==="未辨識分類"))?(old.category||"未辨識分類"):(override.category||old?.category||"未辨識分類")
+  const reward=Number(hasBase&&Number(override.reward||0)===0?Number(old?.reward||0):Number(override.reward||0))
   const value={
    ...(old||{}),id:override.achievement_id,name,condition,version,majorVersion:majorVersionOf(version),
    category,subcategory:category,detailCategory:category,
-   reward:Number(hasBase&&Number(override.reward||0)===0?Number(old?.reward||0):Number(override.reward||0)),
+   reward,rewards:rewardsWithPrimaryAmount(old,reward),
    hidden:Boolean(override.hidden),tags:(override.tags&&override.tags.length)?override.tags:(old?.tags||[]),source:override.source||old?.source||"override",
    sourceOrder:old?.sourceOrder??(Number(override.achievement_id)||100000+map.size)
   }
@@ -1224,7 +1255,7 @@ async function syncOfficial(){
   baseData=(Array.isArray(obj.items)?obj.items:[]).map((item,index)=>{
    const version=normVersion(item.version||"未標示");
    const category=normalizeCollectionName(item.category||"未辨識分類");
-   return {...item,id:String(item.id||item.achievement_id||`catalog-${index}`),name:clean(item.name),condition:clean(item.condition),version,majorVersion:majorVersionOf(version),category,subcategory:category,detailCategory:category,reward:Number(item.reward||0),hidden:Boolean(item.hidden),tags:Array.isArray(item.tags)?item.tags:[],sourceOrder:Number(item.sourceOrder??index),relationGroup:clean(item.relationGroup||item.choiceGroup||""),relationType:clean(item.relationType||((item.choiceGroup||"")?"exclusive":"")),stageOrder:Number(item.stageOrder||0),relationGroupSize:Number(item.relationGroupSize||item.choiceGroupSize||0),choiceGroup:clean(item.choiceGroup||""),choiceGroupSize:Number(item.choiceGroupSize||0)};
+   return {...item,id:String(item.id||item.achievement_id||`catalog-${index}`),name:clean(item.name),condition:clean(item.condition),version,majorVersion:majorVersionOf(version),category,subcategory:category,detailCategory:category,reward:Number(item.reward||0),rewards:normalizeAchievementRewards(item),hidden:Boolean(item.hidden),tags:Array.isArray(item.tags)?item.tags:[],sourceOrder:Number(item.sourceOrder??index),relationGroup:clean(item.relationGroup||item.choiceGroup||""),relationType:clean(item.relationType||((item.choiceGroup||"")?"exclusive":"")),stageOrder:Number(item.stageOrder||0),relationGroupSize:Number(item.relationGroupSize||item.choiceGroupSize||0),choiceGroup:clean(item.choiceGroup||""),choiceGroupSize:Number(item.choiceGroupSize||0)};
   });
   data=[...baseData];
   rebuildChoiceGroupMaps();
@@ -1295,6 +1326,10 @@ $("notificationBtn").onclick=async()=>{await loadUserNotifications();renderUserN
 // ----- 使用者通知、客服與成就回報 -----
 
 $("list").addEventListener("click",e=>{const button=e.target.closest(".achievementReportBtn");if(!button)return;if(!currentUser)return openAuthDialog("login","請先登入再回報成就資料。");const item=data.find(x=>x.id===button.dataset.id);if(!item)return;const displayName=achievementDisplayName(item);$("reportAchievementId").value=item.id;$("reportAchievementName").textContent=`成就：${displayName}`;$("reportAchievementName").dataset.name=displayName;$("reportMessage").value="";$("achievementReportMessage").textContent="";$("achievementReportDialog").showModal()});
+function closeTouchRewardPreviews(except=null){document.querySelectorAll(".rewardGroup.touchOpen").forEach(group=>{if(group===except)return;group.classList.remove("touchOpen");const button=group.querySelector(".rewardMore");button?.setAttribute("aria-expanded","false");button?.blur()})}
+$("list").addEventListener("click",e=>{const button=e.target.closest(".rewardMore");if(!button)return;if(matchMedia("(hover:hover) and (pointer:fine)").matches){button.blur();return}e.stopPropagation();const group=button.closest(".rewardGroup"),open=!group.classList.contains("touchOpen");closeTouchRewardPreviews(group);group.classList.toggle("touchOpen",open);button.setAttribute("aria-expanded",String(open));if(!open)button.blur()});
+document.addEventListener("click",e=>{if(!e.target.closest(".rewardGroup"))closeTouchRewardPreviews()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeTouchRewardPreviews()});
 $("closeAchievementReportBtn").onclick=()=>$("achievementReportDialog").close();
 $("achievementReportForm").onsubmit=async e=>{e.preventDefault();const button=e.submitter;button.disabled=true;try{await apiJson("/api/achievement-reports",{method:"POST",body:JSON.stringify({achievement_id:$("reportAchievementId").value,achievement_name:$("reportAchievementName").dataset.name,report_type:$("reportType").value,message:$("reportMessage").value})});$("achievementReportMessage").textContent="回報已送出，管理員處理後會透過站內通知告知。";$("achievementReportMessage").className="authMessage ok";setTimeout(()=>$("achievementReportDialog").close(),1000)}catch(err){$("achievementReportMessage").textContent=err.message;$("achievementReportMessage").className="authMessage error"}finally{button.disabled=false}};
 

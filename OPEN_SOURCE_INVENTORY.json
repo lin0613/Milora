@@ -1,10 +1,10 @@
 {
   "project_name": "Milora_tool",
-  "version": "1.3.0.25",
+  "version": "1.3.0.26",
   "license": "GPL-3.0-only",
   "scope": "Files present before inventory and hash manifest generation",
   "file_count": 85,
-  "total_bytes": 2968817,
+  "total_bytes": 2975338,
   "files": [
     {
       "path": ".achievement-hub-root",
@@ -48,8 +48,8 @@
     },
     {
       "path": "backend/main.py",
-      "size": 762119,
-      "sha256": "5dddfd2084daeff6ae67bfca825ef82171cf93475860b239794f943c3d08e2b4"
+      "size": 764048,
+      "sha256": "3a422e9522bd9fe2f93409d49d14490f603003ef688ffb22b8501b9f20917aab"
     },
     {
       "path": "backend/services/__init__.py",
@@ -144,12 +144,12 @@
     {
       "path": "README.md",
       "size": 1043,
-      "sha256": "51d2653a151e3061b3606b393baecd7b282667b29adac133482d1539731e5998"
+      "sha256": "3b271b443a8f0c90ce5a9a93056568b8b39e30ee8862c4da6f373c1beba16933"
     },
     {
       "path": "release-info.json",
-      "size": 357,
-      "sha256": "8196579abbe044a3a417577a09915c11a164fe0e98e84d5231134230e9924bfe"
+      "size": 359,
+      "sha256": "74b0e452905c816f7e7ad56976027ee730f8a6476aabc8f0a9ca7834b8e7254e"
     },
     {
       "path": "requirements.txt",
@@ -278,8 +278,8 @@
     },
     {
       "path": "site/_projects/nte/index.html",
-      "size": 107643,
-      "sha256": "ea79fd530353ad1c2bfa9e7b5690b5d40607d125be857947277f6d29ba589850"
+      "size": 112231,
+      "sha256": "3316960be63409fd7a2b57ed84b67f3a38d3f4e89f12b151eb5736355895e417"
     },
     {
       "path": "site/_projects/redeem/index.html",
@@ -363,8 +363,8 @@
     },
     {
       "path": "site/index.html",
-      "size": 67857,
-      "sha256": "e6b13a4cf6a95a6bfa4fa727eb6d8294bbc7daab7b4237713b52360b6602578b"
+      "size": 67859,
+      "sha256": "4f58534d179b64d4df630049216a342509bd1c1bf1c297c6701a5adf56cffc4a"
     },
     {
       "path": "site/robots.txt",
@@ -374,7 +374,7 @@
     {
       "path": "site/sitemap.xml",
       "size": 316,
-      "sha256": "f738030ffc6e513bdab299f69b074f054615bcafe9374915583c9d8a0dd77efb"
+      "sha256": "3fe5633ddfb4c5a4c0ef57280709f69a7a3ba4a367c2ad66f9b1f77daefc80bf"
     },
     {
       "path": "site/web.config",

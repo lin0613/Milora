@@ -2797,6 +2797,46 @@ def json_list(value: str | None) -> list[str]:
     except Exception:
         return []
 
+def public_catalog_rewards(value: str | None) -> list[dict[str, Any]]:
+    try:
+        parsed=json.loads(value or "{}")
+    except Exception:
+        return []
+    rewards=parsed.get("_tracker_rewards") if isinstance(parsed,dict) else None
+    if not isinstance(rewards,list):
+        return []
+    result=[]
+    for reward in rewards:
+        if not isinstance(reward,dict):
+            continue
+        item_id=str(reward.get("itemId") or "").strip()
+        try:
+            amount=int(reward.get("amount") or 0)
+        except (TypeError,ValueError):
+            continue
+        if item_id and amount>0:
+            result.append({"itemId":item_id[:120],"amount":amount})
+    return result
+
+def catalog_reward_map(game_id: str) -> dict[str, list[dict[str, Any]]]:
+    if game_id!="nte":
+        return {}
+    try:
+        payload=json.loads(game_catalog_file(game_id).read_text(encoding="utf-8-sig"))
+    except Exception:
+        return {}
+    result={}
+    for item in payload.get("items") if isinstance(payload,dict) and isinstance(payload.get("items"),list) else []:
+        if not isinstance(item,dict):
+            continue
+        achievement_id=str(item.get("id") or "").strip()
+        source_details=item.get("sourceDetails") if isinstance(item.get("sourceDetails"),dict) else {}
+        raw=source_details.get("raw") if isinstance(source_details.get("raw"),dict) else {}
+        rewards=public_catalog_rewards(json.dumps(raw,ensure_ascii=False,separators=(",",":")))
+        if achievement_id and rewards:
+            result[achievement_id]=rewards
+    return result
+
 def enforce_blocklist(email_address: str, ip_address: str) -> None:
     email_key=normalize_email(email_address)
     domain=email_key.rsplit("@",1)[-1] if "@" in email_key else ""
@@ -7094,6 +7134,7 @@ def extra_game_catalog(game_id: str):
     with connect_db() as db:
         rows=db.execute(
             """select c.*,coalesce(s.official_source_id,c.achievement_id) as official_source_id,
+            coalesce(s.raw_json,'{}') as source_raw_json,
             g.group_id as relation_group,g.relation_type,g.stage_order,
             (select count(*) from game_achievement_choice_groups x
              where x.game_id=c.game_id and x.group_id=g.group_id) as relation_group_size
@@ -7107,8 +7148,10 @@ def extra_game_catalog(game_id: str):
             (game_id,),
         ).fetchall()
     items=[]
+    stored_rewards=catalog_reward_map(game_id)
     for index,row in enumerate(rows):
         value=dict(row)
+        source_rewards=public_catalog_rewards(value.get("source_raw_json")) if game_id=="nte" else []
         items.append({
             "id":value["achievement_id"],
             "officialId":value.get("official_source_id") or value["achievement_id"],
@@ -7118,6 +7161,7 @@ def extra_game_catalog(game_id: str):
             "version":value["version"],
             "category":value["category"],
             "reward":int(value["reward"] or 0),
+            "rewards":source_rewards or stored_rewards.get(str(value["achievement_id"]),[]),
             "hidden":bool(value["hidden"]),
             "tags":json_list(value.get("tags_json") or "[]"),
             "source":value.get("source") or "catalog",
