@@ -1,10 +1,10 @@
 {
   "project_name": "Milora_tool",
-  "version": "1.3.0.15",
+  "version": "1.3.0.25",
   "license": "GPL-3.0-only",
   "scope": "Files present before inventory and hash manifest generation",
-  "file_count": 80,
-  "total_bytes": 2769975,
+  "file_count": 85,
+  "total_bytes": 2968817,
   "files": [
     {
       "path": ".achievement-hub-root",
@@ -43,13 +43,13 @@
     },
     {
       "path": "backend/core/paths.py",
-      "size": 2909,
-      "sha256": "7357cf6bff88d74eee1dfb770602b3714674884705bfc88e8c15f592e9f6c21b"
+      "size": 2977,
+      "sha256": "b9aee3ad564b3aca5678d8ebce3493e9e925ada3679f5995835fa6e05ad6ad72"
     },
     {
       "path": "backend/main.py",
-      "size": 743956,
-      "sha256": "767b0b75c21aca6f7b58a1b7436bb910e62d1b5dafa3b38aea6534d6545ff03d"
+      "size": 762119,
+      "sha256": "5dddfd2084daeff6ae67bfca825ef82171cf93475860b239794f943c3d08e2b4"
     },
     {
       "path": "backend/services/__init__.py",
@@ -60,6 +60,16 @@
       "path": "backend/services/achievement_governance.py",
       "size": 27679,
       "sha256": "08812efb4146786e3162a6e8f2d72755ec78369be691a514eeb3d0d9facdcd28"
+    },
+    {
+      "path": "backend/services/activity_sources.py",
+      "size": 75836,
+      "sha256": "3e7f0098fa683b9d0cda7c30707da3b09884695ca87a4a4ddd1c284408818550"
+    },
+    {
+      "path": "backend/services/activity_todo.py",
+      "size": 39136,
+      "sha256": "74d0112f36c7a3390f246043dd69aefe4fbb764e3f500b259a195a4e9d4e0138"
     },
     {
       "path": "backend/services/catalog_health.py",
@@ -134,12 +144,12 @@
     {
       "path": "README.md",
       "size": 1043,
-      "sha256": "0c00278f1ea3260006d115e6ec311f6dba208e5301503bb2c5a04756e7f359fd"
+      "sha256": "51d2653a151e3061b3606b393baecd7b282667b29adac133482d1539731e5998"
     },
     {
       "path": "release-info.json",
-      "size": 352,
-      "sha256": "0666f3ddd546e4eebe1784ac39340472e119208faa407652bd13d59914246fb4"
+      "size": 357,
+      "sha256": "8196579abbe044a3a417577a09915c11a164fe0e98e84d5231134230e9924bfe"
     },
     {
       "path": "requirements.txt",
@@ -227,9 +237,14 @@
       "sha256": "29f15ce48030f59ee170336fadd8f754e449b4e6d40e291b6336d5d0e778aa4e"
     },
     {
+      "path": "site/_projects/activity-todo/index.html",
+      "size": 5530,
+      "sha256": "0c1ada767ac5f298c83743d97f9dbef68882b49fc628d97fe4b3f3957bfdae23"
+    },
+    {
       "path": "site/_projects/admin/index.html",
-      "size": 502123,
-      "sha256": "e5c934327dbff1976376d0718b2bf0362822670a27ac973e70ee6f4f64b9d4f9"
+      "size": 521291,
+      "sha256": "cd74a7803580f8ef6b0cb8f5e07aa38335e3c926e14a2befcde7895febb0a6b1"
     },
     {
       "path": "site/_projects/game-template/index.html",
@@ -282,14 +297,24 @@
       "sha256": "c8029e5bf6efa1cd22e4ec30c05c680fd77f9c71e06065a8f19ccabcffc99a1f"
     },
     {
+      "path": "site/assets/shared/activity-todo.css",
+      "size": 18380,
+      "sha256": "0713c5aa5b71408bd71cbfc0989a2487e4574fc8e808a2f5197ae77135d283c2"
+    },
+    {
+      "path": "site/assets/shared/activity-todo.js",
+      "size": 15031,
+      "sha256": "3d2abec8efbd7a5b72dd537dd58732391f26f4a6fa40b210b8f3594fa9e03766"
+    },
+    {
       "path": "site/assets/shared/admin-console.css",
-      "size": 165470,
-      "sha256": "749b2014b691780fa0bf7b5b123e272057ed2dd39940c243a3e889aa371d25a9"
+      "size": 171236,
+      "sha256": "9b9968065a326c8997446153387f9789657609519d406ef0668211825bc5dc3f"
     },
     {
       "path": "site/assets/shared/admin-console.js",
-      "size": 119298,
-      "sha256": "ff47d59bbad00329f60df4b778c06a37bac70b5df636ee35c09f88ccc3ffab3e"
+      "size": 119288,
+      "sha256": "cd657c346845800ef4779e8b7ff1bd3d317c7d77e552b651fd29b3cdf22a7ec3"
     },
     {
       "path": "site/assets/shared/announcement-reader.css",
@@ -338,8 +363,8 @@
     },
     {
       "path": "site/index.html",
-      "size": 66109,
-      "sha256": "970bf94cfe97009753fac45be5fdb3a20f74e7b46a29b2300355d0b514d61a52"
+      "size": 67857,
+      "sha256": "e6b13a4cf6a95a6bfa4fa727eb6d8294bbc7daab7b4237713b52360b6602578b"
     },
     {
       "path": "site/robots.txt",
@@ -349,12 +374,12 @@
     {
       "path": "site/sitemap.xml",
       "size": 316,
-      "sha256": "e987f57f64ee11f4dfd26543b5bed8b2ee6c073f0003c719063bb4dfa9ca8954"
+      "sha256": "f738030ffc6e513bdab299f69b074f054615bcafe9374915583c9d8a0dd77efb"
     },
     {
       "path": "site/web.config",
-      "size": 2814,
-      "sha256": "30eaeec023957290f433010e59c258c05dc96e45e763049448f0e33852223759"
+      "size": 2835,
+      "sha256": "3cba7412c49b70b8c1bab287fe8acad727c0d5c1f894a90d03145d3e6ca05fb3"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",

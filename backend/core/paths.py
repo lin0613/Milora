@@ -12,6 +12,7 @@ GAME_ASSETS_DIR = ASSETS_DIR / "games"
 HUB_INDEX = SITE_DIR / "index.html"
 ACCOUNT_INDEX = PROJECTS_DIR / "account" / "index.html"
 ADMIN_INDEX = PROJECTS_DIR / "admin" / "index.html"
+ACTIVITY_TODO_INDEX = PROJECTS_DIR / "activity-todo" / "index.html"
 GUIDE_INDEX = PROJECTS_DIR / "guide" / "index.html"
 
 # Runtime state

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>活動&代辦｜遊戲成就紀錄器</title>
+<link rel="stylesheet" href="/assets/shared/activity-todo.css?v=20260823-event-summary-line-breaks-1324">
+<script defer src="/assets/shared/activity-todo.js?v=20260823-event-summary-line-breaks-1324"></script>
+</head>
+<body>
+<main class="activityShell" id="activityShell" aria-busy="true">
+ <section class="accessState" id="accessState" hidden>
+  <div class="accessIcon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-2.8 8-7 10-4.2-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div>
+  <h1>活動&代辦</h1>
+  <p id="accessMessage">此功能目前只開放管理員測試。</p>
+  <button class="secondaryButton" id="accountLinkButton" type="button">前往帳號設定</button>
+ </section>
+
+ <div class="activityApp" id="activityApp" hidden>
+  <header class="pageHeader">
+   <div><h1>活動&代辦</h1><p>集中查看遊戲活動與每日進度</p></div>
+   <div class="headerActions"><span class="syncStatus" id="syncStatus">正在載入……</span><button class="primaryButton" id="newTaskButton" type="button"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>新增代辦</button></div>
+  </header>
+
+  <section class="gameFilter" aria-labelledby="gameFilterTitle">
+   <div class="sectionLabel"><span id="gameFilterTitle">遊戲篩選</span><span class="weekRange" id="weekRange"></span></div>
+   <div class="gameRail" id="gameRail" role="group" aria-label="選擇遊戲"></div>
+  </section>
+
+  <nav class="viewTabs" id="viewTabs" aria-label="檢視內容">
+   <button class="viewTab active" type="button" data-view="overview" aria-pressed="true">總覽</button>
+   <button class="viewTab" type="button" data-view="events" aria-pressed="false">活動</button>
+   <button class="viewTab" type="button" data-view="tasks" aria-pressed="false">代辦</button>
+  </nav>
+
+  <div class="dashboardGrid" id="dashboardGrid">
+   <section class="dashboardSection taskSection" id="taskSection" aria-labelledby="todayTaskTitle">
+    <div class="sectionHead"><div><h2 id="todayTaskTitle">今日代辦</h2><p id="taskSummary">正在整理代辦……</p></div><button class="textButton" id="showAllTasksButton" type="button">查看所有代辦</button></div>
+    <div class="taskList" id="taskList"><div class="loadingState">正在載入代辦……</div></div>
+   </section>
+
+   <section class="dashboardSection eventSection" id="eventSection" aria-labelledby="recentEventTitle">
+    <div class="sectionHead"><div><h2 id="recentEventTitle">近期活動</h2><p id="eventSummary">正在整理活動……</p></div><button class="textButton" id="showAllEventsButton" type="button">查看完整時間軸</button></div>
+    <div class="eventTimeline" id="eventTimeline"><div class="loadingState">正在載入活動……</div></div>
+   </section>
+  </div>
+
+ </div>
+</main>
+<dialog class="taskDialog" id="taskDialog" aria-labelledby="taskDialogTitle">
+ <form class="taskForm" id="taskForm">
+  <header class="dialogHead"><div><h2 id="taskDialogTitle">新增代辦</h2><p>完成狀態會跟著 Milora 帳號同步。</p></div><button class="iconButton" id="closeTaskDialogButton" type="button" aria-label="關閉">×</button></header>
+  <div class="dialogBody">
+   <label class="formField"><span>遊戲</span><select id="taskGameInput" required></select></label>
+   <label class="formField"><span>代辦名稱</span><input id="taskTitleInput" maxlength="200" autocomplete="off" required placeholder="例如：完成每日委託"></label>
+   <label class="formField"><span>代辦說明</span><textarea id="taskDescriptionInput" maxlength="2000" rows="3" placeholder="可填寫目標、次數或注意事項"></textarea></label>
+   <div class="formGrid">
+    <label class="formField"><span>週期</span><select id="taskCadenceInput"><option value="daily">每日</option><option value="weekly">每週</option><option value="monthly">每月</option><option value="once">單次</option><option value="custom">自訂</option></select></label>
+    <label class="formField"><span>到期時間（選填）</span><input id="taskDueInput" type="datetime-local"></label>
+   </div>
+   <label class="formField" id="taskMonthlyDayField" hidden><span>每月日期</span><span class="intervalInput"><span>每月</span><input id="taskMonthlyDay" type="number" min="1" max="31" step="1" value="1" inputmode="numeric"><span>日</span></span></label>
+   <label class="formField" id="taskCustomIntervalField" hidden><span>自訂間隔</span><span class="intervalInput"><span>每</span><input id="taskCustomIntervalDays" type="number" min="1" max="365" step="1" value="1" inputmode="numeric"><span>天</span></span></label>
+   <p class="formHint" id="taskCadenceHint">每日代辦會在遊戲重置時間進入新的完成週期。</p>
+   <div class="formMessage" id="taskFormMessage" role="status" aria-live="polite"></div>
+  </div>
+  <footer class="dialogActions"><button class="secondaryButton" id="cancelTaskButton" type="button">取消</button><button class="primaryButton" id="saveTaskButton" type="submit">建立代辦</button></footer>
+ </form>
+</dialog>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
