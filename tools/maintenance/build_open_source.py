@@ -45,6 +45,7 @@ SCRIPT_FILES = {
     "scripts/setup/05_configure_https.ps1",
     "scripts/maintenance/backup_database.ps1",
     "scripts/maintenance/register_daily_backup.ps1",
+    "scripts/maintenance/register_startup.ps1",
     "scripts/maintenance/remove_startup.ps1",
     "scripts/maintenance/test_email.ps1",
     "tools/maintenance/add_game.py",
