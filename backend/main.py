@@ -3831,28 +3831,48 @@ def admin_delete_all_backups(request: Request):
     try:
         backup_dir=ROOT/"backups"
         backup_dir.mkdir(parents=True,exist_ok=True)
-        paths=sorted(backup_dir.glob("app-*.db"),key=lambda item:item.stat().st_mtime,reverse=True)
-        before={"count":len(paths),"size_bytes":sum(path.stat().st_size for path in paths),"files":[path.name for path in paths]}
+        initial_paths=sorted(backup_dir.glob("app-*.db"),key=lambda item:item.stat().st_mtime,reverse=True)
+        before={"count":len(initial_paths),"size_bytes":sum(path.stat().st_size for path in initial_paths),"files":[path.name for path in initial_paths]}
         deleted=[]
-        failed=[]
-        for path in paths:
-            try:
-                path.unlink()
-                deleted.append(path.name)
-            except Exception as exc:
-                failed.append({"filename":path.name,"error":f"{type(exc).__name__}: {exc}"})
-        status="success" if not failed else "failed"
+        last_errors={}
+        deadline=time.monotonic()+10.0
+        empty_since=None
+        while True:
+            paths=sorted(backup_dir.glob("app-*.db"),key=lambda item:item.stat().st_mtime,reverse=True)
+            if not paths:
+                if empty_since is None:
+                    empty_since=time.monotonic()
+                if time.monotonic()-empty_since>=0.5:
+                    break
+                time.sleep(0.1)
+                continue
+            empty_since=None
+            for path in paths:
+                try:
+                    path.unlink()
+                    deleted.append(path.name)
+                    last_errors.pop(path.name,None)
+                except FileNotFoundError:
+                    last_errors.pop(path.name,None)
+                except Exception as exc:
+                    last_errors[path.name]=f"{type(exc).__name__}: {exc}"
+            if time.monotonic()>=deadline:
+                break
+            time.sleep(0.2)
+        remaining=sorted(backup_dir.glob("app-*.db"),key=lambda item:item.stat().st_mtime,reverse=True)
+        failed=[{"filename":path.name,"error":last_errors.get(path.name,"刪除期限內仍存在")} for path in remaining]
+        status="success" if not remaining else "failed"
         log_admin_action(
             admin["id"],"delete_all_database_backups",
             details=f"deleted={len(deleted)}; failed={len(failed)}",
             category="administration",status=status,target_type="backup_collection",target_id="all",
             summary="一鍵刪除全部資料庫備份",before=before,
-            after={"deleted_count":len(deleted),"remaining_count":len(failed)},
+            after={"deleted_count":len(deleted),"remaining_count":len(remaining)},
             metadata={"deleted":deleted,"failed":failed},actor_ip=client_ip(request),locked=True,
         )
-        if failed:
+        if remaining:
             raise HTTPException(status_code=500,detail=f"已刪除 {len(deleted)} 份，但有 {len(failed)} 份刪除失敗。")
-        return {"ok":True,"deleted_count":len(deleted),"deleted":deleted}
+        return {"ok":True,"deleted_count":len(deleted),"remaining_count":0,"deleted":deleted}
     finally:
         BACKUP_OPERATION_GUARD.release()
 

@@ -1,10 +1,10 @@
 {
   "project_name": "Milora_tool",
-  "version": "1.3.0.30",
+  "version": "1.3.0.31",
   "license": "GPL-3.0-only",
   "scope": "Files present before inventory and hash manifest generation",
   "file_count": 76,
-  "total_bytes": 2778551,
+  "total_bytes": 2782899,
   "files": [
     {
       "path": ".achievement-hub-root",
@@ -48,8 +48,8 @@
     },
     {
       "path": "backend/main.py",
-      "size": 746756,
-      "sha256": "89bd9408165b20a89bd6a6a13546002ad3368c257411d5a81555298b30a03304"
+      "size": 747779,
+      "sha256": "1ccf00a9fb2f4fbad898e5eb99fed5f7df3ac8e0aefcb8fe3f47f91648cc0162"
     },
     {
       "path": "backend/services/__init__.py",
@@ -134,12 +134,12 @@
     {
       "path": "README.md",
       "size": 691,
-      "sha256": "64c24eba073026262b6b1a38a4846706804574d96ad5dce3c2930528eeb33ea6"
+      "sha256": "cb4d80954f8b54b8b44ac82a32d17160737bffcffdf39ab0239be9f99eee404a"
     },
     {
       "path": "release-info.json",
-      "size": 355,
-      "sha256": "8c94d434ef2366a45d96cb73f55bd383ec8969714b8b0467f74afad366d484bc"
+      "size": 375,
+      "sha256": "7cf835ec36b8132458afb61e98c95ffd0362fd8df69faa8dc651a72bb3f83535"
     },
     {
       "path": "requirements.txt",
@@ -233,8 +233,8 @@
     },
     {
       "path": "site/_projects/admin/index.html",
-      "size": 502126,
-      "sha256": "4d2bef6dc86ee0059cc975d4380399adcfa75041bc8419201f927601b7ab10df"
+      "size": 505371,
+      "sha256": "3b3238e468f6c6c30a3e0ddb9ffd0d60784a3e95d7ea9486c93471a92a53b752"
     },
     {
       "path": "site/_projects/game-template/index.html",
@@ -293,8 +293,8 @@
     },
     {
       "path": "site/assets/shared/admin-console.js",
-      "size": 119272,
-      "sha256": "29220f0ea286f057569a48a14f72c4c9e729eb9565667ad2b200940efa49f879"
+      "size": 119312,
+      "sha256": "d9d58d365b90e38b7a976d7b4c6c5d6c08be3ab5c2be71269558c2f65f79fe3c"
     },
     {
       "path": "site/assets/shared/announcement-reader.css",
@@ -343,8 +343,8 @@
     },
     {
       "path": "site/index.html",
-      "size": 66245,
-      "sha256": "77d6d8a185657e53aa287f91ddcb88efe1e0a9c41a8bb58558af148f97f2e68f"
+      "size": 66265,
+      "sha256": "c06fa20a416b8fd55445dc1f6e814617574ef519269f353ebe5fb91fb8f96ba5"
     },
     {
       "path": "site/robots.txt",
@@ -354,7 +354,7 @@
     {
       "path": "site/sitemap.xml",
       "size": 316,
-      "sha256": "6a65eacd724db801fb4abea38c2b7f7b3bb1207677ce023a2b318f66b1591614"
+      "sha256": "30b000b13a933b11f4f7b839f1db57a5b9301e923550a14ecbf9ca9172dd36f1"
     },
     {
       "path": "site/web.config",
