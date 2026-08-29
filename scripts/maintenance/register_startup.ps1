@@ -14,6 +14,17 @@ function Assert-Admin(){
  $principal=New-Object Security.Principal.WindowsPrincipal($identity)
  if(-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw '註冊自動啟動工作排程需要系統管理員權限。'}
 }
+function Test-SameWindowsAccount([string]$Actual,[string]$Expected){
+ try{
+  $actualSid=(New-Object Security.Principal.NTAccount($Actual)).Translate([Security.Principal.SecurityIdentifier]).Value
+  $expectedSid=(New-Object Security.Principal.NTAccount($Expected)).Translate([Security.Principal.SecurityIdentifier]).Value
+  return [string]::Equals($actualSid,$expectedSid,[StringComparison]::OrdinalIgnoreCase)
+ }catch{
+  $actualName=($Actual -split '\\')[-1]
+  $expectedName=($Expected -split '\\')[-1]
+  return [string]::Equals($actualName,$expectedName,[StringComparison]::OrdinalIgnoreCase)
+ }
+}
 try{
  Write-Diagnostic 'INFO' '開始註冊登入自動啟動工作排程。'
  Assert-Admin
@@ -32,12 +43,12 @@ try{
  $Task=Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
  $TaskAction=@($Task.Actions)[0]
  $TaskTrigger=@($Task.Triggers)[0]
- if([string]$Task.Principal.UserId -ne $ResolvedUser){throw '工作排程的登入使用者與要求不一致。'}
+ if(-not (Test-SameWindowsAccount ([string]$Task.Principal.UserId) $ResolvedUser)){throw '工作排程的登入使用者與要求不一致。'}
  if([string]$Task.Principal.RunLevel -ne 'Highest'){throw '工作排程未設定為最高權限。'}
  if([string]$Task.Principal.LogonType -ne 'Interactive'){throw '工作排程未設定為互動式登入；後端視窗將無法顯示。'}
  if([string]$TaskAction.Arguments -notlike "*$StartScript*"){throw '工作排程沒有指向目前專案的後端啟動腳本。'}
  if([string]$TaskAction.Arguments -match '(?i)WindowStyle\s+Hidden'){throw '工作排程錯誤地隱藏了後端視窗。'}
- if([string]$TaskTrigger.UserId -ne $ResolvedUser){throw '工作排程的登入觸發使用者與要求不一致。'}
+ if(-not (Test-SameWindowsAccount ([string]$TaskTrigger.UserId) $ResolvedUser)){throw '工作排程的登入觸發使用者與要求不一致。'}
  Write-Host ("已註冊工作排程 {0}。" -f $TaskName) -ForegroundColor Green
  Write-Host ("觸發方式：{0} 登入 Windows 後自動啟動。" -f $ResolvedUser) -ForegroundColor Green
  Write-Host '執行方式：最高權限、顯示後端視窗；註冊完成後不會立即啟動或重啟後端。' -ForegroundColor Green

@@ -4,7 +4,7 @@
   "license": "GPL-3.0-only",
   "scope": "Files present before inventory and hash manifest generation",
   "file_count": 86,
-  "total_bytes": 2979533,
+  "total_bytes": 2980190,
   "files": [
     {
       "path": ".achievement-hub-root",
@@ -173,8 +173,8 @@
     },
     {
       "path": "scripts/maintenance/register_startup.ps1",
-      "size": 4178,
-      "sha256": "793e027a8ca88152963bd8ad9ee0b66df57e630b5630cf12d16c05df62a25b20"
+      "size": 4835,
+      "sha256": "ec13f5b3343b5e06f156b884c8029c095c2b98b06c11ebb3eabdf882a6531a37"
     },
     {
       "path": "scripts/maintenance/remove_startup.ps1",
