@@ -27,11 +27,6 @@ ROOT_FILES = {
     ".achievement-hub-root",
     ".gitignore",
     "requirements.txt",
-    "啟動後端.cmd",
-    "關閉後端.cmd",
-    "重啟後端.cmd",
-    "檢查後端.cmd",
-    "verify_installation.cmd",
 }
 SCRIPT_FILES = {
     "scripts/start_backend.ps1",
@@ -323,28 +318,22 @@ Thumbs.db
     write_text(
         root,
         "README.md",
-        f"""# Milora_tool
+        f"""# Milora
 
-遊戲成就紀錄器的 GPL-3.0 純程式碼公開版，版本 `{version}`。
+Milora 是免費使用的遊戲成就紀錄網站，支援鳴潮、崩壞：星穹鐵道、原神、絕區零與異環。
 
-此套件只包含應用程式原始碼，不包含遊戲圖片、專案代表圖、社群品牌圖示、正式成就目錄、關聯資料、來源快照、資料庫、帳號、郵件、日誌或備份。首次啟動會建立空白資料庫，成就列表預設為空白。
+網站：[https://miloratool.tdvr.tw/](https://miloratool.tdvr.tw/)
 
-## Windows 啟用方式
+## 網頁功能
 
-```powershell
-py -m venv .venv
-.\\.venv\\Scripts\\python.exe -m pip install -r requirements.txt
-Copy-Item .env.example .env
-.\\啟動後端.cmd
-```
+- 查詢各遊戲成就名稱、條件、分類、版本與獎勵。
+- 登入帳號後記錄成就完成進度，並在不同裝置同步。
+- 依完成狀態、版本、分類與關鍵字篩選成就。
+- 閱讀與投稿成就攻略，支援文字、圖片與影片內容。
+- 查詢各遊戲兌換碼、獎勵、適用伺服器與兌換連結。
+- 桌機與手機共用同一網站，版面會依螢幕寬度調整。
 
-開啟 `http://127.0.0.1:8000`。公開版後端會同時提供 API 與前端靜態檔，不需要先安裝 IIS。
-
-`OPEN_SOURCE_EMPTY_DATA=1` 會略過正式遊戲目錄啟動門檻。若自行匯入或同步第三方資料，必須確認資料來源授權及使用條款。
-
-## 授權
-
-本套件內由專案作者擁有權利的程式碼依 GNU General Public License v3.0 授權，完整條款見 `LICENSE`。外部依賴、遊戲名稱與商標仍適用各權利人的條款。
+目前網站版本：`{version}`。
 """,
     )
     write_text(
@@ -452,6 +441,8 @@ errors: list[str] = []
 files = [path for path in ROOT.rglob("*") if path.is_file() and ".git" not in path.parts]
 for path in files:
     relative = path.relative_to(ROOT)
+    if path.suffix.lower() == ".cmd":
+        errors.append(f"command file: {relative}")
     if path.suffix.lower() in IMAGE_SUFFIXES:
         errors.append(f"image file: {relative}")
     if any(part in {".venv", "__pycache__", "logs", "backups", "data"} for part in relative.parts):

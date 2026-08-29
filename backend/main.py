@@ -83,7 +83,6 @@ from backend.services.game_data_sources import RepositorySourceError, is_nte_pla
 from backend.services.relation_governance import DERIVED_RELATION_FIELDS, expected_relation_state, validate_relation_state
 from backend.core.paths import (
     ACCOUNT_INDEX,
-    ACTIVITY_TODO_INDEX,
     ADMIN_INDEX,
     DATA_DIR,
     GAME_ICON_FILES,
@@ -112,23 +111,6 @@ from backend.services.guide_content import (
     sanitize_guide_html,
     video_embed_url,
 )
-from backend.services.activity_todo import (
-    admin_default_tasks as activity_admin_default_tasks,
-    admin_events as activity_admin_events,
-    create_default_task as create_activity_default_task,
-    create_custom_task as create_activity_custom_task,
-    create_manual_event as create_activity_manual_event,
-    delete_default_task as delete_activity_default_task,
-    delete_event as delete_activity_event,
-    dashboard as activity_todo_dashboard,
-    delete_custom_task as delete_activity_custom_task,
-    ensure_schema as ensure_activity_todo_schema,
-    set_completion as set_activity_task_completion,
-    set_event_override as set_activity_event_override,
-    update_default_task as update_activity_default_task,
-    update_custom_task as update_activity_custom_task,
-)
-
 load_dotenv(ROOT / ".env")
 ensure_runtime_directories()
 
@@ -176,8 +158,6 @@ SITE_OWNER_EMAIL = os.getenv("SITE_OWNER_EMAIL", "").strip().casefold()
 ADMIN_EMAILS = {normalize.strip().casefold() for normalize in os.getenv("ADMIN_EMAILS", "").split(",") if normalize.strip()}
 if SITE_OWNER_EMAIL:
     ADMIN_EMAILS.add(SITE_OWNER_EMAIL)
-ACTIVITY_TODO_ADMIN_ONLY = os.getenv("ACTIVITY_TODO_ADMIN_ONLY", "true").lower() in {"1","true","yes","on"}
-
 WUWA_SHARED_MODEL_MIGRATION = "20260624-wuwa-shared-model-v1"
 GAME_ICON_LABELS = {
     "wuwa": "Wuthering Waves",
@@ -333,47 +313,6 @@ class NotificationPayload(BaseModel):
     link: str = Field(default="", max_length=500)
     target_email: str = Field(default="", max_length=254)
     target_scope: str = Field(default="all", max_length=30)
-
-class ActivityTaskCreatePayload(BaseModel):
-    game_id: str = Field(min_length=2, max_length=40)
-    title: str = Field(min_length=1, max_length=200)
-    description: str = Field(default="", max_length=2000)
-    cadence: str = Field(default="daily", min_length=4, max_length=20)
-    schedule: dict[str, Any] = Field(default_factory=dict)
-    due_at: int | None = None
-
-class ActivityTaskUpdatePayload(BaseModel):
-    title: str = Field(min_length=1, max_length=200)
-    description: str = Field(default="", max_length=2000)
-    cadence: str = Field(default="daily", min_length=4, max_length=20)
-    schedule: dict[str, Any] = Field(default_factory=dict)
-    due_at: int | None = None
-    enabled: bool = True
-
-class ActivityTaskCompletionPayload(BaseModel):
-    completed: bool
-
-class ActivityDefaultTaskPayload(BaseModel):
-    game_id: str = Field(min_length=2, max_length=40)
-    title: str = Field(min_length=1, max_length=200)
-    description: str = Field(default="", max_length=2000)
-    cadence: str = Field(default="daily", min_length=4, max_length=20)
-    schedule: dict[str, Any] = Field(default_factory=dict)
-    due_at: int | None = None
-    enabled: bool = True
-    display_order: int = Field(default=0, ge=-100000, le=100000)
-
-class ActivityAdminEventPayload(BaseModel):
-    game_id: str = Field(min_length=2, max_length=40)
-    title: str = Field(min_length=1, max_length=300)
-    summary: str = Field(default="", max_length=5000)
-    category: str = Field(default="限時活動", min_length=1, max_length=100)
-    start_at: int | None = None
-    end_at: int | None = None
-    official_url: str = Field(default="", max_length=1000)
-    image_url: str = Field(default="", max_length=1000)
-    hidden: bool = False
-    reason: str = Field(default="", max_length=1000)
 
 class RedeemGamePayload(BaseModel):
     game_id: str = Field(min_length=2, max_length=40)
@@ -2224,8 +2163,27 @@ def init_db() -> None:
         create trigger if not exists live_message_center_reads_update after update on message_center_reads begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
         create trigger if not exists live_message_center_deletions_insert after insert on message_center_deletions begin update live_revisions set revision=revision+1,updated_at=cast(strftime('%s','now') as integer) where scope='notifications'; end;
         """)
-        activity_schema_stamp = now()
-        ensure_activity_todo_schema(db, activity_schema_stamp)
+        db.executescript(
+            """
+            drop table if exists activity_task_completions;
+            drop table if exists activity_tasks;
+            drop table if exists activity_event_overrides;
+            drop table if exists activity_source_candidates;
+            drop table if exists activity_sync_runs;
+            drop table if exists activity_sync_leases;
+            drop table if exists activity_events;
+            drop table if exists activity_sources;
+            drop table if exists activity_games;
+            """
+        )
+        db.execute(
+            "delete from schema_migrations where name in (?,?,?)",
+            (
+                "2026-08-22-activity-todo-core-v1",
+                "2026-08-22-activity-source-operations-v1",
+                "2026-08-23-activity-admin-controls-v1",
+            ),
+        )
         # Migrate legacy announcements into the shared message center.
         db.execute("""insert or ignore into message_center_items(id,item_type,target_user_id,title,body,level,kind,link,is_active,pinned,starts_at,ends_at,created_by,created_at,updated_at)
             select id,'announcement',null,title,body,level,'announcement','',is_active,pinned,starts_at,ends_at,created_by,created_at,updated_at from announcements""")
@@ -2949,10 +2907,6 @@ def require_admin(request: Request) -> dict[str, Any]:
     return user
 
 
-def require_activity_todo_user(request: Request) -> dict[str, Any]:
-    return require_admin(request) if ACTIVITY_TODO_ADMIN_ONLY else require_user(request)
-
-
 def require_site_owner(request: Request) -> dict[str, Any]:
     user = require_admin(request)
     if not is_site_owner_email(str(user.get("email") or "")):
@@ -3238,323 +3192,6 @@ def auth_progress_summary(request: Request):
         summary=_user_progress_summary(db,user["id"])
     return {"ok":True,**summary}
 
-
-def normalize_activity_task_text(value: str, *, field: str, limit: int, required: bool = False) -> str:
-    text_value = str(value or "").strip()
-    if required and not text_value:
-        raise HTTPException(status_code=400, detail=f"{field}不可空白。")
-    if len(text_value) > limit:
-        raise HTTPException(status_code=400, detail=f"{field}不可超過 {limit} 個字元。")
-    return text_value
-
-
-def normalize_activity_url(value: str, *, field: str) -> str:
-    text_value = str(value or "").strip()
-    if not text_value:
-        return ""
-    parsed = urllib.parse.urlparse(text_value)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise HTTPException(status_code=422, detail=f"{field}必須是 http 或 https 網址。")
-    return text_value
-
-
-def normalize_activity_window(start_at: int | None, end_at: int | None) -> tuple[int | None, int | None]:
-    start = int(start_at) if start_at is not None else None
-    end = int(end_at) if end_at is not None else None
-    if start is not None and start < 0:
-        raise HTTPException(status_code=422, detail="活動開始時間無效。")
-    if end is not None and end < 0:
-        raise HTTPException(status_code=422, detail="活動結束時間無效。")
-    if start is not None and end is not None and end < start:
-        raise HTTPException(status_code=422, detail="活動結束時間不可早於開始時間。")
-    return start, end
-
-
-@app.get("/api/activity-todo/bootstrap")
-def activity_todo_bootstrap(request: Request):
-    user = require_activity_todo_user(request)
-    stamp = now()
-    with connect_db() as db:
-        payload = activity_todo_dashboard(db, user["id"], stamp)
-    return {
-        "ok": True,
-        "admin_only": ACTIVITY_TODO_ADMIN_ONLY,
-        "server_time": stamp,
-        **payload,
-    }
-
-
-@app.get("/api/activity-todo/admin/bootstrap")
-def activity_todo_admin_bootstrap(request: Request):
-    admin = require_admin(request)
-    stamp = now()
-    with connect_db() as db:
-        dashboard = activity_todo_dashboard(db, admin["id"], stamp)
-        events = activity_admin_events(db, stamp)
-        default_tasks = activity_admin_default_tasks(db)
-    return {
-        "ok": True,
-        "server_time": stamp,
-        "games": dashboard.get("games", []),
-        "events": events,
-        "default_tasks": default_tasks,
-    }
-
-
-@app.post("/api/activity-todo/admin/default-tasks")
-def activity_todo_admin_create_default_task(body: ActivityDefaultTaskPayload, request: Request):
-    admin = require_admin(request)
-    title = normalize_activity_task_text(body.title, field="代辦名稱", limit=200, required=True)
-    description = normalize_activity_task_text(body.description, field="代辦說明", limit=2000)
-    stamp = now()
-    try:
-        with connect_db() as db:
-            task_id = create_activity_default_task(
-                db,
-                game_id=str(body.game_id or "").strip().lower(),
-                title=title,
-                description=description,
-                cadence=str(body.cadence or "").strip().lower(),
-                schedule=body.schedule,
-                due_at=body.due_at,
-                enabled=body.enabled,
-                display_order=body.display_order,
-                stamp=stamp,
-            )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    log_admin_action(
-        admin["id"], "create_activity_default_task", category="activity_todo",
-        game_id=str(body.game_id or "").strip().lower(), target_type="activity_default_task",
-        target_id=task_id, summary=f"新增預設代辦：{title}", after=body.model_dump(),
-        actor_ip=client_ip(request),
-    )
-    return {"ok": True, "id": task_id}
-
-
-@app.patch("/api/activity-todo/admin/default-tasks/{task_id}")
-def activity_todo_admin_update_default_task(task_id: str, body: ActivityDefaultTaskPayload, request: Request):
-    admin = require_admin(request)
-    title = normalize_activity_task_text(body.title, field="代辦名稱", limit=200, required=True)
-    description = normalize_activity_task_text(body.description, field="代辦說明", limit=2000)
-    stamp = now()
-    try:
-        with connect_db() as db:
-            before_row = db.execute("select * from activity_tasks where id=?", (task_id,)).fetchone()
-            update_activity_default_task(
-                db,
-                task_id=task_id,
-                game_id=str(body.game_id or "").strip().lower(),
-                title=title,
-                description=description,
-                cadence=str(body.cadence or "").strip().lower(),
-                schedule=body.schedule,
-                due_at=body.due_at,
-                enabled=body.enabled,
-                display_order=body.display_order,
-                stamp=stamp,
-            )
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    log_admin_action(
-        admin["id"], "update_activity_default_task", category="activity_todo",
-        game_id=str(body.game_id or "").strip().lower(), target_type="activity_default_task",
-        target_id=task_id, summary=f"更新預設代辦：{title}", before=dict(before_row) if before_row else None,
-        after=body.model_dump(), actor_ip=client_ip(request),
-    )
-    return {"ok": True, "id": task_id}
-
-
-@app.delete("/api/activity-todo/admin/default-tasks/{task_id}")
-def activity_todo_admin_delete_default_task(task_id: str, request: Request):
-    admin = require_admin(request)
-    stamp = now()
-    try:
-        with connect_db() as db:
-            before_row = db.execute("select * from activity_tasks where id=?", (task_id,)).fetchone()
-            delete_activity_default_task(db, task_id=task_id, stamp=stamp)
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    log_admin_action(
-        admin["id"], "delete_activity_default_task", category="activity_todo",
-        game_id=str(before_row["game_id"]) if before_row else "", target_type="activity_default_task",
-        target_id=task_id, summary="刪除預設代辦", before=dict(before_row) if before_row else None,
-        actor_ip=client_ip(request),
-    )
-    return {"ok": True}
-
-
-def normalized_activity_event(body: ActivityAdminEventPayload) -> dict[str, Any]:
-    start_at, end_at = normalize_activity_window(body.start_at, body.end_at)
-    image_url = normalize_activity_url(body.image_url, field="活動圖片連結")
-    if image_url and urllib.parse.urlparse(image_url).scheme != "https":
-        raise HTTPException(status_code=422, detail="活動圖片連結必須使用 https 網址。")
-    return {
-        "game_id": str(body.game_id or "").strip().lower(),
-        "title": normalize_activity_task_text(body.title, field="活動名稱", limit=300, required=True),
-        "summary": normalize_activity_task_text(body.summary, field="活動說明", limit=5000),
-        "category": normalize_activity_task_text(body.category, field="活動分類", limit=100, required=True),
-        "start_at": start_at,
-        "end_at": end_at,
-        "official_url": normalize_activity_url(body.official_url, field="官方連結"),
-        "image_url": image_url,
-    }
-
-
-@app.post("/api/activity-todo/admin/events")
-def activity_todo_admin_create_event(body: ActivityAdminEventPayload, request: Request):
-    admin = require_admin(request)
-    values = normalized_activity_event(body)
-    stamp = now()
-    try:
-        with connect_db() as db:
-            event_id = create_activity_manual_event(db, **values, stamp=stamp)
-            if body.hidden:
-                set_activity_event_override(
-                    db, event_id=event_id, values=values, hidden=True, reason=body.reason.strip(),
-                    admin_user_id=admin["id"], stamp=stamp,
-                )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    log_admin_action(
-        admin["id"], "create_activity_event", category="activity_todo", game_id=values["game_id"],
-        target_type="activity_event", target_id=event_id, summary=f"新增活動：{values['title']}",
-        after={**values, "hidden": body.hidden}, actor_ip=client_ip(request),
-    )
-    return {"ok": True, "id": event_id}
-
-
-@app.patch("/api/activity-todo/admin/events/{event_id}")
-def activity_todo_admin_update_event(event_id: str, body: ActivityAdminEventPayload, request: Request):
-    admin = require_admin(request)
-    values = normalized_activity_event(body)
-    reason = body.reason.strip()
-    if len(reason) < 3:
-        raise HTTPException(status_code=422, detail="修改原因至少需要 3 個字。")
-    stamp = now()
-    try:
-        with connect_db() as db:
-            event = db.execute("select * from activity_events where id=? and removed_at is null", (event_id,)).fetchone()
-            if event is None:
-                raise LookupError("找不到活動。")
-            if str(event["game_id"]) != values["game_id"]:
-                raise ValueError("既有活動不可更換所屬遊戲；請新增正確遊戲的活動。")
-            before_override = db.execute("select * from activity_event_overrides where event_id=?", (event_id,)).fetchone()
-            set_activity_event_override(
-                db, event_id=event_id, values=values, hidden=body.hidden, reason=reason,
-                admin_user_id=admin["id"], stamp=stamp,
-            )
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    log_admin_action(
-        admin["id"], "update_activity_event_override", category="activity_todo", game_id=values["game_id"],
-        target_type="activity_event", target_id=event_id, summary=f"人工修正活動：{values['title']}",
-        before=dict(before_override) if before_override else {"official": dict(event)},
-        after={**values, "hidden": body.hidden, "reason": reason}, actor_ip=client_ip(request),
-    )
-    return {"ok": True, "id": event_id, "locked": True}
-
-
-@app.delete("/api/activity-todo/admin/events/{event_id}")
-def activity_todo_admin_delete_event(event_id: str, request: Request):
-    admin = require_admin(request)
-    stamp = now()
-    try:
-        with connect_db() as db:
-            before = next((event for event in activity_admin_events(db, stamp) if event["id"] == event_id), None)
-            if before is None:
-                raise LookupError("找不到活動。")
-            delete_activity_event(db, event_id=event_id, stamp=stamp)
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    log_admin_action(
-        admin["id"], "delete_activity_event", category="activity_todo", game_id=before["game_id"],
-        target_type="activity_event", target_id=event_id,
-        summary=f"刪除活動：{before['effective']['title']}", before=before, actor_ip=client_ip(request),
-    )
-    return {"ok": True}
-
-
-@app.post("/api/activity-todo/tasks")
-def activity_todo_create_task(body: ActivityTaskCreatePayload, request: Request):
-    user = require_activity_todo_user(request)
-    title = normalize_activity_task_text(body.title, field="代辦名稱", limit=200, required=True)
-    description = normalize_activity_task_text(body.description, field="代辦說明", limit=2000)
-    stamp = now()
-    try:
-        with connect_db() as db:
-            task_id = create_activity_custom_task(
-                db,
-                user_id=user["id"],
-                game_id=str(body.game_id or "").strip().lower(),
-                title=title,
-                description=description,
-                cadence=str(body.cadence or "").strip().lower(),
-                schedule=body.schedule,
-                due_at=body.due_at,
-                stamp=stamp,
-            )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "task_id": task_id}
-
-
-@app.patch("/api/activity-todo/tasks/{task_id}")
-def activity_todo_update_task(task_id: str, body: ActivityTaskUpdatePayload, request: Request):
-    user = require_activity_todo_user(request)
-    title = normalize_activity_task_text(body.title, field="代辦名稱", limit=200, required=True)
-    description = normalize_activity_task_text(body.description, field="代辦說明", limit=2000)
-    try:
-        with connect_db() as db:
-            update_activity_custom_task(
-                db,
-                task_id=task_id,
-                user_id=user["id"],
-                title=title,
-                description=description,
-                cadence=str(body.cadence or "").strip().lower(),
-                schedule=body.schedule,
-                due_at=body.due_at,
-                enabled=body.enabled,
-                stamp=now(),
-            )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"ok": True}
-
-
-@app.delete("/api/activity-todo/tasks/{task_id}")
-def activity_todo_delete_task(task_id: str, request: Request):
-    user = require_activity_todo_user(request)
-    try:
-        with connect_db() as db:
-            delete_activity_custom_task(db, task_id=task_id, user_id=user["id"], stamp=now())
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"ok": True}
-
-
-@app.put("/api/activity-todo/tasks/{task_id}/completion")
-def activity_todo_update_completion(task_id: str, body: ActivityTaskCompletionPayload, request: Request):
-    user = require_activity_todo_user(request)
-    try:
-        with connect_db() as db:
-            result = set_activity_task_completion(
-                db,
-                task_id=task_id,
-                user_id=user["id"],
-                completed=body.completed,
-                stamp=now(),
-            )
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"ok": True, **result}
 
 @app.put("/api/auth/username")
 @app.post("/api/auth/username")
@@ -12621,18 +12258,6 @@ def admin_project_index():
     return admin_project()
 
 
-def activity_todo_project():
-    if not ACTIVITY_TODO_INDEX.exists():
-        raise HTTPException(status_code=404, detail="找不到活動&代辦專案。")
-    return _html_no_store_response(ACTIVITY_TODO_INDEX)
-
-
-@app.get("/_projects/activity-todo")
-@app.get("/_projects/activity-todo/")
-@app.get("/_projects/activity-todo/index.html")
-def activity_todo_project_page():
-    return activity_todo_project()
-
 def redeem_project():
     index_file = PROJECTS_DIR / "redeem" / "index.html"
     if not index_file.exists():
@@ -12786,10 +12411,4 @@ def account_page():
 @app.get("/admin")
 @app.get("/admin/")
 def admin_page():
-    return _hub_response()
-
-
-@app.get("/activity-todo")
-@app.get("/activity-todo/")
-def activity_todo_page():
     return _hub_response()

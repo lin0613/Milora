@@ -25,6 +25,8 @@ errors: list[str] = []
 files = [path for path in ROOT.rglob("*") if path.is_file() and ".git" not in path.parts]
 for path in files:
     relative = path.relative_to(ROOT)
+    if path.suffix.lower() == ".cmd":
+        errors.append(f"command file: {relative}")
     if path.suffix.lower() in IMAGE_SUFFIXES:
         errors.append(f"image file: {relative}")
     if any(part in {".venv", "__pycache__", "logs", "backups", "data"} for part in relative.parts):

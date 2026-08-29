@@ -1,10 +1,10 @@
 {
   "project_name": "Milora_tool",
-  "version": "1.3.0.29",
+  "version": "1.3.0.30",
   "license": "GPL-3.0-only",
   "scope": "Files present before inventory and hash manifest generation",
-  "file_count": 86,
-  "total_bytes": 2982985,
+  "file_count": 76,
+  "total_bytes": 2778551,
   "files": [
     {
       "path": ".achievement-hub-root",
@@ -43,13 +43,13 @@
     },
     {
       "path": "backend/core/paths.py",
-      "size": 2977,
-      "sha256": "b9aee3ad564b3aca5678d8ebce3493e9e925ada3679f5995835fa6e05ad6ad72"
+      "size": 2909,
+      "sha256": "7357cf6bff88d74eee1dfb770602b3714674884705bfc88e8c15f592e9f6c21b"
     },
     {
       "path": "backend/main.py",
-      "size": 764048,
-      "sha256": "3a422e9522bd9fe2f93409d49d14490f603003ef688ffb22b8501b9f20917aab"
+      "size": 746756,
+      "sha256": "89bd9408165b20a89bd6a6a13546002ad3368c257411d5a81555298b30a03304"
     },
     {
       "path": "backend/services/__init__.py",
@@ -60,16 +60,6 @@
       "path": "backend/services/achievement_governance.py",
       "size": 27679,
       "sha256": "08812efb4146786e3162a6e8f2d72755ec78369be691a514eeb3d0d9facdcd28"
-    },
-    {
-      "path": "backend/services/activity_sources.py",
-      "size": 75836,
-      "sha256": "3e7f0098fa683b9d0cda7c30707da3b09884695ca87a4a4ddd1c284408818550"
-    },
-    {
-      "path": "backend/services/activity_todo.py",
-      "size": 39136,
-      "sha256": "74d0112f36c7a3390f246043dd69aefe4fbb764e3f500b259a195a4e9d4e0138"
     },
     {
       "path": "backend/services/catalog_health.py",
@@ -143,13 +133,13 @@
     },
     {
       "path": "README.md",
-      "size": 1043,
-      "sha256": "85560a5b42b9811f31dc953d91315fdc8b9f9c28e83b9021cc17ecc61cfc9135"
+      "size": 691,
+      "sha256": "64c24eba073026262b6b1a38a4846706804574d96ad5dce3c2930528eeb33ea6"
     },
     {
       "path": "release-info.json",
-      "size": 363,
-      "sha256": "427e3fcf3988f0e8f406b59c17594dd460573b06c981ea3aa72e5b42cfb0b942"
+      "size": 355,
+      "sha256": "8c94d434ef2366a45d96cb73f55bd383ec8969714b8b0467f74afad366d484bc"
     },
     {
       "path": "requirements.txt",
@@ -242,14 +232,9 @@
       "sha256": "29f15ce48030f59ee170336fadd8f754e449b4e6d40e291b6336d5d0e778aa4e"
     },
     {
-      "path": "site/_projects/activity-todo/index.html",
-      "size": 5540,
-      "sha256": "4cd0816dcb5d11ff15e02ce4be3e9448e8bcdb14f72d8afae142f1e441d4336e"
-    },
-    {
       "path": "site/_projects/admin/index.html",
-      "size": 522464,
-      "sha256": "7c142a987e8c563dcf4bfa7a4e44c03ef6db0feb1024821404f4abfaa1677daf"
+      "size": 502126,
+      "sha256": "4d2bef6dc86ee0059cc975d4380399adcfa75041bc8419201f927601b7ab10df"
     },
     {
       "path": "site/_projects/game-template/index.html",
@@ -302,24 +287,14 @@
       "sha256": "c8029e5bf6efa1cd22e4ec30c05c680fd77f9c71e06065a8f19ccabcffc99a1f"
     },
     {
-      "path": "site/assets/shared/activity-todo.css",
-      "size": 18630,
-      "sha256": "eac6dabbb84590cf81cebcc6d4ce8f21d0a608ba9b893fdb2f2e6925daa48607"
-    },
-    {
-      "path": "site/assets/shared/activity-todo.js",
-      "size": 15326,
-      "sha256": "18be20108264335d2a5e18455f8f88d85f6346a8f1c50d58eaacd95123ae4f2e"
-    },
-    {
       "path": "site/assets/shared/admin-console.css",
-      "size": 172027,
-      "sha256": "1a5dfaf4378f262b3eb9510b9c2c8799cbc9883c90a815c134042051d05fcc0c"
+      "size": 165472,
+      "sha256": "c388efda731fbdf56c9d385e39301d0626ee8b3919364801a9d0145e869ae57b"
     },
     {
       "path": "site/assets/shared/admin-console.js",
-      "size": 119288,
-      "sha256": "6009a11771e85c372ae859a6ddb785b197ac6d061702af2ae6ada3530b1c249e"
+      "size": 119272,
+      "sha256": "29220f0ea286f057569a48a14f72c4c9e729eb9565667ad2b200940efa49f879"
     },
     {
       "path": "site/assets/shared/announcement-reader.css",
@@ -368,8 +343,8 @@
     },
     {
       "path": "site/index.html",
-      "size": 67859,
-      "sha256": "4f58534d179b64d4df630049216a342509bd1c1bf1c297c6701a5adf56cffc4a"
+      "size": 66245,
+      "sha256": "77d6d8a185657e53aa287f91ddcb88efe1e0a9c41a8bb58558af148f97f2e68f"
     },
     {
       "path": "site/robots.txt",
@@ -383,8 +358,8 @@
     },
     {
       "path": "site/web.config",
-      "size": 2835,
-      "sha256": "3cba7412c49b70b8c1bab287fe8acad727c0d5c1f894a90d03145d3e6ca05fb3"
+      "size": 2821,
+      "sha256": "c8d5f97083b907c0f3e07326c791d03202ca8b7eb3ce7c9edc782a6db335475c"
     },
     {
       "path": "THIRD_PARTY_NOTICES.md",
@@ -398,8 +373,8 @@
     },
     {
       "path": "tools/maintenance/build_open_source.py",
-      "size": 26380,
-      "sha256": "f4f54e0f5fea2eb6d9b9c90e9d79338c993ab934adb6d325c03beeff1224f966"
+      "size": 25992,
+      "sha256": "d7c6a05f9f6b37be0026c164990f319e064ff3a02488bf19468a089b971cb0db"
     },
     {
       "path": "tools/maintenance/create_safety_backup.py",
@@ -408,33 +383,8 @@
     },
     {
       "path": "tools/verify_public_source.py",
-      "size": 4151,
-      "sha256": "1557507f776d73538d7e15c48d99bae7a40125dbb693e0f15ef301e2186ffa58"
-    },
-    {
-      "path": "verify_installation.cmd",
-      "size": 522,
-      "sha256": "65690c5e2e70f19feb0ebadaa500de7c5fcb60504e57023023a9c1071a0effa3"
-    },
-    {
-      "path": "啟動後端.cmd",
-      "size": 624,
-      "sha256": "3361569b027d06de9185e96939cd17c97fb5ba6d6629ff58fa140624b1b86b9a"
-    },
-    {
-      "path": "檢查後端.cmd",
-      "size": 624,
-      "sha256": "beeba8f92e61ffc92cc1108b73e757b31f5e3daf2bce38f380c428dc0c058168"
-    },
-    {
-      "path": "重啟後端.cmd",
-      "size": 1021,
-      "sha256": "d37b0759b16db7038c1dc70c50bbdc3bf7366f789a2f2edacc6e84b6ce6070ef"
-    },
-    {
-      "path": "關閉後端.cmd",
-      "size": 621,
-      "sha256": "514552f02744c0802195c8ee6534abfbb8a592d089fa1c177346b017f2a2b300"
+      "size": 4242,
+      "sha256": "319089968439dfba66e2edc409ea91e1321f44325d687f1bfb0fdfef4ff9b46f"
     }
   ]
 }
