@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 import uuid
 import zipfile
@@ -406,13 +407,18 @@ Copy-Item .env.example .env
     write_text(root, "release-info.json", json.dumps(public_release, ensure_ascii=False, indent=2))
 
 
-def download_license(root: Path) -> None:
-    request = urllib.request.Request(
-        "https://www.gnu.org/licenses/gpl-3.0.txt",
-        headers={"User-Agent": "Milora_tool source release builder"},
-    )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        text = response.read().decode("utf-8")
+def download_license(root: Path, fallback: Path | None = None) -> None:
+    try:
+        request = urllib.request.Request(
+            "https://www.gnu.org/licenses/gpl-3.0.txt",
+            headers={"User-Agent": "Milora_tool source release builder"},
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            text = response.read().decode("utf-8")
+    except (urllib.error.URLError, OSError):
+        if fallback is None or not fallback.is_file():
+            raise
+        text = fallback.read_text(encoding="utf-8-sig")
     if "GNU GENERAL PUBLIC LICENSE" not in text or "Version 3, 29 June 2007" not in text:
         fail("Official GPL-3.0 text validation failed")
     write_text(root, "LICENSE", text)
@@ -629,7 +635,7 @@ def build(source_root: Path, output: Path, release_root: Path) -> dict[str, Any]
         patch_site(stage)
         patch_empty_data_mode(stage)
         public_documents(stage, version, release_id)
-        download_license(stage)
+        download_license(stage, output / "LICENSE")
         write_validator(stage)
         inventory = write_inventory_and_hashes(stage, version)
         validate(stage)
