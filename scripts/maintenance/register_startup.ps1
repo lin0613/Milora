@@ -1,14 +1,21 @@
-param([switch]$NonInteractive,[string]$ProjectRoot='',[string]$UserId='')
+﻿param([switch]$NonInteractive,[string]$ProjectRoot='',[string]$UserId='')
 $ErrorActionPreference='Stop'
 $TaskName='GameAchievementBackend'
 $Root=if($ProjectRoot){[IO.Path]::GetFullPath($ProjectRoot)}else{Split-Path -Parent (Split-Path -Parent $PSScriptRoot)}
+$DiagnosticLog=Join-Path $Root 'logs\register-startup.log'
 function Finish([int]$Code){Write-Host '';if(-not $NonInteractive){[void](Read-Host '處理已完成，請查看上方結果。按 Enter 關閉此視窗')};exit $Code}
+function Write-Diagnostic([string]$Level,[string]$Message){
+ $logDirectory=Split-Path -Parent $DiagnosticLog
+ New-Item -ItemType Directory -Path $logDirectory -Force|Out-Null
+ Add-Content -LiteralPath $DiagnosticLog -Encoding UTF8 -Value ("[{0}] [{1}] {2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'),$Level,$Message)
+}
 function Assert-Admin(){
  $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
  $principal=New-Object Security.Principal.WindowsPrincipal($identity)
  if(-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){throw '註冊自動啟動工作排程需要系統管理員權限。'}
 }
 try{
+ Write-Diagnostic 'INFO' '開始註冊登入自動啟動工作排程。'
  Assert-Admin
  $StartScript=Join-Path $Root 'scripts\start_backend.ps1'
  if(-not (Test-Path -LiteralPath $StartScript -PathType Leaf)){throw ("找不到後端啟動腳本：{0}" -f $StartScript)}
@@ -34,5 +41,6 @@ try{
  Write-Host ("已註冊工作排程 {0}。" -f $TaskName) -ForegroundColor Green
  Write-Host ("觸發方式：{0} 登入 Windows 後自動啟動。" -f $ResolvedUser) -ForegroundColor Green
  Write-Host '執行方式：最高權限、顯示後端視窗；註冊完成後不會立即啟動或重啟後端。' -ForegroundColor Green
+ Write-Diagnostic 'OK' ("已註冊 {0}；使用者={1}；最高權限；互動式登入；動作={2}" -f $TaskName,$ResolvedUser,$TaskAction.Arguments)
  Finish 0
-}catch{Write-Host ("註冊登入自動啟動失敗：{0}" -f $_.Exception.Message) -ForegroundColor Red;Finish 1}
+}catch{$message="註冊登入自動啟動失敗：{0}" -f $_.Exception.Message;Write-Diagnostic 'ERROR' $message;Write-Host $message -ForegroundColor Red;Finish 1}
