@@ -1,10 +1,10 @@
 {
   "project_name": "Milora_tool",
-  "version": "1.3.0.27",
+  "version": "1.3.0.28",
   "license": "GPL-3.0-only",
   "scope": "Files present before inventory and hash manifest generation",
   "file_count": 86,
-  "total_bytes": 2980190,
+  "total_bytes": 2982016,
   "files": [
     {
       "path": ".achievement-hub-root",
@@ -144,12 +144,12 @@
     {
       "path": "README.md",
       "size": 1043,
-      "sha256": "d62e69832a6bdb84850903e260ca6ddfd0787f1d1efa370819d9420f5dcb31b6"
+      "sha256": "4cbe69660c1383599adc7ce4aa315d732af2383000121c0163910563f9547a79"
     },
     {
       "path": "release-info.json",
-      "size": 364,
-      "sha256": "57d3b4ae301409d5ca7d2fb0bdd9e2babab3a73e02327136126177ebbfdeac20"
+      "size": 365,
+      "sha256": "aa19a551ed0ae3aa921e15792beb2b47003347433c7878cd06263eca0bee2073"
     },
     {
       "path": "requirements.txt",
@@ -243,13 +243,13 @@
     },
     {
       "path": "site/_projects/activity-todo/index.html",
-      "size": 5530,
-      "sha256": "0c1ada767ac5f298c83743d97f9dbef68882b49fc628d97fe4b3f3957bfdae23"
+      "size": 5540,
+      "sha256": "4cd0816dcb5d11ff15e02ce4be3e9448e8bcdb14f72d8afae142f1e441d4336e"
     },
     {
       "path": "site/_projects/admin/index.html",
-      "size": 521291,
-      "sha256": "cd74a7803580f8ef6b0cb8f5e07aa38335e3c926e14a2befcde7895febb0a6b1"
+      "size": 521766,
+      "sha256": "cbcac1340f4b83151cfd3574a14f5c4416b3d66e044b29821cc8c78ea66a0328"
     },
     {
       "path": "site/_projects/game-template/index.html",
@@ -303,23 +303,23 @@
     },
     {
       "path": "site/assets/shared/activity-todo.css",
-      "size": 18380,
-      "sha256": "0713c5aa5b71408bd71cbfc0989a2487e4574fc8e808a2f5197ae77135d283c2"
+      "size": 18630,
+      "sha256": "eac6dabbb84590cf81cebcc6d4ce8f21d0a608ba9b893fdb2f2e6925daa48607"
     },
     {
       "path": "site/assets/shared/activity-todo.js",
-      "size": 15031,
-      "sha256": "3d2abec8efbd7a5b72dd537dd58732391f26f4a6fa40b210b8f3594fa9e03766"
+      "size": 15326,
+      "sha256": "18be20108264335d2a5e18455f8f88d85f6346a8f1c50d58eaacd95123ae4f2e"
     },
     {
       "path": "site/assets/shared/admin-console.css",
-      "size": 171236,
-      "sha256": "9b9968065a326c8997446153387f9789657609519d406ef0668211825bc5dc3f"
+      "size": 172027,
+      "sha256": "1a5dfaf4378f262b3eb9510b9c2c8799cbc9883c90a815c134042051d05fcc0c"
     },
     {
       "path": "site/assets/shared/admin-console.js",
-      "size": 119288,
-      "sha256": "cd657c346845800ef4779e8b7ff1bd3d317c7d77e552b651fd29b3cdf22a7ec3"
+      "size": 119292,
+      "sha256": "8d156e63ab26954f06ceca15c55c75e804617bebb7114d9c25e4337b9ab463b8"
     },
     {
       "path": "site/assets/shared/announcement-reader.css",

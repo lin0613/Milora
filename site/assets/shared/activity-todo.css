@@ -36,6 +36,9 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 .gameFilterProgress{display:grid;gap:9px;min-width:0}
 .gameFilterProgressRow{display:grid;gap:5px;min-width:0}
 .gameFilterProgressCopy{display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:6px;min-width:0;font-style:normal}
+.gameFilterProgressRow.empty{min-height:22px;align-content:start}
+.gameFilterProgressRow.empty .gameFilterProgressCopy{grid-template-columns:auto 1fr}
+.gameFilterProgressRow.empty .gameFilterProgressCopy strong{color:var(--muted);font-weight:750}
 .gameFilterProgressCopy span{color:var(--muted);font-size:10px;font-weight:850}
 .gameFilterProgressCopy strong{justify-self:end;color:var(--text);font-size:10px;font-weight:850;white-space:nowrap}
 .gameFilterProgressCopy em{color:var(--accent);font-size:10px;font-style:normal;font-weight:900;white-space:nowrap}

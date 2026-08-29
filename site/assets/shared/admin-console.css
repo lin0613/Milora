@@ -2623,6 +2623,13 @@ body.adminDashboardV2 .activityManagementFilters{display:grid;grid-template-colu
 body.adminDashboardV2 .activityEventList,
 body.adminDashboardV2 .activityDefaultTaskList,
 body.adminDashboardV2 .activityCandidateList{display:grid;gap:9px}
+body.adminDashboardV2 .activityDefaultTaskList{gap:12px}
+body.adminDashboardV2 .activityDefaultTaskGroup{overflow:hidden;border:1px solid var(--admin-v2-line);border-radius:10px;background:rgba(7,16,25,.34)}
+body.adminDashboardV2 .activityDefaultTaskGroupHead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 14px;border-bottom:1px solid var(--admin-v2-line);background:rgba(99,215,199,.045)}
+body.adminDashboardV2 .activityDefaultTaskGroupHead strong{font-size:13px}
+body.adminDashboardV2 .activityDefaultTaskGroupHead span{color:var(--admin-v2-muted);font-size:11px;font-weight:800}
+body.adminDashboardV2 .activityDefaultTaskGroupList{display:grid;gap:8px;padding:9px}
+body.adminDashboardV2 .activityDefaultTaskGroupList>.adminEmpty{padding:18px}
 body.adminDashboardV2 .activityCandidateCard{padding:14px;border-color:rgba(240,197,107,.26);background:rgba(240,197,107,.035)}
 body.adminDashboardV2 .activityCandidateRow,
 body.adminDashboardV2 .activityEventAdminCard,
