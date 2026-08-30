@@ -323,7 +323,7 @@ function enhanceAdminWorkspace(){
  setupAdminGamePicker();
  buildRedeemWorkspace();
 }
-function addAssets(){const head=document.head;if(!document.querySelector('link[data-admin-console-style]')){const link=document.createElement('link');link.rel='stylesheet';link.dataset.adminConsoleStyle='20260830-hsr-header-stray-text-1332';link.href='/assets/shared/admin-console.css?v=20260830-hsr-header-stray-text-1332';head.appendChild(link)}}
+function addAssets(){const head=document.head;if(!document.querySelector('link[data-admin-console-style]')){const link=document.createElement('link');link.rel='stylesheet';link.dataset.adminConsoleStyle='20260830-public-runtime-source-scope-1333';link.href='/assets/shared/admin-console.css?v=20260830-public-runtime-source-scope-1333';head.appendChild(link)}}
 addAssets();replaceSyncPanel();replaceValidationDialog();replaceAuditPanel();enhanceAdminWorkspace();
 try{runCatalogValidation=runHealthScan}catch{}
 try{loadAdminLogs=loadAuditRecords}catch{}

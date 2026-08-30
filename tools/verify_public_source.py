@@ -21,9 +21,18 @@ SECRET_PATTERNS = {
     "aws_access_key": re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"),
 }
 FORBIDDEN_PUBLIC_FILES = {
+    ".achievement-hub-root",
+    "OPEN_SOURCE_INVENTORY.json",
     "OPEN_SOURCE_SCOPE.md",
+    "release-info.json",
     "THIRD_PARTY_NOTICES.md",
     "SECURITY.md",
+    "backend/backup_db.py",
+    "backend/test_mail.py",
+    "site/_projects/game-template/index.html",
+    "tools/maintenance/add_game.py",
+    "tools/maintenance/build_open_source.py",
+    "tools/maintenance/create_safety_backup.py",
 }
 
 errors: list[str] = []
