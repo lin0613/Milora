@@ -29,21 +29,6 @@ ROOT_FILES = {
     "requirements.txt",
 }
 SCRIPT_FILES = {
-    "scripts/start_backend.ps1",
-    "scripts/stop_backend.ps1",
-    "scripts/restart_backend.ps1",
-    "scripts/check_backend.ps1",
-    "scripts/verify_installation.ps1",
-    "scripts/run_backend_host.py",
-    "scripts/setup/01_install_iis.ps1",
-    "scripts/setup/02_install_backend.ps1",
-    "scripts/setup/03_configure_iis_site.ps1",
-    "scripts/setup/05_configure_https.ps1",
-    "scripts/maintenance/backup_database.ps1",
-    "scripts/maintenance/register_daily_backup.ps1",
-    "scripts/maintenance/register_startup.ps1",
-    "scripts/maintenance/remove_startup.ps1",
-    "scripts/maintenance/test_email.ps1",
     "tools/maintenance/add_game.py",
     "tools/maintenance/create_safety_backup.py",
     "tools/maintenance/build_open_source.py",
@@ -336,50 +321,6 @@ Milora 是免費使用的遊戲成就紀錄網站，支援鳴潮、崩壞：星�
 目前網站版本：`{version}`。
 """,
     )
-    write_text(
-        root,
-        "OPEN_SOURCE_SCOPE.md",
-        """# 純程式碼公開範圍
-
-## 已包含
-
-- FastAPI 後端、SQLite 結構與 API 原始碼。
-- 桌面版與手機版 HTML、CSS、JavaScript。
-- 啟動、停止、重啟、安裝與一般維護腳本。
-- 空白資料模式、開源同步工具及公開版檢查工具。
-
-## 明確排除
-
-- 所有 PNG、JPG、JPEG、WebP、GIF、ICO、SVG、BMP、AVIF 圖片。
-- favicon、專案代表圖、遊戲圖示與社群品牌圖示。
-- 正式成就名稱、條件、獎勵、版本、官方 ID 清單與內嵌補全記錄。
-- 正式目錄、關聯資料、來源快照、SQLite、帳號、工作階段、操作紀錄、郵件、日誌、備份與 `.env`。
-- 正式站台網域驗證檔、私人發布文件與私有環境設定。
-
-公開版預設 `OPEN_SOURCE_EMPTY_DATA=1`，只略過需要正式遊戲資料的同步與驗證；一般資料表與管理功能仍會初始化。
-""",
-    )
-    write_text(
-        root,
-        "THIRD_PARTY_NOTICES.md",
-        """# 第三方與商標說明
-
-本公開套件不綑綁 Python 虛擬環境或第三方遊戲資料。`requirements.txt` 的依賴由使用者另外安裝，並各自適用其上游授權條款。
-
-來源同步程式可能連線至程式碼中設定的第三方儲存庫或網站。GPL-3.0 只涵蓋本套件中專案作者有權授權的程式碼，不改變外部網站、遊戲資料、名稱、圖像或商標的權利狀態。本專案與相關遊戲發行商或資料來源沒有從屬或官方認可關係。
-""",
-    )
-    write_text(
-        root,
-        "SECURITY.md",
-        """# 安全設定
-
-- 不要提交 `.env`、資料庫、日誌、備份或 SMTP 密碼。
-- 正式環境請使用 HTTPS、`APP_ENV=production` 與安全 Cookie。
-- 請替換 `.env.example` 的範例站長信箱。
-- 匯入外部資料前先在隔離環境檢查內容及來源。
-""",
-    )
     public_release = {
         "project_name": PROJECT_NAME,
         "version": version,
@@ -436,11 +377,20 @@ SECRET_PATTERNS = {
     "google_api_key": re.compile(r"\bAIza[0-9A-Za-z_-]{30,}\b"),
     "aws_access_key": re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"),
 }
+FORBIDDEN_PUBLIC_FILES = {
+    "OPEN_SOURCE_SCOPE.md",
+    "THIRD_PARTY_NOTICES.md",
+    "SECURITY.md",
+}
 
 errors: list[str] = []
 files = [path for path in ROOT.rglob("*") if path.is_file() and ".git" not in path.parts]
 for path in files:
     relative = path.relative_to(ROOT)
+    if relative.as_posix() in FORBIDDEN_PUBLIC_FILES:
+        errors.append(f"excluded public file: {relative}")
+    if relative.parts and relative.parts[0] == "scripts":
+        errors.append(f"excluded scripts file: {relative}")
     if path.suffix.lower() == ".cmd":
         errors.append(f"command file: {relative}")
     if path.suffix.lower() in IMAGE_SUFFIXES:

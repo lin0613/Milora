@@ -1,10 +1,10 @@
 {
   "project_name": "Milora_tool",
-  "version": "1.3.0.31",
+  "version": "1.3.0.32",
   "license": "GPL-3.0-only",
   "scope": "Files present before inventory and hash manifest generation",
-  "file_count": 76,
-  "total_bytes": 2782899,
+  "file_count": 58,
+  "total_bytes": 2743768,
   "files": [
     {
       "path": ".achievement-hub-root",
@@ -127,104 +127,19 @@
       "sha256": "230184f60bae2feaf244f10a8bac053c8ff33a183bcc365b4d8b876d2b7f4809"
     },
     {
-      "path": "OPEN_SOURCE_SCOPE.md",
-      "size": 900,
-      "sha256": "c482030037b33ce928d4298e9320b6d158ecd436b9ce98f852c0873627921838"
-    },
-    {
       "path": "README.md",
       "size": 691,
-      "sha256": "cb4d80954f8b54b8b44ac82a32d17160737bffcffdf39ab0239be9f99eee404a"
+      "sha256": "f27017cceac77abb01d1af74b7f2a37f1937b4a5c7bb2943f957a920a080b0c6"
     },
     {
       "path": "release-info.json",
-      "size": 375,
-      "sha256": "7cf835ec36b8132458afb61e98c95ffd0362fd8df69faa8dc651a72bb3f83535"
+      "size": 356,
+      "sha256": "58ee77937050bc2397493422d7e90f696faedb7bf616567e74c7a9ce751a56fe"
     },
     {
       "path": "requirements.txt",
       "size": 168,
       "sha256": "ccba73e8c093f0a191fbce20852a741ccdbb82092fe296c8549e9145ee5ff75f"
-    },
-    {
-      "path": "scripts/check_backend.ps1",
-      "size": 2077,
-      "sha256": "ef1e44679697bbf5be6e4f6eeddb2cf42d0b1561c385401154e20be8bbc4151a"
-    },
-    {
-      "path": "scripts/maintenance/backup_database.ps1",
-      "size": 805,
-      "sha256": "c015458a2468292f72507210b6411480d96e72e4a33baff61f29dac97aa70379"
-    },
-    {
-      "path": "scripts/maintenance/register_daily_backup.ps1",
-      "size": 1077,
-      "sha256": "5a10f9f1a1381d4efdf5a0d8d78ad49966a7b4c09d912955e5e96423d2bd5642"
-    },
-    {
-      "path": "scripts/maintenance/register_startup.ps1",
-      "size": 4835,
-      "sha256": "ec13f5b3343b5e06f156b884c8029c095c2b98b06c11ebb3eabdf882a6531a37"
-    },
-    {
-      "path": "scripts/maintenance/remove_startup.ps1",
-      "size": 2852,
-      "sha256": "1976632dc0625dd41fbd3ff8015e5bd140232c6eec20445c68fec253e0712b36"
-    },
-    {
-      "path": "scripts/maintenance/test_email.ps1",
-      "size": 840,
-      "sha256": "4b242995e72ba61cdb616c4d30a9bf99e881796c4eb1ad1adc02a5b2b2e7c97f"
-    },
-    {
-      "path": "scripts/restart_backend.ps1",
-      "size": 2176,
-      "sha256": "bbab19259d2baecffa3835200b012cd1161e82e26cc37184ca7978e7c1d195fc"
-    },
-    {
-      "path": "scripts/run_backend_host.py",
-      "size": 867,
-      "sha256": "f38b568d878659fd38e86772ce594f1f5abd169a648430c4f3f5070adb41447b"
-    },
-    {
-      "path": "scripts/setup/01_install_iis.ps1",
-      "size": 799,
-      "sha256": "9281029330ae1317b6fdb75fc6c6c1d411ff977cdbf55f519d6d90bccbec24e5"
-    },
-    {
-      "path": "scripts/setup/02_install_backend.ps1",
-      "size": 1464,
-      "sha256": "3f7b86c41c877473afd8022ac56c93b8696bc18df3d620720a0c3b705530d67f"
-    },
-    {
-      "path": "scripts/setup/03_configure_iis_site.ps1",
-      "size": 1371,
-      "sha256": "c0f312a9b31be2a11d446d2634f9d12668cb27229472a2c8ff0e052849ff3a09"
-    },
-    {
-      "path": "scripts/setup/05_configure_https.ps1",
-      "size": 1264,
-      "sha256": "5522c2489dc2ac197085079f3952dc664f667897077a9c341647ef8409c8f858"
-    },
-    {
-      "path": "scripts/start_backend.ps1",
-      "size": 7733,
-      "sha256": "39e87b87833e47d3a65422222dcaf1397d426b5f462e89c7acdb34d39c1af4db"
-    },
-    {
-      "path": "scripts/stop_backend.ps1",
-      "size": 4461,
-      "sha256": "b7cb32bbd7a09a3b08a3f0facc95f34a2deb77fe696d3f2d6184e6c07ae34e15"
-    },
-    {
-      "path": "scripts/verify_installation.ps1",
-      "size": 2859,
-      "sha256": "a5e855a92e3b9fff12e276ce876585a6963a26ae56772a16c1bca4bee36d0a84"
-    },
-    {
-      "path": "SECURITY.md",
-      "size": 283,
-      "sha256": "2e9bb47939dc2590dbacf9a982fd7af9a47ec8fd766167aba304c0ceb9e3fd92"
     },
     {
       "path": "site/_projects/account/index.html",
@@ -233,8 +148,8 @@
     },
     {
       "path": "site/_projects/admin/index.html",
-      "size": 505371,
-      "sha256": "3b3238e468f6c6c30a3e0ddb9ffd0d60784a3e95d7ea9486c93471a92a53b752"
+      "size": 505352,
+      "sha256": "4b08c7e129e73ad605e0b79acd8ee9c3a8b800fbf11148162947e0bf6eabecdc"
     },
     {
       "path": "site/_projects/game-template/index.html",
@@ -263,8 +178,8 @@
     },
     {
       "path": "site/_projects/hsr/index.html",
-      "size": 106914,
-      "sha256": "a38f0a2e654cbbce01418d901fc2c155e2052597266e773b24c71cba54e1aaa7"
+      "size": 106911,
+      "sha256": "672c95cb2129f3bf483c34f1a3977f9772528b80eca14ac6e3afd1697854c098"
     },
     {
       "path": "site/_projects/nte/index.html",
@@ -293,8 +208,8 @@
     },
     {
       "path": "site/assets/shared/admin-console.js",
-      "size": 119312,
-      "sha256": "d9d58d365b90e38b7a976d7b4c6c5d6c08be3ab5c2be71269558c2f65f79fe3c"
+      "size": 119274,
+      "sha256": "76219fefff2efb9932103c0abe8c4b42882456e306ef84675b8f0ad70f2de4c8"
     },
     {
       "path": "site/assets/shared/announcement-reader.css",
@@ -343,8 +258,8 @@
     },
     {
       "path": "site/index.html",
-      "size": 66265,
-      "sha256": "c06fa20a416b8fd55445dc1f6e814617574ef519269f353ebe5fb91fb8f96ba5"
+      "size": 66246,
+      "sha256": "a90db20a692e0bbe3986b6551570d249578a7e9a0492577516ae3a7eef333e00"
     },
     {
       "path": "site/robots.txt",
@@ -362,19 +277,14 @@
       "sha256": "c8d5f97083b907c0f3e07326c791d03202ca8b7eb3ce7c9edc782a6db335475c"
     },
     {
-      "path": "THIRD_PARTY_NOTICES.md",
-      "size": 518,
-      "sha256": "e5841f2c8b496fdd56da52ac0fa9fc0fbec5bc6467cfeb07739cb2bacf84c750"
-    },
-    {
       "path": "tools/maintenance/add_game.py",
       "size": 4926,
       "sha256": "6efb6cf56e54f85c102996cee3db62b7d606c93622e0f87d2fa11d8f84278b38"
     },
     {
       "path": "tools/maintenance/build_open_source.py",
-      "size": 25992,
-      "sha256": "d7c6a05f9f6b37be0026c164990f319e064ff3a02488bf19468a089b971cb0db"
+      "size": 23794,
+      "sha256": "1603388c34a2e1ff2639b745091a7d866742ff7aa869045b9e862733acaef00b"
     },
     {
       "path": "tools/maintenance/create_safety_backup.py",
@@ -383,8 +293,8 @@
     },
     {
       "path": "tools/verify_public_source.py",
-      "size": 4242,
-      "sha256": "319089968439dfba66e2edc409ea91e1321f44325d687f1bfb0fdfef4ff9b46f"
+      "size": 4588,
+      "sha256": "d2a953ee3f48659580f0231c436fc827a3049b2ddf49d7da364c7b7781e0acb6"
     }
   ]
 }

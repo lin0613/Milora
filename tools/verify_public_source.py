@@ -20,11 +20,20 @@ SECRET_PATTERNS = {
     "google_api_key": re.compile(r"\bAIza[0-9A-Za-z_-]{30,}\b"),
     "aws_access_key": re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"),
 }
+FORBIDDEN_PUBLIC_FILES = {
+    "OPEN_SOURCE_SCOPE.md",
+    "THIRD_PARTY_NOTICES.md",
+    "SECURITY.md",
+}
 
 errors: list[str] = []
 files = [path for path in ROOT.rglob("*") if path.is_file() and ".git" not in path.parts]
 for path in files:
     relative = path.relative_to(ROOT)
+    if relative.as_posix() in FORBIDDEN_PUBLIC_FILES:
+        errors.append(f"excluded public file: {relative}")
+    if relative.parts and relative.parts[0] == "scripts":
+        errors.append(f"excluded scripts file: {relative}")
     if path.suffix.lower() == ".cmd":
         errors.append(f"command file: {relative}")
     if path.suffix.lower() in IMAGE_SUFFIXES:
