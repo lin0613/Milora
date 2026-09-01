@@ -1740,6 +1740,27 @@ body.standaloneAdminPage #adminDialog>.dialogBody{
 .adminGameDesktopPicker{display:none}
 .achievementSummaryIcon{display:none}
 .authMessage.warning{color:#f0b557}
+.adminSupportReader{display:grid;grid-template-columns:minmax(240px,31%) minmax(0,1fr);min-width:0;overflow:hidden;border:1px solid var(--admin-line);border-radius:10px;background:var(--admin-surface)}
+.adminSupportTicketList,.adminSupportTicketDetail{min-width:0;min-height:0;overflow:auto}
+.adminSupportTicketList{border-right:1px solid var(--admin-line);background:#08151f}
+.adminSupportTicketItem{display:grid;width:100%;min-height:0;padding:14px 15px!important;border:0!important;border-bottom:1px solid var(--admin-line)!important;border-radius:0!important;background:transparent!important;color:var(--admin-text)!important;text-align:left;box-shadow:none!important}
+.adminSupportTicketItem:last-child{border-bottom:0!important}
+.adminSupportTicketItem:hover{background:rgba(77,219,208,.06)!important}
+.adminSupportTicketItem.active{background:rgba(77,219,208,.11)!important;box-shadow:inset 3px 0 0 var(--admin-accent)!important}
+.adminSupportTicketItem:focus-visible{position:relative;z-index:1;outline:2px solid var(--admin-accent);outline-offset:-2px}
+.adminSupportTicketHeading{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;min-width:0}
+.adminSupportTicketHeading strong{min-width:0;font-size:14px;line-height:1.45;overflow-wrap:anywhere}
+.adminSupportTicketSummary{display:grid;gap:4px;margin-top:8px;color:var(--admin-muted);font-size:11px;line-height:1.45}
+.adminSupportTicketSummary time{color:inherit}
+.adminSupportTicketDetail{padding:20px;background:var(--admin-surface)}
+.adminSupportTicketDetail>.adminEmpty{display:grid;min-height:100%;place-items:center;padding:24px;text-align:center}
+.adminSupportTicketDetailCard{min-width:0}
+.adminSupportTicketDetailHead{position:static;z-index:auto;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:1px solid var(--admin-line);background:transparent;backdrop-filter:none}
+.adminSupportTicketDetailHead h3{margin:0;color:var(--admin-text);font-size:20px;line-height:1.4;overflow-wrap:anywhere}
+.adminSupportTicketDetailHead p{margin:5px 0 0;color:var(--admin-muted);font-size:12px;overflow-wrap:anywhere}
+.adminSupportTicketMeta{display:flex;flex-wrap:wrap;gap:7px 18px;padding:11px 0;color:var(--admin-muted);font-size:11px;line-height:1.5}
+.adminSupportTicketDetail .ticketThread{margin-top:4px}
+.adminSupportTicketForm{margin-top:16px}
 .sourcePairCard.excluded{border-style:dashed;opacity:.82}.sourcePairCard.included{border-color:rgba(87,221,165,.42)}.sourcePairActions{display:flex;align-items:center;gap:10px;margin-top:10px}.sourcePairActions .small{flex:1}.sourcePairActions button{flex:0 0 auto}.sourceExclusionNote{display:flex;justify-content:space-between;gap:10px;margin-top:9px;padding:9px;border-left:3px solid var(--a);border-radius:8px;background:rgba(98,219,201,.07);font-size:12px}.sourceExclusionNote span{color:var(--muted)}.sourceUpdatedBadge{color:#f0b557;font-weight:800}.sourceExclusionHelp{margin:8px 0 0}.sourceExcludedDetails>summary{color:var(--muted)}.sourceIncludedDetails>summary{color:#7ee0b0}
 @media(max-width:760px){.sourcePairActions{display:grid;align-items:stretch}.sourcePairActions button{width:100%}.sourceExclusionNote{display:grid}}
 /* 20260813-source-isolation-review-decisions-1290 */
@@ -2480,8 +2501,10 @@ body.standaloneAdminPage #adminDialog>.dialogBody{
   body.adminDashboardV2 #adminPanelHealth .adminFeatureCard{padding:14px!important}
   body.adminDashboardV2 #adminPanelHealth>.sectionCard{min-width:0}
   body.adminDashboardV2 #adminPanelSecurity .twoColumn{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-  body.adminDashboardV2 #adminPanelSupport>.stack{display:grid;gap:10px}
-  body.adminDashboardV2 #adminPanelSupport .listItem{border-color:var(--admin-v2-line)!important;border-radius:9px!important;background:var(--admin-v2-surface)!important}
+  body.adminDashboardV2 #adminPanelSupport .adminSupportReader{height:calc(100vh - 245px);min-height:440px;border-color:var(--admin-v2-line);background:var(--admin-v2-surface)}
+  body.adminDashboardV2 #adminPanelSupport .adminSupportTicketList{border-color:var(--admin-v2-line);background:#07151f}
+  body.adminDashboardV2 #adminPanelSupport .adminSupportTicketItem{border-color:var(--admin-v2-line-soft)!important;color:var(--admin-v2-text)!important}
+  body.adminDashboardV2 #adminPanelSupport .adminSupportTicketDetail{background:var(--admin-v2-surface)}
   body.adminDashboardV2 #adminPanelLogs .adminTable{min-width:980px!important}
 
   body.adminDashboardV2 dialog:not(#adminDialog){
@@ -2571,6 +2594,22 @@ body.standaloneAdminPage #adminDialog>.dialogBody{
 }
 
 @media(max-width:760px){
+  #adminPanelSupport:not([hidden]){display:flex;flex-direction:column;height:calc(100dvh - 66px);min-height:0;padding-bottom:0!important}
+  #adminPanelSupport>.adminToolbar{flex:0 0 auto}
+  #adminPanelSupport .adminSupportReader{flex:1;grid-template-columns:1fr;grid-template-rows:minmax(132px,30vh) minmax(0,1fr);height:auto;min-height:0;border-radius:8px}
+  #adminPanelSupport .adminSupportTicketList{border-right:0;border-bottom:1px solid var(--admin-line)}
+  #adminPanelSupport .adminSupportTicketItem{padding:12px!important}
+  #adminPanelSupport .adminSupportTicketItem.active{box-shadow:inset 3px 0 0 var(--admin-accent)!important}
+  #adminPanelSupport .adminSupportTicketHeading strong{font-size:13px}
+  #adminPanelSupport .adminSupportTicketSummary{grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:6px}
+  #adminPanelSupport .adminSupportTicketDetail{padding:14px}
+  #adminPanelSupport .adminSupportTicketDetailHead{gap:10px;padding-bottom:11px}
+  #adminPanelSupport .adminSupportTicketDetailHead h3{font-size:17px}
+  #adminPanelSupport .adminSupportTicketMeta{display:grid;gap:4px;padding:10px 0}
+  #adminPanelSupport .adminSupportTicketForm{margin-top:12px}
+  #adminPanelSupport .adminSupportTicketForm .adminFormActions{display:grid!important;grid-template-columns:1fr 1fr;width:100%}
+  #adminPanelSupport .adminSupportTicketForm .adminFormActions button{width:100%;min-width:0}
+  #adminPanelSupport .adminSupportTicketForm .deleteAdminTicketBtn{grid-column:1/-1;margin-top:5px}
   body.adminDashboardV2 #adminPanelAnnouncements .announcementListHeading{display:block;padding:0;border:0}
   body.adminDashboardV2 #adminPanelAnnouncements .announcementListHeading .small,
   body.adminDashboardV2 #adminPanelAnnouncements .announcementListFilters,
