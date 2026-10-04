@@ -2,19 +2,23 @@ from __future__ import annotations
 
 import hashlib
 import html
+import gzip
 import json
 import re
+import tempfile
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zlib
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from backend.services.source_pipeline import PIPELINE_VERSION, adapter_id as source_adapter_id
 
-SOURCE_ARCHITECTURE_VERSION = "source-architecture-primary-repository-history-v18"
+SOURCE_ARCHITECTURE_VERSION = "source-architecture-primary-repository-history-v19"
 DEFAULT_TIMEOUT = 30
 MAX_FILE_BYTES = 64 * 1024 * 1024
 MAX_BUNDLE_BYTES = 192 * 1024 * 1024
@@ -86,11 +90,11 @@ SOURCE_DEFINITIONS: dict[str, RepositoryDefinition] = {
             SourceFileSpec(
                 "textmap",
                 (
+                    "Textmaps/zh-Hant/multi_text/MultiText.json",
                     "Textmaps/zh-Hant.json",
                     "Textmaps/zh-Hant/textmap.json",
                     "Textmaps/zh-Hant/TextMap.json",
                     "Textmaps/zh-Hant/MultiText.json",
-                    "Textmaps/zh-Hant/multi_text/MultiText.json",
                     "Textmaps/zh-Hant/multi_text/multi_text.json",
                 ),
             ),
@@ -174,6 +178,8 @@ SOURCE_DEFINITIONS: dict[str, RepositoryDefinition] = {
             SourceFileSpec("arcade_achievements", ("FileCfg/ArcadeAchievementConfigTemplateTb.json",), required=False),
             SourceFileSpec("arcade_groups", ("FileCfg/ArcadeAchievementGroupTemplateTb.json",), required=False),
             SourceFileSpec("rewards", ("FileCfg/OnceRewardTemplateTb.json",), required=False),
+            SourceFileSpec("items", ("FileCfg/ItemTemplateTb.json",)),
+            SourceFileSpec("titles", ("FileCfg/TitleConfigTemplateTb.json",)),
             SourceFileSpec("monster_cards", ("FileCfg/MonsterCardConfigTemplateTb.json",), required=False),
             SourceFileSpec(
                 "textmap",
@@ -203,6 +209,7 @@ SOURCE_DEFINITIONS: dict[str, RepositoryDefinition] = {
             SourceFileSpec("achievements", ("DataTable/DT_AchievementConfigInfo.json",)),
             SourceFileSpec("achievement_text", ("Text/ST_Achievement.json",)),
             SourceFileSpec("localization_zh_hant", ("Localization/zh-Hant/game.json",)),
+            SourceFileSpec("reward_items", ("DataTable/Inventory/DT_CapitalItemConfig.json",)),
         ),
         minimum_count=380,
     ),
@@ -261,7 +268,54 @@ def _open_trusted_source(request: urllib.request.Request, *, timeout: int):
     raise RepositorySourceError("來源重新導向次數過多。", code="source_redirect_invalid")
 
 
-def _request_bytes(url: str, *, timeout: int = DEFAULT_TIMEOUT, max_bytes: int = MAX_FILE_BYTES, attempts: int = 2) -> tuple[bytes, dict[str, Any]]:
+def _read_source_http_cache(cache_dir: Path | None, url: str, max_bytes: int) -> tuple[bytes, dict[str, Any]] | None:
+    if cache_dir is None:
+        return None
+    key = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    try:
+        metadata = json.loads((cache_dir / f"{key}.json").read_text(encoding="utf-8"))
+        body_path = cache_dir / f"{key}.body"
+        if metadata.get("requested_url") != url or body_path.stat().st_size > max_bytes:
+            return None
+        etag = str(metadata.get("etag") or "")
+        if not etag or len(etag) > 512 or "\r" in etag or "\n" in etag:
+            return None
+        payload = body_path.read_bytes()
+        if len(payload) != metadata.get("size_bytes") or hashlib.sha256(payload).hexdigest() != metadata.get("sha256"):
+            return None
+        _validated_source_url(str(metadata.get("url") or ""))
+        return payload, metadata
+    except (OSError, ValueError, TypeError, AttributeError, RepositorySourceError):
+        return None
+
+
+def _write_source_http_cache(cache_dir: Path | None, url: str, payload: bytes, metadata: dict[str, Any]) -> None:
+    if cache_dir is None or not metadata.get("etag"):
+        return
+    key = hashlib.sha256(url.encode("utf-8")).hexdigest()
+    temporary: Path | None = None
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        # Publish metadata last; readers verify the body hash, including during concurrent writes.
+        for suffix, content in (("body", payload), ("json", json.dumps(metadata, ensure_ascii=False).encode("utf-8"))):
+            with tempfile.NamedTemporaryFile(dir=cache_dir, delete=False) as stream:
+                temporary = Path(stream.name)
+                stream.write(content)
+            temporary.replace(cache_dir / f"{key}.{suffix}")
+            temporary = None
+    except OSError:
+        # A cache write failure must not discard a successful source download.
+        pass
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def _request_bytes(url: str, *, timeout: int = DEFAULT_TIMEOUT, max_bytes: int = MAX_FILE_BYTES, attempts: int = 2, cache_dir: Path | None = None, stale_on_timeout: bool = False) -> tuple[bytes, dict[str, Any]]:
+    cached = _read_source_http_cache(cache_dir, url, max_bytes)
     last_error: RepositorySourceError | None = None
     for attempt in range(1, max(1, attempts) + 1):
         request = urllib.request.Request(
@@ -269,12 +323,13 @@ def _request_bytes(url: str, *, timeout: int = DEFAULT_TIMEOUT, max_bytes: int =
             headers={
                 "User-Agent": USER_AGENT,
                 "Accept": "application/json,text/plain;q=0.9,text/html;q=0.5,*/*;q=0.1",
-                "Accept-Encoding": "identity",
+                "Accept-Encoding": "gzip, identity;q=0.5",
+                **({"If-None-Match": cached[1]["etag"]} if cached else {}),
             },
         )
         started = time.monotonic()
         try:
-            response, effective_url, redirect_count = _open_trusted_source(request, timeout=timeout)
+            response, effective_url, redirect_count = _open_trusted_source(request, timeout=min(timeout, 10) if cache_dir is not None else timeout)
             with response:
                 status = int(getattr(response, "status", 200) or 200)
                 content_length = int(response.headers.get("Content-Length") or 0)
@@ -284,22 +339,39 @@ def _request_bytes(url: str, *, timeout: int = DEFAULT_TIMEOUT, max_bytes: int =
                         code="source_file_too_large",
                         diagnostics={"url": url, "content_length": content_length},
                     )
+                content_encoding = str(response.headers.get("Content-Encoding") or "identity").strip().casefold()
+                if content_encoding not in {"", "identity", "gzip"}:
+                    raise RepositorySourceError(
+                        "來源使用不支援的壓縮格式，已停止下載。",
+                        code="source_encoding_invalid",
+                        diagnostics={"url": url, "content_encoding": content_encoding},
+                    )
+                body_stream = gzip.GzipFile(fileobj=response) if content_encoding == "gzip" else response
                 chunks: list[bytes] = []
                 total = 0
-                while True:
-                    chunk = response.read(min(1024 * 1024, max_bytes - total + 1))
-                    if not chunk:
-                        break
-                    total += len(chunk)
-                    if total > max_bytes:
-                        raise RepositorySourceError(
-                            "來源檔案超過安全大小上限，已停止下載。",
-                            code="source_file_too_large",
-                            diagnostics={"url": url, "received_bytes": total},
-                        )
-                    chunks.append(chunk)
+                try:
+                    while True:
+                        if cache_dir is not None and time.monotonic() - started >= timeout:
+                            raise TimeoutError("Source transfer exceeded its total time budget")
+                        # read1 returns available data so a trickling transfer cannot keep
+                        # resetting the socket timeout indefinitely during foreground sync.
+                        chunk = (body_stream.read1(min(64 * 1024, max_bytes - total + 1))
+                                 if cache_dir is not None else body_stream.read(min(1024 * 1024, max_bytes - total + 1)))
+                        if not chunk:
+                            break
+                        total += len(chunk)
+                        if total > max_bytes:
+                            raise RepositorySourceError(
+                                "來源檔案超過安全大小上限，已停止下載。",
+                                code="source_file_too_large",
+                                diagnostics={"url": url, "received_bytes": total},
+                            )
+                        chunks.append(chunk)
+                finally:
+                    if body_stream is not response:
+                        body_stream.close()
                 payload = b"".join(chunks)
-                return payload, {
+                manifest = {
                     "url": effective_url,
                     "requested_url": url,
                     "redirect_count": redirect_count,
@@ -308,14 +380,24 @@ def _request_bytes(url: str, *, timeout: int = DEFAULT_TIMEOUT, max_bytes: int =
                     "sha256": hashlib.sha256(payload).hexdigest(),
                     "elapsed_ms": int((time.monotonic() - started) * 1000),
                     "attempt": attempt,
+                    "content_encoding": content_encoding or "identity",
                     "etag": str(response.headers.get("ETag") or ""),
                     "last_modified": str(response.headers.get("Last-Modified") or ""),
                 }
+                _write_source_http_cache(cache_dir, url, payload, manifest)
+                return payload, manifest
         except RepositorySourceError as exc:
             last_error = exc
             if exc.code in {"source_file_too_large", "source_bundle_too_large", "source_json_invalid", "source_encoding_invalid", "source_url_not_allowed", "source_redirect_invalid"}:
                 raise
         except urllib.error.HTTPError as exc:
+            if exc.code == 304 and cached is not None:
+                exc.close()
+                return cached[0], {
+                    **cached[1], "http_status": 304, "cache_revalidated": True,
+                    "elapsed_ms": int((time.monotonic() - started) * 1000),
+                    "attempt": attempt, "revalidated_at": int(time.time()),
+                }
             last_error = RepositorySourceError(
                 f"來源回應 HTTP {exc.code}。",
                 code=f"upstream_http_{int(exc.code)}",
@@ -331,6 +413,14 @@ def _request_bytes(url: str, *, timeout: int = DEFAULT_TIMEOUT, max_bytes: int =
                 code=code,
                 diagnostics={"url": url, "reason": reason, "attempt": attempt},
             )
+        except (gzip.BadGzipFile, EOFError, zlib.error) as exc:
+            last_error = RepositorySourceError(
+                "來源 gzip 資料無效或不完整，已停止解析。",
+                code="source_encoding_invalid",
+                diagnostics={"url": url, "reason": str(exc), "attempt": attempt},
+            )
+            if attempt >= max(1, attempts):
+                raise last_error from exc
         except TimeoutError:
             last_error = RepositorySourceError(
                 "來源連線逾時。", code="upstream_timeout", diagnostics={"url": url, "attempt": attempt}
@@ -338,6 +428,11 @@ def _request_bytes(url: str, *, timeout: int = DEFAULT_TIMEOUT, max_bytes: int =
         if attempt < max(1, attempts):
             time.sleep(min(1.5, 0.35 * attempt))
     assert last_error is not None
+    if cached is not None and stale_on_timeout and last_error.code in {"upstream_timeout", "upstream_connection_failed", "upstream_http_408", "upstream_http_429", "upstream_http_500", "upstream_http_502", "upstream_http_503", "upstream_http_504"}:
+        return cached[0], {
+            **cached[1], "cache_stale": True, "cache_error_code": last_error.code,
+            "elapsed_ms": int((time.monotonic() - started) * 1000),
+        }
     raise last_error
 
 
@@ -399,12 +494,16 @@ def _wuwa_public_version_branches(repository_url: str, *, current_ref: str, time
             "current_ref": current_ref,
         }
     branches: list[str] = []
+    branch_commits: dict[str, str] = {}
     if isinstance(payload, list):
         for item in payload:
             if isinstance(item, dict):
                 name = str(item.get("name") or "").strip()
+                commit = item.get("commit") if isinstance(item.get("commit"), dict) else {}
+                commit_id = str(commit.get("sha") or "").strip()
             else:
                 name = str(item or "").strip()
+                commit_id = ""
             version = _valid_version(name)
             if not version:
                 continue
@@ -413,6 +512,8 @@ def _wuwa_public_version_branches(repository_url: str, *, current_ref: str, time
             if current_version and _version_less_than(current_version, version):
                 continue
             branches.append(version)
+            if re.fullmatch(r"[0-9a-fA-F]{40}", commit_id):
+                branch_commits[version] = commit_id.lower()
     if current_version and current_version not in branches:
         branches.append(current_version)
     branches = sorted(set(branches), key=_version_sort_key)
@@ -425,15 +526,29 @@ def _wuwa_public_version_branches(repository_url: str, *, current_ref: str, time
         "minimum_version": "1.0",
         "branch_count": len(branches),
         "branches": branches,
+        "branch_commits": branch_commits,
     }
 
 
-def _wuwa_achievement_ids_for_ref(repository_url: str, ref: str, *, timeout: int = DEFAULT_TIMEOUT) -> tuple[set[str], dict[str, Any]]:
+def _wuwa_achievement_ids_for_ref(repository_url: str, ref: str, *, timeout: int = DEFAULT_TIMEOUT, commit_id: str = "", cache_dir: Path | None = None) -> tuple[set[str], dict[str, Any]]:
     owner_repo = _github_owner_repo(repository_url)
     if not owner_repo:
         raise RepositorySourceError("GitHub repository URL is not supported", code="unsupported_repository_url")
     owner, repo = owner_repo
-    encoded_ref = urllib.parse.quote(str(ref or "").strip(), safe="")
+    immutable_commit = str(commit_id or "").strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}", immutable_commit):
+        immutable_commit = ""
+    cache_path = Path(cache_dir) / f"{immutable_commit}.json" if immutable_commit and cache_dir is not None else None
+    if cache_path and cache_path.is_file():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            if isinstance(cached, dict) and cached.get("commit_id") == immutable_commit and isinstance(cached.get("ids"), list):
+                cached_ids = {str(value) for value in cached["ids"] if str(value).strip()}
+                if len(cached_ids) == len(cached["ids"]):
+                    return cached_ids, {"ref": ref, "commit_id": immutable_commit, "row_count": int(cached.get("row_count") or 0), "id_count": len(cached_ids), "cached": True}
+        except (OSError, ValueError, TypeError):
+            pass
+    encoded_ref = urllib.parse.quote(immutable_commit or str(ref or "").strip(), safe="")
     url = f"https://raw.githubusercontent.com/{owner}/{repo}/{encoded_ref}/BinData/achievement/achievement.json"
     raw, manifest = _request_bytes(url, timeout=min(timeout, 20), max_bytes=16 * 1024 * 1024, attempts=1)
     payload = _decode_json(raw, url=url)
@@ -443,7 +558,16 @@ def _wuwa_achievement_ids_for_ref(repository_url: str, ref: str, *, timeout: int
         for row in rows
         if _text_key(_get(row, "Id", "ID", "id"))
     }
-    return achievement_ids, {"ref": ref, "row_count": len(rows), "id_count": len(achievement_ids), **manifest}
+    if cache_path:
+        try:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=cache_path.parent, suffix=".tmp", delete=False) as stream:
+                json.dump({"commit_id": immutable_commit, "row_count": len(rows), "ids": sorted(achievement_ids)}, stream, ensure_ascii=False, separators=(",", ":"))
+                temporary = Path(stream.name)
+            temporary.replace(cache_path)
+        except OSError:
+            pass
+    return achievement_ids, {"ref": ref, "commit_id": immutable_commit, "row_count": len(rows), "id_count": len(achievement_ids), **manifest}
 
 
 def _resolve_wuwa_first_seen_versions(
@@ -452,6 +576,7 @@ def _resolve_wuwa_first_seen_versions(
     repository_url: str,
     current_ref: str,
     timeout: int = DEFAULT_TIMEOUT,
+    cache_dir: Path | None = None,
 ) -> tuple[dict[str, str], dict[str, Any]]:
     unresolved = {
         str(value or "").strip()
@@ -476,30 +601,35 @@ def _resolve_wuwa_first_seen_versions(
         }
 
     resolved: dict[str, str] = {}
+    branch_commits = branch_diagnostics.get("branch_commits") or {}
     manifests: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
-    for ref in branches:
+    def inspect_ref(ref: str) -> tuple[set[str] | None, dict[str, Any] | RepositorySourceError]:
         try:
-            ref_ids, manifest = _wuwa_achievement_ids_for_ref(
-                repository_url,
-                ref,
-                timeout=timeout,
-            )
+            return _wuwa_achievement_ids_for_ref(repository_url, ref, timeout=timeout, commit_id=str(branch_commits.get(ref) or ""), cache_dir=cache_dir)
         except RepositorySourceError as exc:
-            failures.append({
-                "ref": ref,
-                "error_code": exc.code,
-                "error": str(exc),
-                "diagnostics": dict(exc.diagnostics or {}),
-            })
-            continue
-        matched = sorted(unresolved.intersection(ref_ids), key=lambda value: int(value) if value.isdigit() else value)
-        for achievement_id in matched:
-            resolved[achievement_id] = ref
-        unresolved.difference_update(matched)
-        manifests.append({**manifest, "resolved_new_count": len(matched)})
-        if not unresolved:
-            break
+            return None, exc
+
+    # Fetch independent branch snapshots concurrently, then process them in
+    # historical order so first-seen versions remain identical to serial mode.
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        for ref, (ref_ids, result) in zip(branches, executor.map(inspect_ref, branches)):
+            if ref_ids is None:
+                exc = result
+                failures.append({
+                    "ref": ref,
+                    "error_code": exc.code,
+                    "error": str(exc),
+                    "diagnostics": dict(exc.diagnostics or {}),
+                })
+                continue
+            matched = sorted(unresolved.intersection(ref_ids), key=lambda value: int(value) if value.isdigit() else value)
+            for achievement_id in matched:
+                resolved[achievement_id] = ref
+            unresolved.difference_update(matched)
+            manifests.append({**result, "resolved_new_count": len(matched)})
+            if not unresolved:
+                break
 
     return resolved, {
         "status": "ok" if not failures else "partial",
@@ -1207,16 +1337,17 @@ def _nte_release_commits(repository_url: str, *, timeout: int = DEFAULT_TIMEOUT)
     releases: list[dict[str, Any]] = []
     readme_manifests: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
-    for item in payload if isinstance(payload, list) else []:
+
+    def inspect_commit(item: Any) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
         if not isinstance(item, dict):
-            continue
+            return None, None, None
         commit_id = str(item.get("sha") or "").strip()
         commit = item.get("commit") if isinstance(item.get("commit"), dict) else {}
         message = str(commit.get("message") or "").splitlines()[0].strip()
         committer = commit.get("committer") if isinstance(commit.get("committer"), dict) else {}
         created_at = str(committer.get("date") or "").strip()
         if not commit_id:
-            continue
+            return None, None, None
         readme_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{urllib.parse.quote(commit_id, safe='')}/README.md"
         try:
             readme_raw, readme_manifest = _request_bytes(
@@ -1226,30 +1357,39 @@ def _nte_release_commits(repository_url: str, *, timeout: int = DEFAULT_TIMEOUT)
                 attempts=1,
             )
             readme = readme_raw.decode("utf-8-sig", errors="strict")
-            readme_manifests.append({"commit_id": commit_id, **readme_manifest})
         except (RepositorySourceError, UnicodeDecodeError) as exc:
-            failures.append({"commit_id": commit_id, "stage": "readme", "error": str(exc)})
-            continue
+            return None, None, {"commit_id": commit_id, "stage": "readme", "error": str(exc)}
+        manifest = {"commit_id": commit_id, **readme_manifest}
         version_line = re.search(r"Version\s*:\s*([^\r\n]+)", readme, flags=re.I)
         version_context = version_line.group(1).strip() if version_line else ""
         if not re.search(r"\bGlobal\b", version_context, flags=re.I):
-            continue
+            return None, manifest, None
         if re.search(r"\b(?:CN|CBT)\b", version_context, flags=re.I):
-            continue
+            return None, manifest, None
         version_match = re.search(r"\d+\.\d+(?:\.\d+)?", message)
         if not version_match:
             version_match = re.search(r"\d+\.\d+(?:\.\d+)?", version_context)
         if not version_match:
-            failures.append({"commit_id": commit_id, "stage": "version", "message": message, "readme": version_context})
-            continue
-        releases.append({
+            return None, manifest, {"commit_id": commit_id, "stage": "version", "message": message, "readme": version_context}
+        return {
             "version": version_match.group(0),
             "first_seen_version": f"{version_match.group(0)} Global",
             "commit_id": commit_id,
             "title": message,
             "created_at": created_at,
             "readme_version": version_context,
-        })
+        }, manifest, None
+
+    # The README checks are independent; bounded concurrency keeps the same
+    # release ordering without making the preview wait for each HTTP request.
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        for release, manifest, failure in executor.map(inspect_commit, payload if isinstance(payload, list) else []):
+            if release:
+                releases.append(release)
+            if manifest:
+                readme_manifests.append(manifest)
+            if failure:
+                failures.append(failure)
     releases.sort(key=lambda row: (str(row.get("created_at") or ""), _version_sort_key(row.get("version"))))
     return releases, {
         "status": "ok" if releases and not failures else ("partial" if releases else "unavailable"),
@@ -1312,34 +1452,36 @@ def _resolve_nte_first_seen_versions(
     resolved: dict[str, str] = {}
     manifests: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
-    for release in releases:
+    def inspect_release(release: dict[str, Any]) -> tuple[set[str] | None, dict[str, Any] | RepositorySourceError]:
         try:
-            release_ids, manifest = _nte_achievement_ids_for_commit(
-                repository_url,
-                release["commit_id"],
-                timeout=timeout,
-            )
+            return _nte_achievement_ids_for_commit(repository_url, release["commit_id"], timeout=timeout)
         except RepositorySourceError as exc:
-            failures.append({
+            return None, exc
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        for release, (release_ids, result) in zip(releases, executor.map(inspect_release, releases)):
+            if release_ids is None:
+                exc = result
+                failures.append({
+                    "version": release["version"],
+                    "commit_id": release["commit_id"],
+                    "error_code": exc.code,
+                    "error": str(exc),
+                    "diagnostics": dict(exc.diagnostics or {}),
+                })
+                continue
+            matched = sorted(unresolved.intersection(release_ids))
+            for achievement_id in matched:
+                resolved[achievement_id] = release["first_seen_version"]
+            unresolved.difference_update(matched)
+            manifests.append({
+                **result,
                 "version": release["version"],
-                "commit_id": release["commit_id"],
-                "error_code": exc.code,
-                "error": str(exc),
-                "diagnostics": dict(exc.diagnostics or {}),
+                "first_seen_version": release["first_seen_version"],
+                "resolved_new_count": len(matched),
             })
-            continue
-        matched = sorted(unresolved.intersection(release_ids))
-        for achievement_id in matched:
-            resolved[achievement_id] = release["first_seen_version"]
-        unresolved.difference_update(matched)
-        manifests.append({
-            **manifest,
-            "version": release["version"],
-            "first_seen_version": release["first_seen_version"],
-            "resolved_new_count": len(matched),
-        })
-        if not unresolved:
-            break
+            if not unresolved:
+                break
     status = "ok" if not unresolved and not failures else ("partial" if resolved else "unavailable")
     return resolved, {
         "status": status,
@@ -1548,8 +1690,34 @@ def _fetch_genshin_coherent_bundle(definition: RepositoryDefinition, *, timeout:
     )
 
 
-def fetch_repository_bundle(game_id: str, *, timeout: int = DEFAULT_TIMEOUT) -> FetchBundle:
+def fetch_repository_bundle(game_id: str, *, timeout: int = DEFAULT_TIMEOUT, cache_dir: Path | None = None) -> FetchBundle:
     definition = definition_for(game_id)
+    if game_id == "nte" and cache_dir is not None:
+        # Resolve the mutable branch once, then read every file from that exact
+        # commit. Reuse only integrity-checked immutable cache bodies.
+        from backend.services.localization_http_cache import request_localization_json, MAX_BYTES
+        immutable_cache = Path(cache_dir).parent / "localization-http-cache"
+        commit_info = request_localization_json(
+            "https://api.github.com/repos/Waifus-Grace/NTE_Assets/commits/main",
+            timeout=timeout, cache_dir=immutable_cache)
+        commit = str(commit_info.get("sha") or "").lower()
+        if not re.fullmatch(r"[0-9a-f]{40}", commit):
+            raise RepositorySourceError("異環來源提交無法確認。", code="repository_commit_unavailable")
+        files, manifests = {}, []
+        for spec in definition.files:
+            path = spec.paths[0]
+            url = f"https://raw.githubusercontent.com/Waifus-Grace/NTE_Assets/{commit}/{path}"
+            cached = _read_source_http_cache(immutable_cache, url, MAX_BYTES)
+            if cached is not None:
+                raw, manifest = cached
+                manifest = {**manifest, "immutable_cache_hit": True}
+            else:
+                raw, manifest = _request_bytes(url, timeout=timeout, attempts=1,
+                    max_bytes=MAX_BYTES, cache_dir=immutable_cache)
+            files[spec.key] = _decode_json(raw, url=url)
+            manifests.append({"key": spec.key, "path": path, **manifest})
+        return FetchBundle(definition=definition, files=files, manifests=manifests,
+            fetched_at=int(time.time()), source_ref=commit, warnings=[])
     if game_id == "genshin" and len(definition.raw_bases) > 1:
         return _fetch_genshin_coherent_bundle(definition, timeout=timeout)
 
@@ -1570,15 +1738,25 @@ def fetch_repository_bundle(game_id: str, *, timeout: int = DEFAULT_TIMEOUT) -> 
             for relative_path in spec.paths:
                 url = base + relative_path
                 try:
-                    raw, manifest = _request_bytes(url, timeout=timeout)
+                    large_cached_source = (game_id == "wuwa" and spec.key == "textmap") or (game_id == "nte" and spec.key == "localization_zh_hant")
+                    cache_options = {"cache_dir": cache_dir, "stale_on_timeout": True, "attempts": 1} if large_cached_source and cache_dir is not None else {}
+                    # The Wuwa Traditional Chinese textmap is tens of MB. Its
+                    # total transfer deadline must cover a fresh branch download,
+                    # while the request still keeps its per-read socket timeout.
+                    request_timeout = max(timeout, 120) if cache_options else timeout
+                    raw, manifest = _request_bytes(url, timeout=request_timeout, **cache_options)
                     files[spec.key] = _decode_json(raw, url=url)
                     manifests.append({"key": spec.key, "path": relative_path, **manifest})
+                    if manifest.get("cache_stale"):
+                        warnings.append(f"{spec.key}: 來源暫時無法完成再驗證，使用已下載資料建立不可套用的診斷預覽。")
                     _enforce_bundle_budget(manifests)
                     used_ref = _raw_base_ref(base) or used_ref
                     found = True
                     break
                 except RepositorySourceError as exc:
                     last_error = exc
+                    if cache_options and exc.code != "upstream_http_404":
+                        raise
                     if exc.code not in {"upstream_http_404"}:
                         continue
             if found:
@@ -3029,19 +3207,19 @@ def parse_hsr_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
 
 
 _ZZZ_NORMAL_KEYS = {
-    "id": ("GJAFKJENFBK", "MPLJPOKFCAP", "GAPDDOJPFGI", "Id", "ID", "id", "AchievementId", "achievementId"),
+    "id": ("JGKGGKEGMJO", "GJAFKJENFBK", "MPLJPOKFCAP", "GAPDDOJPFGI", "Id", "ID", "id", "AchievementId", "achievementId"),
     "name": ("PIELLIBKHEG", "EBGMBNKJMLK", "BMBBBEIBOLE", "Name", "name", "Title", "title", "NameTextMapHash", "nameTextMapHash"),
     "description": ("MGJIGEMPJPD", "GGPDIGEPDIB", "MCAHHIIMKLP", "Desc", "desc", "Description", "description", "DescTextMapHash", "descTextMapHash"),
-    "hidden": ("MHOLLDPKGMH", "PKIKMKKFCHN", "Hidden", "hidden", "IsHidden", "isHidden"),
-    "group": ("GHDKOLIBPEO", "CPIOCKHOICN", "SecondClassId", "secondClassId", "GroupId", "groupId", "CategoryId", "categoryId"),
-    "reward": ("HKNKGJEEICK", "IFDFMDFHNGG", "RewardId", "rewardId", "OnceRewardId", "onceRewardId"),
+    "hidden": ("AJOCCLHKIAL", "MHOLLDPKGMH", "PKIKMKKFCHN", "Hidden", "hidden", "IsHidden", "isHidden"),
+    "group": ("BLLGHMGFLAD", "GHDKOLIBPEO", "CPIOCKHOICN", "SecondClassId", "secondClassId", "GroupId", "groupId", "CategoryId", "categoryId"),
+    "reward": ("MCALIALDGFI", "HKNKGJEEICK", "IFDFMDFHNGG", "RewardId", "rewardId", "OnceRewardId", "onceRewardId"),
     # Achievement description templates use this value as parameter {0}.  In
     # current ZenlessData it references MonsterCardConfigTemplateTb.
-    "template_param_0": ("MMKDIIHLDAD", "JKDPFGMHPBF", "TemplateParam", "templateParam", "Param0", "param0", "MonsterCardId", "monsterCardId"),
+    "template_param_0": ("KEHDDMDHFCL", "MMKDIIHLDAD", "JKDPFGMHPBF", "TemplateParam", "templateParam", "Param0", "param0", "MonsterCardId", "monsterCardId"),
 }
 _ZZZ_MONSTER_CARD_KEYS = {
-    "id": ("DBPDHPIBGHA", "HBKDOIKGNDE", "Id", "ID", "id", "CardId", "cardId", "MonsterCardId", "monsterCardId"),
-    "name": ("NAFKIEBNJPA", "APHMGBEGGNP", "KMAEBKLOKJG", "Name", "name", "NameTextMapHash", "nameTextMapHash", "Title", "title"),
+    "id": ("PFOAJKNPCHL", "DBPDHPIBGHA", "HBKDOIKGNDE", "Id", "ID", "id", "CardId", "cardId", "MonsterCardId", "monsterCardId"),
+    "name": ("NPIKBDLBAPP", "HKAJACHKNAG", "NAFKIEBNJPA", "APHMGBEGGNP", "KMAEBKLOKJG", "Name", "name", "NameTextMapHash", "nameTextMapHash", "Title", "title"),
 }
 _ZZZ_GROUP_KEYS = {
     "id": ("ABPBJBNNCEI", "Id", "ID", "id", "SecondClassId", "secondClassId", "GroupId", "groupId"),
@@ -3049,18 +3227,18 @@ _ZZZ_GROUP_KEYS = {
     "order": ("GBAFGKHIILE", "Sort", "sort", "Order", "order", "Priority", "priority"),
 }
 _ZZZ_ARCADE_KEYS = {
-    "id": ("PEFODMAOLPK", "NOBPPDIPFPO", "Id", "ID", "id", "AchievementId", "achievementId"),
+    "id": ("JPIOHHEAJHM", "PEFODMAOLPK", "NOBPPDIPFPO", "Id", "ID", "id", "AchievementId", "achievementId"),
     "name": ("PIELLIBKHEG", "EBGMBNKJMLK", "Name", "name", "Title", "title"),
     "description": ("KHFAPCDLLCA", "MIIPOBCGDLJ", "Desc", "desc", "Description", "description"),
-    "group": ("ICEKGNCNGDN", "JPBCEMNOIBA", "GroupId", "groupId", "CategoryId", "categoryId"),
+    "group": ("AEPFKEGABFM", "ICEKGNCNGDN", "JPBCEMNOIBA", "GroupId", "groupId", "CategoryId", "categoryId"),
     "order": ("EIBFHOIJGAK", "Sort", "sort", "Order", "order", "Priority", "priority"),
-    "progress": ("BDLJLLGDHDL", "MPBJALEAGIP", "Progress", "progress", "TargetNum", "targetNum"),
-    "reward": ("GBKOAIGLDOC", "IFDFMDFHNGG", "RewardId", "rewardId", "OnceRewardId", "onceRewardId"),
+    "progress": ("HNKDIGJCCLD", "BDLJLLGDHDL", "MPBJALEAGIP", "Progress", "progress", "TargetNum", "targetNum"),
+    "reward": ("MIBLAOBNIHP", "GBKOAIGLDOC", "IFDFMDFHNGG", "RewardId", "rewardId", "OnceRewardId", "onceRewardId"),
 }
 _ZZZ_ARCADE_GROUP_KEYS = {
-    "id": ("DALBKGGEJEF", "DBPDHPIBGHA", "Id", "ID", "id", "GroupId", "groupId"),
-    "name": ("DGOBKLFGJIL", "LHKGAICPJDG", "Name", "name", "Title", "title"),
-    "order": ("DALBKGGEJEF", "DBPDHPIBGHA", "Sort", "sort", "Order", "order", "Priority", "priority"),
+    "id": ("PFOAJKNPCHL", "DALBKGGEJEF", "DBPDHPIBGHA", "Id", "ID", "id", "GroupId", "groupId"),
+    "name": ("JJNICOECBLD", "DGOBKLFGJIL", "LHKGAICPJDG", "Name", "name", "Title", "title"),
+    "order": ("PNOFCPEBMFA", "DALBKGGEJEF", "DBPDHPIBGHA", "Sort", "sort", "Order", "order", "Priority", "priority"),
 }
 
 def _zzz_pattern_value(row: Mapping[str, Any], pattern: str) -> tuple[Any, str]:
@@ -3333,6 +3511,8 @@ def parse_zzz_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
             if reward_key and reward_key not in {"0", "-1"}:
                 reward_references.add(reward_key)
     reward_map, reward_diagnostics = _build_reward_map(rewards, reference_ids=reward_references)
+    from backend.services.zzz_rewards import build_reward_index, achievement_rewards
+    full_rewards, title_rewards, full_reward_diagnostics = build_reward_index(files, text_map)
     rows: list[dict[str, Any]] = []
     skipped = 0
     unresolved_names = 0
@@ -3399,6 +3579,9 @@ def parse_zzz_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
                 unresolved_categories += 1
             reward_id, reward_key = _zzz_value(row, keyset.get("reward", ()))
             reward = int(reward_map.get(_text_key(reward_id)) or 0)
+            all_rewards = achievement_rewards(achievement_id, row, _text_key(reward_id), full_rewards, title_rewards)
+            if files.get("items") is not None:
+                reward = sum(item["amount"] for item in all_rewards if item["type"] == "item" and item["itemId"] in title_rewards["currency_ids"])
             tags = ["街機成就"] if is_arcade else []
             if is_arcade:
                 hidden = False
@@ -3409,7 +3592,7 @@ def parse_zzz_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
                 # Current ZenlessData uses an enum: value 1 is hidden, while 0
                 # and 2 are visible. Generic truthiness incorrectly marked value
                 # 2 as hidden. Semantic IsHidden fields still use normal booleans.
-                if hidden_key in {"MHOLLDPKGMH", "PKIKMKKFCHN"}:
+                if hidden_key in {"AJOCCLHKIAL", "MHOLLDPKGMH", "PKIKMKKFCHN"}:
                     hidden = _as_int(hidden_value, -1) == 1
                     hidden_rule = f"{hidden_key}_equals_1"
                 else:
@@ -3435,6 +3618,9 @@ def parse_zzz_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
                 raw_with_mapping["_tracker_hidden_decision"] = raw_hidden_evidence
                 raw_with_mapping["_tracker_condition_template_resolution"] = condition_template_resolution
             condition_provenance: Any
+            if files.get("items") is not None or files.get("titles") is not None:
+                raw_with_mapping["_tracker_rewards"] = all_rewards
+                raw_with_mapping["_tracker_reward_game"] = "zzz"
             if condition_ok and condition_template_resolution.get("status") == "resolved":
                 condition_provenance = {
                     "role": "primary",
@@ -3509,7 +3695,9 @@ def parse_zzz_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
         "condition_template_unresolved_count": len(condition_template_unresolved),
         "condition_template_unresolved_samples": condition_template_unresolved[:50],
         "reward_diagnostics": reward_diagnostics,
-        "unresolved_reward_references": sum(1 for row in rows if row.get("reward_id") and not int(row.get("reward") or 0)),
+        "complete_reward_diagnostics": full_reward_diagnostics,
+        "unresolved_reward_references": sum(1 for row in rows if row.get("reward_id") and
+            (str(row["reward_id"]) not in full_rewards if files.get("items") is not None else not int(row.get("reward") or 0))),
         "group_reference_scores": {"normal": normal_group_scores, "arcade": arcade_group_scores},
         "unresolved_names": unresolved_names, "unresolved_conditions": unresolved_conditions,
         "unresolved_categories": unresolved_categories,
@@ -3568,6 +3756,7 @@ def parse_nte_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
     achievements = _nte_rows(files.get("achievements"))
     source_text = _nte_achievement_text(files.get("achievement_text"))
     traditional_text = _nte_localized_text(files.get("localization_zh_hant"))
+    reward_items = dict(_nte_rows(files.get("reward_items")))
     if not achievements or not source_text or not traditional_text:
         raise RepositorySourceError(
             "NTE_Assets 的成就、文字表或繁體中文本地化結構不完整，已停止更新。",
@@ -3633,6 +3822,13 @@ def parse_nte_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
             unresolved_conditions += 1
         main_type = str(source_row.get("AchievementMainType") or "").split("::")[-1].strip()
         category = NTE_CATEGORY_NAMES.get(main_type, "")
+        ui_text = files.get("localization_zh_hant", {}).get("ST_Ui", {})
+        if category and isinstance(ui_text, dict):
+            category_key = "Achievement_" + main_type[len("MainType"):]
+            title = ui_text.get(category_key)
+            nickname = ui_text.get(category_key + "_Nickname")
+            if isinstance(title, str) and title.strip() and isinstance(nickname, str) and nickname.strip():
+                category = title.strip() + "｜" + nickname.strip()
         if not category:
             unresolved_categories += 1
             category = "未辨識分類"
@@ -3647,7 +3843,28 @@ def parse_nte_bundle(files: Mapping[str, Any]) -> ParsedCatalog:
             amount = _as_int(reward.get("Amount"))
             if not item_id:
                 continue
-            rewards.append({"itemId": item_id, "amount": amount})
+            reward_entry = {"itemId": item_id, "amount": amount}
+            item_definition = reward_items.get(item_id, {})
+            item_reference = item_definition.get("ItemName", {}) if isinstance(item_definition, dict) else {}
+            item_key = item_reference.get("Key") if isinstance(item_reference, dict) else None
+            item_table = str(item_reference.get("TableId") or "").rsplit(".", 1)[-1] if isinstance(item_reference, dict) else ""
+            item_texts = files.get("localization_zh_hant", {}).get(item_table, {})
+            defined_name = item_texts.get(item_key) if item_key and isinstance(item_texts, dict) else None
+            if isinstance(defined_name, str) and defined_name.strip():
+                reward_entry["name"] = defined_name.strip()
+            # Resolve source names without guessing across unrelated namespaces.
+            for namespace in ("ST_Appearance", "ST_Item", "ST_Title", "ST_PlayerInfoText"):
+                if reward_entry.get("name"):
+                    break
+                texts = files.get("localization_zh_hant", {}).get(namespace, {})
+                keys = (item_id + "_Name", item_id + "_name", "item_" + item_id + "_name")
+                if namespace == "ST_PlayerInfoText":
+                    keys += (item_id,)
+                item_name = next((texts[key] for key in keys if isinstance(texts.get(key), str) and texts[key].strip()), None) if isinstance(texts, dict) else None
+                if isinstance(item_name, str) and item_name.strip():
+                    reward_entry["name"] = item_name.strip()
+                    break
+            rewards.append(reward_entry)
             reward_item_counts[item_id] = reward_item_counts.get(item_id, 0) + 1
             if item_id == "Annulith":
                 primary_reward += amount
@@ -4252,10 +4469,28 @@ def write_source_cache(data_dir: Path, game_id: str, *, rows: Sequence[dict[str,
 
 def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int = DEFAULT_TIMEOUT, verified_snapshot_rows: Sequence[dict[str, Any]] | None = None) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
     definition = definition_for(game_id)
-    bundle = fetch_repository_bundle(game_id, timeout=timeout)
+    cache_options = {"cache_dir": Path(data_dir) / "sources" / game_id / "http-cache"} if game_id in {"wuwa", "nte"} else {}
+    bundle = fetch_repository_bundle(game_id, timeout=timeout, **cache_options)
     parsed = parse_repository_bundle(bundle)
 
     primary_rows = list(parsed.rows)
+    localization_metadata = {}
+    if game_id in {"genshin", "hsr", "zzz", "wuwa", "nte"}:
+        from backend.services.catalog_localization import fetch_genshin_localizations, attach_localizations
+        from backend.services.hsr_localization import fetch_hsr_localizations
+        from backend.services.zzz_localization import fetch_zzz_localizations
+        from backend.services.wuwa_localization import fetch_wuwa_localizations
+        from backend.services.nte_localization import fetch_nte_localizations
+        fetch_localizations = {'genshin': fetch_genshin_localizations, 'hsr': fetch_hsr_localizations, 'zzz': fetch_zzz_localizations, 'wuwa': fetch_wuwa_localizations, 'nte': fetch_nte_localizations}[game_id]
+        localization_options = {'cache_dir': Path(data_dir) / 'sources' / game_id / 'localization-http-cache'} if game_id in {'wuwa', 'nte'} else {}
+        overlay, localization_warnings = fetch_localizations(bundle, parsed, timeout=min(timeout, 15), **localization_options)
+        attach_localizations(primary_rows, overlay)
+        bundle.warnings.extend(localization_warnings)
+        localization_metadata = {
+            "source_commit": overlay.get("source_commit", ""),
+            "coverage": overlay.get("coverage", {}),
+            "warnings": localization_warnings,
+        }
     existing_ids = {
         str(row.get("achievement_id") or row.get("id") or "").strip()
         for row in (verified_snapshot_rows or [])
@@ -4277,6 +4512,7 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
             repository_url=definition.repository_url,
             current_ref=bundle.source_ref,
             timeout=timeout,
+            cache_dir=Path(data_dir) / "sources" / "wuwa" / "branch-history-cache",
         )
         primary_default_inference = _apply_wuwa_new_row_primary_defaults(
             primary_rows,
@@ -4356,11 +4592,17 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
         )
         primary_default_inference["first_seen_version_resolution"] = zzz_version_history
     elif game_id == "nte":
+        # Rows without a resolved title/condition are isolated below regardless
+        # of version, so history requests cannot make them syncable yet.
         new_primary_ids = {
             str(row.get("achievement_id") or "").strip()
             for row in primary_rows
             if str(row.get("achievement_id") or "").strip()
             and str(row.get("achievement_id") or "").strip() not in existing_ids
+            and str(row.get("name") or "").strip()
+            and not _looks_like_unresolved_source_text(row.get("name"))
+            and str(row.get("condition") or "").strip()
+            and not _looks_like_unresolved_source_text(row.get("condition"))
         }
         nte_first_seen_versions, nte_version_history = _resolve_nte_first_seen_versions(
             new_primary_ids,
@@ -4378,6 +4620,19 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
         verified_snapshot_rows or [],
         game_id=game_id,
     )
+    if game_id == "nte":
+        verified_orders = {
+            str(row.get("achievement_id") or row.get("id") or "").strip(): _as_int(row.get("source_order"))
+            for row in (verified_snapshot_rows or [])
+        }
+        next_new_order = max(verified_orders.values(), default=0)
+        for row in rows:
+            achievement_id = str(row.get("achievement_id") or "").strip()
+            if achievement_id in verified_orders and verified_orders[achievement_id] > 0:
+                row["source_order"] = verified_orders[achievement_id]
+            elif achievement_id not in verified_orders:
+                next_new_order += 1
+                row["source_order"] = next_new_order
     source_order_normalized_count = _normalize_candidate_source_order(rows, source_id=definition.primary_id)
     if len(rows) < definition.minimum_count:
         raise RepositorySourceError(
@@ -4473,6 +4728,7 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
         "file_manifest": bundle.manifests,
         "warnings": bundle.warnings,
         "parser_diagnostics": parsed.diagnostics,
+        "localization": localization_metadata,
         "primary_default_inference": primary_default_inference,
         "catalog_preservation": catalog_preservation,
         "cross_validation": cross_validation,
@@ -4499,6 +4755,23 @@ def prepare_repository_candidate(game_id: str, *, data_dir: Path, timeout: int =
             ),
         },
     }
+    stale_source_files = [str(item.get("key") or "") for item in bundle.manifests if item.get("cache_stale")]
+    if stale_source_files:
+        metadata.update({
+            "fetch_status": "degraded",
+            "source_mode": "remote_degraded",
+            "source_complete": False,
+            "requires_admin_confirmation": True,
+            "diagnostic_preview": True,
+            "apply_blocked": True,
+            "apply_block_reason": "來源檔案未完成即時再驗證；本次只供診斷，不可套用。",
+            "stale_source_files": stale_source_files,
+            "source_notice": {
+                "kind": "source_cache_stale",
+                "message": "大型來源檔案暫時無法完成即時再驗證；已保留已下載內容供診斷，本次不得套用。",
+                "files": stale_source_files,
+            },
+        })
     cache_rows = [
         {
             key: value

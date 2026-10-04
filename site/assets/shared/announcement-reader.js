@@ -10,15 +10,21 @@
  syncLayoutMode();
  if(isTopLevel)mobileViewport.addEventListener?.('change',syncLayoutMode);
  const states=new WeakMap();
- const levelLabels={info:'一般',success:'成功',warning:'提醒',danger:'重要',update:'更新'};
+ const levelLabels={info:'一般',success:'成功',warning:'提醒',danger:'重要',update:'更新',notification:'通知'};
+ function ui(key,fallback){const value=window.MiloraI18n?.t('messages.'+key);return value&&value!=='messages.'+key?value:fallback}
  const safe=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
  const itemId=item=>String(item?.id??'');
- const itemLevel=item=>String(item?.level||item?.kind||'info');
+ const itemLevel=item=>item?.item_type==='notification'?'notification':String(item?.level||item?.kind||'info');
  const itemStamp=item=>Number(item?.updated_at||item?.created_at||0);
  function defaultDate(value){if(!value)return '—';const date=new Date(Number(value)*1000);return Number.isNaN(date.getTime())?'—':date.toLocaleString('zh-TW',{hour12:false})}
  function detailHtml(item,options,dateFor){
   const actions=typeof options.actions==='function'?String(options.actions(item)||''):'';
-  return `<div class="announcementReaderDetailHeader"><h3>${safe(item.title||'未命名公告')}</h3><div class="announcementReaderDetailMeta"><span class="announcementReaderLevel ${safe(itemLevel(item))}">${safe(levelLabels[itemLevel(item)]||'一般')}</span><time>${safe(dateFor(item))}</time></div></div><div class="announcementReaderBody"><p>${safe(item.body||'')}</p></div>${actions?`<div class="announcementReaderActions">${actions}</div>`:''}`;
+  let body=String(item.body||'');
+  if(item.kind==='report'){
+   const legacy=body.match(/^你回報的成就「(.+)」狀態已更新為「([^」]+)」。(?: 管理員說明：([\s\S]*))?$/);
+   if(legacy)body=`成就：${legacy[1]}\n處理狀態：${legacy[2]}${legacy[3]?`\n\n管理員回覆：\n${legacy[3]}`:''}`;
+  }
+  return `<div class="announcementReaderDetailHeader"><h3>${safe(item.title||ui('untitled','未命名公告'))}</h3><div class="announcementReaderDetailMeta"><span class="announcementReaderLevel ${safe(itemLevel(item))}">${safe(ui(Object.hasOwn(levelLabels,itemLevel(item))?itemLevel(item):'info',levelLabels[itemLevel(item)]||'一般'))}</span><time>${safe(dateFor(item))}</time></div></div><div class="announcementReaderBody"><p>${safe(body)}</p></div>${actions?`<div class="announcementReaderActions">${actions}</div>`:''}`;
  }
  function select(root,id){
   const state=states.get(root);
@@ -52,8 +58,9 @@
   const state={items,options,dateFor,buttons:new Map(),detail:null,selectedId:selected?itemId(selected):''};
   states.set(root,state);
   root.dataset.selectedAnnouncementId=selected?itemId(selected):'';
-  if(!items.length){root.innerHTML=`<div class="announcementReaderEmpty">${safe(options.emptyText||'目前沒有公告。')}</div>`;return ''}
-  root.innerHTML=`<div class="announcementReader"><nav class="announcementReaderList" aria-label="公告清單">${items.map(item=>{const id=itemId(item),level=itemLevel(item),pinned=Boolean(Number(item.pinned||0)),active=id===itemId(selected),unread=options.showUnread&&!item.is_read;return `<button class="announcementReaderItem ${active?'active':''} ${unread?'unread':''}" type="button" data-announcement-reader-id="${safe(id)}" aria-pressed="${active?'true':'false'}"><span class="announcementReaderItemTitle">${pinned?'<span class="announcementReaderPinIcon" aria-label="置頂" title="置頂">&#128204;</span>':''}<span>${safe(item.title||'未命名公告')}</span></span><span class="announcementReaderItemMeta"><span class="announcementReaderItemLevel ${safe(level)}">${safe(levelLabels[level]||'一般')}</span><time>${safe(dateFor(item))}</time></span></button>`}).join('')}</nav><article class="announcementReaderDetail">${detailHtml(selected,options,dateFor)}</article></div>`;
+  if(!items.length){root.innerHTML=`<div class="announcementReaderEmpty">${safe(options.emptyText||ui('empty.announcement','目前沒有公告。'))}</div>`;return ''}
+  root.innerHTML=`<div class="announcementReader"><nav class="announcementReaderList" aria-label="${safe(ui('list.announcement','公告清單'))}">${items.map(item=>{const id=itemId(item),level=itemLevel(item),pinned=Boolean(Number(item.pinned||0)),active=id===itemId(selected),unread=options.showUnread&&!item.is_read;return `<button class="announcementReaderItem ${active?'active':''} ${unread?'unread':''}" type="button" data-announcement-reader-id="${safe(id)}" aria-pressed="${active?'true':'false'}"><span class="announcementReaderItemTitle">${pinned?`<span class="announcementReaderPinIcon" aria-label="${safe(ui('pinned','置頂'))}" title="${safe(ui('pinned','置頂'))}">&#128204;</span>`:''}<span>${safe(item.title||ui('untitled','未命名公告'))}</span></span><span class="announcementReaderItemMeta"><span class="announcementReaderItemLevel ${safe(level)}">${safe(ui(Object.hasOwn(levelLabels,level)?level:'info',levelLabels[level]||'一般'))}</span><time>${safe(dateFor(item))}</time></span></button>`}).join('')}</nav><article class="announcementReaderDetail">${detailHtml(selected,options,dateFor)}</article></div>`;
+  root.querySelector('.announcementReaderList')?.setAttribute('aria-label',options.listLabel||ui('list.announcement','公告清單'));
   state.detail=root.querySelector('.announcementReaderDetail');
   root.querySelectorAll('[data-announcement-reader-id]').forEach(button=>state.buttons.set(button.dataset.announcementReaderId||'',button));
   if(root.dataset.announcementReaderBound!=='1'){

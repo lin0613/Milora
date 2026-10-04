@@ -7,6 +7,7 @@ import gc
 import hashlib
 import html
 import json
+import logging
 import os
 import re
 import secrets
@@ -34,8 +35,9 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from starlette.datastructures import UploadFile
 try:
     from opencc import OpenCC
 except ImportError:  # Optional fallback for maintenance environments before dependencies are installed.
@@ -67,6 +69,7 @@ from backend.services.governance_contract import (
 )
 from backend.services.sync_engine import apply_decisions as apply_sync_decisions, build_diff as build_sync_diff, default_selection_decisions as build_default_sync_selections, row_fingerprint as shared_catalog_fingerprint
 from backend.services.catalog_repository import normalize_catalog_rows, replace_catalog_rows
+from backend.services.manual_localization import SCHEMA_SQL as MANUAL_LOCALIZATION_SCHEMA, overrides as manual_localization_overrides, merge as merge_manual_localizations, save as save_manual_localization
 from backend.services.catalog_sorting import catalog_sort_key, sort_catalog_rows, sync_change_sort_key
 from backend.services.official_id_model import (
     achievement_id_sort_key,
@@ -139,7 +142,10 @@ PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:817").rstrip("/
 APP_ENV = os.getenv("APP_ENV", "development").lower()
 OPEN_SOURCE_EMPTY_DATA = os.getenv("OPEN_SOURCE_EMPTY_DATA", "1").lower() in {"1","true","yes","on"}
 COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "game_achievement_session")
-COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() in {"1","true","yes","on"}
+def secure_session_cookie_enabled(app_env: str, configured: str) -> bool:
+    return app_env == "production" or configured.lower() in {"1","true","yes","on"}
+
+COOKIE_SECURE = secure_session_cookie_enabled(APP_ENV, os.getenv("SESSION_COOKIE_SECURE", "false"))
 SESSION_SECONDS = int(os.getenv("SESSION_SECONDS", str(30 * 24 * 60 * 60)))
 VERIFY_SECONDS = int(os.getenv("VERIFY_TOKEN_SECONDS", str(24 * 60 * 60)))
 RESET_SECONDS = int(os.getenv("RESET_TOKEN_SECONDS", str(30 * 60)))
@@ -419,9 +425,13 @@ class GuideSubmissionPayload(BaseModel):
     content_html: str = Field(min_length=1, max_length=250_000)
 
 
+class GuideDraftPayload(BaseModel):
+    content_html: str = Field(max_length=250_000)
+
+
 class GuideImageUploadPayload(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
-    content_base64: str = Field(min_length=4, max_length=7_100_000)
+    content_base64: str = Field(min_length=4, max_length=28_000_000)
 
 
 class GuideSubmissionReviewPayload(BaseModel):
@@ -440,10 +450,13 @@ class TicketCreatePayload(BaseModel):
 class TicketReplyPayload(BaseModel):
     message: str = Field(min_length=1, max_length=5000)
     status: str | None = Field(default=None, max_length=30)
+    priority: str | None = Field(default=None, max_length=20)
+    expected_version: str | None = Field(default=None, max_length=64)
 
 class TicketStatusPayload(BaseModel):
     status: str = Field(min_length=2, max_length=30)
     priority: str = Field(default="normal", max_length=20)
+    expected_version: str | None = Field(default=None, max_length=64)
 
 class MergeAccountsPayload(BaseModel):
     source_user_id: str = Field(min_length=10, max_length=100)
@@ -547,10 +560,29 @@ class ManagedSQLiteConnection(sqlite3.Connection):
     """
 
     def __exit__(self, exc_type, exc_value, traceback):
+        changed = self.total_changes > 0 and exc_type is None
         try:
-            return super().__exit__(exc_type, exc_value, traceback)
+            result = super().__exit__(exc_type, exc_value, traceback)
+            if changed:
+                publish_live_change()
+            return result
         finally:
             self.close()
+
+
+_live_revision_lock = threading.Lock()
+_live_public_revision = 0
+_live_private_revision = 0
+
+
+def publish_live_change(*, private_only: bool = False) -> None:
+    """Advance a small revision marker after successful writes."""
+    global _live_public_revision, _live_private_revision
+    with _live_revision_lock:
+        if private_only:
+            _live_private_revision += 1
+        else:
+            _live_public_revision += 1
 
 
 def connect_db() -> sqlite3.Connection:
@@ -723,7 +755,18 @@ def _migrate_wuwa_shared_model(db: sqlite3.Connection) -> dict[str,int]:
     return shared_counts
 
 
-def _verify_wuwa_shared_model(db: sqlite3.Connection) -> dict[str,int]:
+def _wuwa_progress_conflict_members(db: sqlite3.Connection) -> set[tuple[str,str,str]]:
+    rows=db.execute("""select p.user_id,g.group_id,p.achievement_id
+      from game_progress p join game_achievement_choice_groups g
+        on g.game_id=p.game_id and g.achievement_id=p.achievement_id
+      where p.game_id='wuwa' and g.relation_type='exclusive'""").fetchall()
+    groups: dict[tuple[str,str],set[str]]={}
+    for row in rows:
+        groups.setdefault((str(row["user_id"]),str(row["group_id"])),set()).add(str(row["achievement_id"]))
+    return {(user,group,item) for (user,group),items in groups.items() if len(items)>1 for item in items}
+
+
+def _verify_wuwa_shared_model(db: sqlite3.Connection, *, allow_progress_conflicts: bool=False, existing_progress_conflicts: set[tuple[str,str,str]] | None=None) -> dict[str,int]:
     marker=db.execute("select name from schema_migrations where name=?",(WUWA_SHARED_MODEL_MIGRATION,)).fetchone()
     if not marker:
         raise RuntimeError("鳴潮共用資料模型遷移尚未完成。")
@@ -747,7 +790,15 @@ def _verify_wuwa_shared_model(db: sqlite3.Connection) -> dict[str,int]:
         )"""
     ).fetchone()["c"] or 0)
     if duplicate_choice:
-        raise RuntimeError(f"鳴潮共用進度仍有 {duplicate_choice} 組互斥成就重複。")
+        if existing_progress_conflicts is not None:
+            new_members=_wuwa_progress_conflict_members(db)-existing_progress_conflicts
+            new_groups={(user,group) for user,group,_ in new_members}
+            if new_groups:
+                raise RuntimeError(f"鳴潮本次同步新增 {len(new_groups)} 組互斥成就進度衝突。")
+        elif not allow_progress_conflicts:
+            raise RuntimeError(f"鳴潮共用進度仍有 {duplicate_choice} 組互斥成就重複。")
+        logging.getLogger("uvicorn.error").warning(
+            "鳴潮共用進度有 %s 組互斥成就衝突；保留所有完成紀錄，不阻止啟動，請由管理員確認處理。", duplicate_choice)
     return {
         "catalog":catalog,
         "progress":int(db.execute("select count(*) c from game_progress where game_id='wuwa'").fetchone()["c"] or 0),
@@ -781,6 +832,18 @@ def _load_genshin_catalog_rows() -> list[dict[str,Any]]:
             "source":str(item.get("source") or "genshin-official").strip(),
             "source_order":int(item.get("sourceOrder") if item.get("sourceOrder") is not None else index),
         })
+        details=item.get("sourceDetails")
+        if isinstance(details,dict):
+            rows[-1]["source_record"]={
+                "official_source_id":str(item.get("officialId") or details.get("officialId") or achievement_id),
+                "category_id":str(item.get("categoryId") or ""),"group_id":str(item.get("groupId") or ""),
+                "group_name":str(item.get("groupName") or ""),"progress_value":int(item.get("progress") or 0),
+                "level":int(item.get("level") or 0),"next_link":str(item.get("nextLink") or ""),
+                "reward_id":str(item.get("rewardId") or ""),"primary_source_id":str(details.get("primary") or ""),
+                "secondary_source_id":str(details.get("secondary") or ""),"source_ref":str(details.get("ref") or ""),
+                "raw_json":json.dumps(details.get("raw") if isinstance(details.get("raw"),dict) else {},ensure_ascii=False),
+                "provenance_json":json.dumps(details.get("provenance") if isinstance(details.get("provenance"),dict) else {},ensure_ascii=False),
+            }
     if len(rows)<1500:
         raise ValueError(f"原神成就資料筆數異常：{len(rows)}")
     return rows
@@ -792,6 +855,7 @@ def _sync_genshin_catalog(db: sqlite3.Connection) -> tuple[int,int]:
         return 0,0
     stamp=now()
     source_ids={row["achievement_id"] for row in rows}
+    existing_sources={str(row["achievement_id"]):dict(row) for row in db.execute("select * from game_catalog_source_records where game_id='genshin'")}
     # 保留管理員手動新增的資料；官方來源資料則跟隨內建資料更新。
     db.execute("delete from game_catalog_items where game_id='genshin' and lower(source) not in ('manual','admin')")
     db.executemany(
@@ -800,6 +864,16 @@ def _sync_genshin_catalog(db: sqlite3.Connection) -> tuple[int,int]:
         on conflict(game_id,achievement_id) do nothing""",
         [(row["achievement_id"],row["name"],row["condition"],row["version"],row["category"],row["reward"],row["hidden"],row["tags_json"],row["source"],row["source_order"],stamp) for row in rows],
     )
+    # Core replacement cascades source records. Restore canonical metadata,
+    # including verified translations, without touching other games or identities.
+    source_fields=("official_source_id","category_id","group_id","group_name","progress_value","level","next_link","reward_id","primary_source_id","secondary_source_id","source_ref","raw_json","provenance_json")
+    source_values=[]
+    for row in rows:
+        record=row.get("source_record") or existing_sources.get(row["achievement_id"])
+        if record is None: continue
+        source_values.append(("genshin",row["achievement_id"],*(record.get(key,0 if key in {"progress_value","level"} else "{}" if key in {"raw_json","provenance_json"} else "") for key in source_fields),stamp))
+    db.executemany("""insert into game_catalog_source_records(game_id,achievement_id,official_source_id,category_id,group_id,group_name,progress_value,level,next_link,reward_id,primary_source_id,secondary_source_id,source_ref,raw_json,provenance_json,updated_at)
+      values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) on conflict(game_id,achievement_id) do nothing""",source_values)
     return len(rows),len(source_ids)
 
 
@@ -836,6 +910,11 @@ def _load_zzz_catalog_rows() -> list[dict[str,Any]]:
     arcade=len(rows)-normal
     if normal<250 or arcade<30:
         raise ValueError(f"絕區零成就分類數量異常：一般 {normal}、街機 {arcade}")
+    # Recover source metadata without changing this loader's core fields or safeguards.
+    source_rows=normalize_catalog_rows(ZZZ_CATALOG_FILE,game_id="zzz",minimum_count=400,default_source="zenless_data")
+    records={row["achievement_id"]:row["source_record"] for row in source_rows if "source_record" in row}
+    for row in rows:
+        if row["achievement_id"] in records: row["source_record"]=records[row["achievement_id"]]
     return rows
 
 
@@ -843,14 +922,7 @@ def _sync_zzz_catalog(db: sqlite3.Connection) -> tuple[int,int]:
     rows=_load_zzz_catalog_rows()
     if not rows:
         return 0,0
-    stamp=now()
-    db.execute("delete from game_catalog_items where game_id='zzz' and lower(source) not in ('manual','admin')")
-    db.executemany(
-        """insert into game_catalog_items(game_id,achievement_id,name,condition,version,category,reward,hidden,tags_json,source,source_order,updated_at)
-        values('zzz',?,?,?,?,?,?,?,?,?,?,?)
-        on conflict(game_id,achievement_id) do nothing""",
-        [(r["achievement_id"],r["name"],r["condition"],r["version"],r["category"],r["reward"],r["hidden"],r["tags_json"],r["source"],r["source_order"],stamp) for r in rows],
-    )
+    replace_catalog_rows(db,game_id="zzz",rows=rows,updated_at=now())
     return len(rows),sum(1 for r in rows if str(r["category"]).startswith("【街機】"))
 
 def _load_registered_catalog_rows(game_id: str) -> list[dict[str,Any]]:
@@ -1298,11 +1370,27 @@ def _achievement_category_rows(db: sqlite3.Connection, game_id: str) -> list[dic
         from game_achievement_categories where game_id=? order by display_order,name""",
         (game_id,),
     ).fetchall()
-    return [{
+    category_localizations: dict[str,dict[str,set[str]]]={}
+    if game_id in {"genshin","hsr","zzz","wuwa","nte"}:
+        from backend.services.catalog_localization import public_localizations
+        for source in db.execute("select c.*,s.raw_json from game_catalog_items c left join game_catalog_source_records s on s.game_id=c.game_id and s.achievement_id=c.achievement_id where c.game_id=?",(game_id,)):
+            value=dict(source)
+            for language,fields in public_localizations(value.get("raw_json"),value).items():
+                translated=fields.get("category")
+                if translated:
+                    category_localizations.setdefault(str(value["category"]),{}).setdefault(language,set()).add(translated)
+    result=[{
         "id":str(row["id"]),"name":str(row["name"]),"display_order":index,
         "achievement_count":int(counts.get(str(row["name"]),0)),"is_custom":bool(row["is_custom"]),
         "created_at":int(row["created_at"] or 0),"updated_at":int(row["updated_at"] or 0),
+        "localizations":{language:{"name":next(iter(values))} for language,values in category_localizations.get(str(row["name"]),{}).items() if len(values)==1} if not row["is_custom"] else {},
     } for index,row in enumerate(rows)]
+    manual=manual_localization_overrides(db,"category",game_id)
+    for row in result:
+        row["sourceLocalizations"]=row["localizations"]
+        row["manualLocalizations"]=manual.get(row["id"],{})
+        row["localizations"]=merge_manual_localizations(row["localizations"],row["manualLocalizations"])
+    return result
 
 
 def _apply_managed_category_aliases(db: sqlite3.Connection, game_id: str, rows: list[dict[str,Any]]) -> list[dict[str,Any]]:
@@ -1439,6 +1527,7 @@ def _restore_catalog_bytes(game_id: str, content: bytes) -> None:
 def init_db() -> None:
     with connect_db() as db:
         db.execute("PRAGMA journal_mode = WAL")
+        db.execute(MANUAL_LOCALIZATION_SCHEMA)
         db.executescript("""
         create table if not exists users (
             id text primary key,
@@ -1686,6 +1775,23 @@ def init_db() -> None:
             media_id text not null references guide_media(id) on delete cascade,
             primary key(submission_id,media_id)
         );
+        create table if not exists achievement_guide_drafts (
+            user_id text not null references users(id) on delete cascade,
+            game_id text not null,
+            achievement_id text not null,
+            content_html text not null default '',
+            updated_at integer not null,
+            primary key(user_id,game_id,achievement_id)
+        );
+        create table if not exists guide_draft_media (
+            user_id text not null,
+            game_id text not null,
+            achievement_id text not null,
+            media_id text not null references guide_media(id) on delete cascade,
+            primary key(user_id,game_id,achievement_id,media_id),
+            foreign key(user_id,game_id,achievement_id)
+                references achievement_guide_drafts(user_id,game_id,achievement_id) on delete cascade
+        );
         create index if not exists sessions_user_idx on sessions(user_id);
         create index if not exists progress_user_idx on progress(user_id);
         create index if not exists verification_user_idx on email_verification_tokens(user_id);
@@ -1910,6 +2016,21 @@ def init_db() -> None:
             created_at integer not null,
             expires_at integer not null
         );
+        create table if not exists game_sync_preview_jobs (
+            id text primary key,
+            game_id text not null,
+            admin_user_id text references users(id) on delete cascade,
+            status text not null,
+            progress_json text not null default '{}',
+            result_json text not null default '{}',
+            error_message text not null default '',
+            created_at integer not null,
+            updated_at integer not null,
+            expires_at integer not null
+        );
+        create index if not exists game_sync_preview_jobs_expiry_idx on game_sync_preview_jobs(expires_at);
+        create unique index if not exists game_sync_preview_jobs_active_idx
+            on game_sync_preview_jobs(game_id) where status in ('queued','running');
         create table if not exists achievement_identities (
             game_id text not null,
             internal_id text not null,
@@ -2052,6 +2173,10 @@ def init_db() -> None:
         create index if not exists game_progress_user_idx on game_progress(game_id,user_id);
         create index if not exists game_choice_groups_idx on game_achievement_choice_groups(game_id,group_id);
         create index if not exists game_reports_status_idx on game_achievement_reports(game_id,status,created_at);
+        create table if not exists achievement_report_threads (
+            report_id text primary key references game_achievement_reports(id) on delete cascade,
+            ticket_id text not null unique references support_tickets(id) on delete cascade
+        );
         create index if not exists game_overrides_updated_idx on game_achievement_overrides(game_id,updated_at);
         create index if not exists game_sync_previews_expiry_idx on game_sync_previews(expires_at);
         create table if not exists achievement_scan_runs (
@@ -2272,6 +2397,28 @@ def init_db() -> None:
                         "tables": ["guide_media", "guide_submission_media"],
                         "unbound_expiry_seconds": GUIDE_MEDIA_UNBOUND_SECONDS,
                         "rejected_expiry_seconds": GUIDE_MEDIA_REJECTED_SECONDS,
+                    },
+                    ensure_ascii=False,
+                ),
+            ),
+        )
+        reviewed_media_retained = db.execute(
+            """update guide_media set expires_at=null where exists (
+            select 1 from guide_submission_media sm
+            join achievement_guide_submissions s on s.id=sm.submission_id
+            where sm.media_id=guide_media.id and s.status in ('approved','rejected')
+            )"""
+        ).rowcount
+        db.execute(
+            "insert or ignore into schema_migrations(name,applied_at,details_json) values(?,?,?)",
+            (
+                "2026-09-17-guide-review-history-media-retention-v1",
+                now(),
+                json.dumps(
+                    {
+                        "tables": ["guide_media", "guide_submission_media", "achievement_guide_submissions"],
+                        "retained_reviewed_media": reviewed_media_retained,
+                        "retention": "while_referenced_by_submission",
                     },
                     ensure_ascii=False,
                 ),
@@ -2505,6 +2652,7 @@ def cleanup(db: sqlite3.Connection) -> None:
     cleanup_expired_guide_media(db, t)
     try:
         db.execute("delete from game_sync_previews where expires_at <= ?", (t,))
+        db.execute("delete from game_sync_preview_jobs where expires_at <= ?", (t,))
         db.execute("delete from catalog_scan_previews where expires_at <= ?", (t,))
     except sqlite3.OperationalError:
         pass
@@ -2773,11 +2921,17 @@ def public_catalog_rewards(value: str | None) -> list[dict[str, Any]]:
         except (TypeError,ValueError):
             continue
         if item_id and amount>0:
-            result.append({"itemId":item_id[:120],"amount":amount})
+            entry={"itemId":item_id[:120],"amount":amount}
+            if reward.get("type") in ("item","title"):
+                entry["type"]=reward["type"]
+            name=reward.get("name")
+            if isinstance(name,str) and name.strip():
+                entry["name"]=name.strip()[:200]
+            result.append(entry)
     return result
 
 def catalog_reward_map(game_id: str) -> dict[str, list[dict[str, Any]]]:
-    if game_id!="nte":
+    if game_id not in {"nte","zzz"}:
         return {}
     try:
         payload=json.loads(game_catalog_file(game_id).read_text(encoding="utf-8-sig"))
@@ -2826,9 +2980,6 @@ def create_notification(title: str, body: str, kind: str="info", link: str="", t
 
 
 def client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for", "")
-    if forwarded:
-        return forwarded.split(",", 1)[0].strip()[:100]
     return (request.client.host if request.client else "unknown")[:100]
 
 
@@ -2978,14 +3129,14 @@ def deliver_email(message: EmailMessage, mail_type: str="generic") -> None:
 
 
 def send_verification(email_address: str, token: str) -> None:
-    link=f"{PUBLIC_BASE_URL}/account/?verify_token={urllib.parse.quote(token)}"
+    link=f"{PUBLIC_BASE_URL}/account/#verify_token={urllib.parse.quote(token)}"
     safe=html.escape(link)
     message=build_email(email_address, "驗證你的遊戲成就紀錄器帳號", f"請開啟以下連結完成信箱驗證：\n{link}\n\n連結將在 24 小時後失效。", f"<h2>驗證信箱</h2><p>請點擊下方連結完成驗證：</p><p><a href=\"{safe}\">完成信箱驗證</a></p><p>連結將在 24 小時後失效。</p>")
     deliver_email(message, "verification")
 
 
 def send_reset(email_address: str, token: str) -> None:
-    link=f"{PUBLIC_BASE_URL}/account/?reset_token={urllib.parse.quote(token)}"
+    link=f"{PUBLIC_BASE_URL}/account/#reset_token={urllib.parse.quote(token)}"
     safe=html.escape(link)
     message=build_email(email_address, "重設遊戲成就紀錄器密碼", f"請開啟以下連結設定新密碼：\n{link}\n\n連結將在 30 分鐘後失效。若不是你提出申請，可忽略此信。", f"<h2>重設密碼</h2><p>請點擊下方連結設定新密碼：</p><p><a href=\"{safe}\">設定新密碼</a></p><p>連結將在 30 分鐘後失效。若不是你提出申請，可忽略此信。</p>")
     deliver_email(message, "password_reset")
@@ -3028,10 +3179,46 @@ def _static_game_icon_response(path: Path, label: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    with connect_db() as db:
+        report_threads_pending=db.execute("select count(*) from game_achievement_reports r where not exists (select 1 from achievement_report_threads t where t.report_id=r.id)").fetchone()[0]
+    if report_threads_pending:
+        create_database_backup()
+    with connect_db() as db:
+        db.execute("begin immediate")
+        for report in db.execute("select * from game_achievement_reports").fetchall():
+            ensure_report_thread(db,report)
+    with connect_db() as db:
+        interrupted = db.execute("select id,progress_json from game_sync_preview_jobs where status in ('queued','running')").fetchall()
+        for row in interrupted:
+            progress = _json_object(row["progress_json"], {})
+            message = "後端曾重新啟動，這個背景工作已中止；請重新產生預覽。"
+            progress.update({"phase":"failed","message":message,"updated_at":now()})
+            db.execute("update game_sync_preview_jobs set status='failed',progress_json=?,error_message=?,updated_at=? where id=?",(json.dumps(progress,ensure_ascii=False),message,now(),row["id"]))
     yield
 
 app=FastAPI(title="遊戲成就紀錄器",docs_url=None,redoc_url=None,openapi_url=None,lifespan=lifespan)
 app.add_middleware(TrustedHostMiddleware,allowed_hosts=TRUSTED_HOSTS)
+
+
+@app.get("/api/live-events", include_in_schema=False)
+async def live_events(request: Request, private: bool = False):
+    if private:
+        require_site_owner(request)
+    # IIS/ARR holds streaming requests in the site's limited request slots.
+    # HTTP 204 tells existing EventSource clients to stop reconnecting.
+    return Response(status_code=204)
+
+
+@app.get("/api/live-revision", include_in_schema=False)
+def live_revision(request: Request, private: bool = False):
+    if private:
+        require_site_owner(request)
+    with _live_revision_lock:
+        revision = str(_live_public_revision)
+        if private:
+            revision += f":{_live_private_revision}"
+    return {"revision": revision}
+
 
 @app.middleware("http")
 async def security_middleware(request: Request, call_next):
@@ -3058,6 +3245,8 @@ async def security_middleware(request: Request, call_next):
         response.headers["Cache-Control"] = "public, max-age=86400"
     else:
         response.headers["Cache-Control"] = "no-store" if request.url.path.startswith("/api/") else "no-cache"
+    if request.method in {"POST","PUT","PATCH","DELETE"} and request.url.path.startswith("/api/") and response.status_code < 400:
+        publish_live_change(private_only=request.url.path.startswith("/api/private/"))
     return response
 
 @app.exception_handler(HTTPException)
@@ -3109,7 +3298,11 @@ def register(body: EmailPassword, request: Request):
             role="admin" if email_key in ADMIN_EMAILS else "user"
             db.execute("insert into users(id,email,email_key,password_hash,email_verified,role,created_at,updated_at) values(?,?,?,?,0,?,?,?)",(user_id,str(body.email),email_key,hash_password(body.password),role,t,t))
     except sqlite3.IntegrityError:
-        raise HTTPException(status_code=409,detail="此電子信箱已註冊。")
+        with connect_db() as db:
+            if not db.execute("select 1 from users where email_key=?",(email_key,)).fetchone():
+                raise
+        return {"ok":True,"requires_verification":True}
+    log_admin_action(user_id,"register_account",category="security",status="pending",target_user_id=user_id,target_type="user",target_id=user_id,summary="建立帳號，等待電子郵件驗證",after={"role":role,"email_verified":False},actor_ip=client_ip(request))
     try:
         issue_verification(user_id,str(body.email))
     except Exception as exc:
@@ -3129,6 +3322,7 @@ def resend_verification(body: EmailOnly, request: Request):
         except Exception as exc:
             print("[重寄驗證信失敗]",repr(exc))
             raise HTTPException(status_code=503,detail="驗證信寄送失敗，請檢查郵件伺服器。")
+        log_admin_action(row["id"],"resend_own_verification",category="security",target_user_id=row["id"],target_type="user",target_id=row["id"],summary="使用者重新寄送電子郵件驗證信",actor_ip=client_ip(request))
     return {"ok":True}
 
 @app.post("/api/auth/verify-email")
@@ -3142,6 +3336,7 @@ def verify_email(body: TokenOnly, request: Request, response: Response):
         db.execute("update users set email_verified=1,last_login_at=?,last_login_ip=?,updated_at=? where id=?",(t,login_ip,t,row["user_id"]))
         db.execute("update email_verification_tokens set used_at=? where token_hash=?",(t,token_hash))
     token=create_session(row["user_id"],login_ip); set_session_cookie(response,token)
+    log_admin_action(row["user_id"],"verify_email",category="security",target_user_id=row["user_id"],target_type="user",target_id=row["user_id"],summary="完成電子郵件驗證並登入",before={"email_verified":False},after={"email_verified":True},actor_ip=login_ip)
     return {"ok":True,"user":{"id":row["user_id"],"email":row["email"],"username":row["username"],"role":row["role"],"is_site_owner":is_site_owner_email(row["email"])}}
 
 @app.post("/api/auth/login")
@@ -3160,6 +3355,7 @@ def login(body: LoginPayload, request: Request, response: Response):
             (identifier_key, identifier_key),
         ).fetchone()
     if not row or not verify_password(body.password, row["password_hash"]):
+        log_admin_action(None,"login_failed",category="security",status="failed",summary="登入失敗：帳號或密碼錯誤",actor_ip=login_ip)
         raise HTTPException(status_code=401, detail="使用者名稱、電子信箱或密碼錯誤。")
     enforce_blocklist(row["email"], login_ip)
     if not row["is_active"]:
@@ -3170,14 +3366,18 @@ def login(body: LoginPayload, request: Request, response: Response):
         db.execute("update users set last_login_at=?,last_login_ip=?,updated_at=? where id=?", (now(),login_ip,now(),row["id"]))
     token = create_session(row["id"], login_ip)
     set_session_cookie(response, token)
+    log_admin_action(row["id"],"login",category="security",target_user_id=row["id"],target_type="user",target_id=row["id"],summary="帳號登入成功",actor_ip=login_ip)
     return {"ok":True,"user":{"id":row["id"],"email":row["email"],"username":row["username"],"role":row["role"],"is_site_owner":is_site_owner_email(row["email"])}}
 
 @app.post("/api/auth/logout")
 def logout(request: Request, response: Response):
+    user=current_user(request)
     token=request.cookies.get(COOKIE_NAME)
     if token:
         with connect_db() as db: db.execute("delete from sessions where token_hash=?",(digest_token(token),))
     clear_session_cookie(response)
+    if user:
+        log_admin_action(user["id"],"logout",category="security",target_user_id=user["id"],target_type="user",target_id=user["id"],summary="帳號登出",actor_ip=client_ip(request))
     return {"ok":True}
 
 @app.get("/api/auth/me")
@@ -3211,7 +3411,7 @@ def update_username(body: UsernamePayload, request: Request):
         except sqlite3.IntegrityError:
             raise HTTPException(status_code=409, detail="此使用者名稱已被使用。")
     action = "設定使用者名稱" if not current["username"] else "更改使用者名稱"
-    log_admin_action(user["id"], action, user["id"], f"使用者名稱：{username}")
+    log_admin_action(user["id"],"update_own_username",category="user",target_user_id=user["id"],target_type="user",target_id=user["id"],summary=action,before={"username":current["username"]},after={"username":username},actor_ip=client_ip(request))
     return {"ok":True,"user":{"id":user["id"],"email":user["email"],"username":username,"role":user["role"],"is_site_owner":is_site_owner_email(user["email"])}}
 
 @app.post("/api/auth/change-password")
@@ -3238,7 +3438,7 @@ def change_password(body: ChangePasswordPayload, request: Request, response: Res
 
     token = create_session(user["id"], ip_address)
     set_session_cookie(response, token)
-    log_admin_action(user["id"], "更換密碼", user["id"], "使用者自行更換密碼")
+    log_admin_action(user["id"],"change_own_password",category="security",target_user_id=user["id"],target_type="user",target_id=user["id"],summary="使用者更換密碼並撤銷舊登入階段；未記錄密碼內容",actor_ip=ip_address)
     return {"ok": True}
 @app.post("/api/auth/forgot-password")
 def forgot_password(body: EmailOnly, request: Request):
@@ -3250,6 +3450,7 @@ def forgot_password(body: EmailOnly, request: Request):
     if row and row["email_verified"]:
         try: issue_reset(row["id"],row["email"])
         except Exception as exc: print("[寄送重設信失敗]",repr(exc))
+        else: log_admin_action(row["id"],"request_password_reset",category="security",target_user_id=row["id"],target_type="user",target_id=row["id"],summary="使用者要求寄送密碼重設信；未記錄重設連結",actor_ip=client_ip(request))
     return {"ok":True}
 
 @app.post("/api/auth/reset-password/validate")
@@ -3277,6 +3478,7 @@ def reset_password(body: ResetPassword, request: Request):
         db.execute("update users set password_hash=?,updated_at=? where id=?",(hash_password(body.password),t,row["user_id"]))
         db.execute("update password_reset_tokens set used_at=? where token_hash=?",(t,token_hash))
         db.execute("delete from sessions where user_id=?",(row["user_id"],))
+    log_admin_action(row["user_id"],"reset_own_password",category="security",target_user_id=row["user_id"],target_type="user",target_id=row["user_id"],summary="使用者透過有效連結重設密碼並撤銷舊登入階段；未記錄密碼內容",actor_ip=client_ip(request))
     return {"ok":True}
 
 @app.get("/api/admin/overview")
@@ -3368,8 +3570,8 @@ def admin_audit_logs(
         clauses.append("(l.actor_email_snapshot like ? or actor.email like ?)")
         pattern=f"%{actor[:200]}%"; params.extend([pattern,pattern])
     if search:
-        clauses.append("(l.action like ? or l.summary like ? or l.details like ? or l.target_id like ? or l.event_id like ?)")
-        pattern=f"%{search[:300]}%"; params.extend([pattern]*5)
+        clauses.append("(l.action like ? or l.summary like ? or l.details like ? or l.target_id like ? or l.event_id like ? or l.before_json like ? or l.after_json like ? or l.metadata_json like ?)")
+        pattern=f"%{search[:300]}%"; params.extend([pattern]*8)
     where=("where "+" and ".join(clauses)) if clauses else ""
     with connect_db() as db:
         total=int(db.execute(f"select count(*) c from admin_audit_logs l left join users actor on actor.id=l.actor_user_id {where}",params).fetchone()["c"] or 0)
@@ -3382,7 +3584,7 @@ def admin_audit_logs(
         {where}
         order by l.id desc limit ? offset ?
         """,(*params,limit,offset)).fetchall()
-    return {"ok":True,"total":total,"limit":limit,"offset":offset,"logs":[{
+    logs=[{
         "id":r["id"],"event_id":r["event_id"] or f"legacy-{r['id']}","action":r["action"],
         "category":r["category"] or "administration","status":r["status"] or "success",
         "game_id":r["game_id"] or "","details":sanitize_legacy_id_display(r["details"] or ""),"summary":sanitize_legacy_id_display(r["summary"] or ""),
@@ -3393,7 +3595,40 @@ def admin_audit_logs(
         "metadata":_safe_audit_json(r["metadata_json"], {}),"request_id":r["request_id"] or "",
         "backup_name":r["backup_name"] or "","error_message":sanitize_legacy_id_display(r["error_message"] or ""),
         "archived":bool(r["archived"]),"locked":bool(r["locked"]),
-    } for r in rows]}
+    } for r in rows]
+    legacy_orders=[item for item in logs if item["action"] in {"reorder_achievement_categories","reorder_redeem_games","reorder_redeem_servers"}
+                   and isinstance(item["before"],dict) and isinstance(item["after"],dict)
+                   and ("category_ids" in item["before"] or "item_ids" in item["before"])]
+    if legacy_orders:
+        name_cache: dict[tuple[str,str],dict[str,str]]={}
+        with connect_db() as db:
+            for item in legacy_orders:
+                action=str(item["action"])
+                game=str(item["game_id"])
+                cache_key=(action,game)
+                if cache_key not in name_cache:
+                    if action=="reorder_achievement_categories":
+                        source=db.execute("select id,name from game_achievement_categories where game_id=?",(game,)).fetchall()
+                        name_cache[cache_key]={str(row["id"]):str(row["name"]) for row in source}
+                    elif action=="reorder_redeem_servers":
+                        source=db.execute("select id,name from redeem_servers where game_id=?",(game,)).fetchall()
+                        name_cache[cache_key]={str(row["id"]):str(row["name"]) for row in source}
+                    else:
+                        source=db.execute("select game_id,name from redeem_games").fetchall()
+                        name_cache[cache_key]={str(row["game_id"]):str(row["name"]) for row in source}
+                names=name_cache[cache_key]
+                source_key="category_ids" if action=="reorder_achievement_categories" else "item_ids"
+                before_ids=item["before"].get(source_key)
+                after_ids=item["after"].get(source_key)
+                if not isinstance(before_ids,list) or not isinstance(after_ids,list):
+                    continue
+                missing={str(identifier):f"名稱已不可考的項目 {index+1}" for index,identifier in enumerate(before_ids) if str(identifier) not in names}
+                label=lambda identifier:names.get(str(identifier),missing.get(str(identifier),"名稱已不可考的項目"))
+                field="category_order" if action=="reorder_achievement_categories" else "game_order" if action=="reorder_redeem_games" else "server_order"
+                item["before"]={field:[{"name":label(identifier),"position":index+1} for index,identifier in enumerate(before_ids)]}
+                item["after"]={field:[{"name":label(identifier),"position":index+1} for index,identifier in enumerate(after_ids)]}
+                item["metadata"]={**(item["metadata"] if isinstance(item["metadata"],dict) else {}),"legacy_name_note":"舊紀錄只保存 ID；顯示名稱依目前資料對照，可能與操作當時不同。"}
+    return {"ok":True,"total":total,"limit":limit,"offset":offset,"logs":logs}
 
 
 @app.post("/api/admin/audit-logs/{log_id}/archive")
@@ -3432,7 +3667,7 @@ def admin_update_username(user_id: str, body: AdminUsernamePayload, request: Req
         except sqlite3.IntegrityError:
             raise HTTPException(status_code=409, detail="此使用者名稱已被使用。")
     action = "新增使用者名稱" if not old_username else "更改使用者名稱"
-    log_admin_action(admin["id"], action, user_id, f"舊使用者名稱：{old_username or '未設定'}｜新使用者名稱：{username}")
+    log_admin_action(admin["id"],"admin_update_username",target_user_id=user_id,category="security",target_type="user",target_id=user_id,summary=f"{action}：{target['email']}",before={"username":old_username},after={"username":username},actor_ip=client_ip(request))
     return {"ok":True,"username":username}
 
 
@@ -3447,7 +3682,7 @@ def admin_delete_username(user_id: str, request: Request):
         if old_username:
             db.execute("update users set username=null,username_key=null,updated_at=? where id=?", (now(),user_id))
     if old_username:
-        log_admin_action(admin["id"], "刪除使用者名稱", user_id, f"使用者名稱：{old_username}")
+        log_admin_action(admin["id"],"admin_delete_username",target_user_id=user_id,category="security",target_type="user",target_id=user_id,summary=f"刪除使用者名稱：{target['email']}",before={"username":old_username},after={"username":""},actor_ip=client_ip(request))
     return {"ok":True,"deleted":bool(old_username)}
 
 
@@ -3471,7 +3706,7 @@ def admin_update_email(user_id: str, body: AdminEmailUpdatePayload, request: Req
         db.execute("delete from email_verification_tokens where user_id=?",(user_id,))
         db.execute("delete from password_reset_tokens where user_id=?",(user_id,))
         db.execute("delete from sessions where user_id=?",(user_id,))
-    log_admin_action(admin["id"],"update_email",user_id,f"old={old_email}; new={email}; verified={body.verified}")
+    log_admin_action(admin["id"],"update_email",target_user_id=user_id,category="security",target_type="user",target_id=user_id,summary="修改帳號電子郵件並撤銷既有登入階段",before={"email":old_email},after={"email":email,"email_verified":bool(body.verified)},actor_ip=client_ip(request))
     return {"ok":True,"email":email,"verified":bool(body.verified),"logged_out":True}
 
 
@@ -3487,7 +3722,7 @@ def admin_reset_user_password(user_id: str, body: AdminPasswordResetPayload, req
         db.execute("update users set password_hash=?,updated_at=? where id=?",(hash_password(body.password),now(),user_id))
         db.execute("delete from sessions where user_id=?",(user_id,))
         db.execute("delete from password_reset_tokens where user_id=?",(user_id,))
-    log_admin_action(admin["id"],"reset_password",user_id,"管理員已設定新密碼並登出全部裝置")
+    log_admin_action(admin["id"],"reset_password",target_user_id=user_id,category="security",target_type="user",target_id=user_id,summary="管理員重設密碼並撤銷全部登入階段；未記錄密碼內容",actor_ip=client_ip(request))
     create_notification("密碼已由管理員重設","你的登入密碼已由管理員更新，請使用新密碼重新登入。","account","/_projects/account/index.html",user_id,admin["id"])
     return {"ok":True,"logged_out":True}
 
@@ -3519,7 +3754,7 @@ def admin_delete_user_session(user_id: str, session_id: str, request: Request):
         deleted=db.execute("delete from sessions where user_id=? and token_hash=?",(user_id,session_id)).rowcount
     if not deleted:
         raise HTTPException(status_code=404,detail="找不到登入階段。")
-    log_admin_action(admin["id"],"delete_session",user_id,f"session={session_id[:12]}")
+    log_admin_action(admin["id"],"delete_session",target_user_id=user_id,category="security",target_type="session",target_id=session_id,summary="管理員移除指定登入階段",before={"session_exists":True},after={"session_exists":False},actor_ip=client_ip(request))
     return {"ok":True}
 
 
@@ -3544,7 +3779,7 @@ def admin_update_role(user_id: str, body: AdminRoleUpdate, request: Request):
                 raise HTTPException(status_code=400,detail="系統至少必須保留一位啟用中的管理員。")
         db.execute("update users set role=?,updated_at=? where id=?",(role,now(),user_id))
         db.execute("delete from sessions where user_id=?",(user_id,))
-    log_admin_action(admin["id"],"update_role",user_id,f"role={role}")
+    log_admin_action(admin["id"],"update_role",target_user_id=user_id,category="security",target_type="user",target_id=user_id,summary=f"修改帳號角色：{target['email']}",before={"role":target["role"]},after={"role":role},actor_ip=client_ip(request))
     return {"ok":True}
 
 
@@ -3567,7 +3802,7 @@ def admin_update_status(user_id: str, body: AdminStatusUpdate, request: Request)
         db.execute("update users set is_active=?,updated_at=? where id=?",(1 if body.active else 0,now(),user_id))
         if not body.active:
             db.execute("delete from sessions where user_id=?",(user_id,))
-    log_admin_action(admin["id"],"update_status",user_id,f"active={body.active}")
+    log_admin_action(admin["id"],"update_status",target_user_id=user_id,category="security",target_type="user",target_id=user_id,summary=f"修改帳號啟用狀態：{target['email']}",before={"is_active":bool(target["is_active"])},after={"is_active":bool(body.active)},actor_ip=client_ip(request))
     return {"ok":True}
 
 
@@ -3577,7 +3812,7 @@ def admin_update_verification(user_id: str, body: AdminVerificationUpdate, reque
     if user_id==admin["id"] and not body.verified:
         raise HTTPException(status_code=400,detail="不能取消自己目前帳號的信箱驗證。")
     with connect_db() as db:
-        target=db.execute("select id,email from users where id=?",(user_id,)).fetchone()
+        target=db.execute("select id,email,email_verified from users where id=?",(user_id,)).fetchone()
         if not target:
             raise HTTPException(status_code=404,detail="找不到此帳號。")
         if is_site_owner_email(target["email"]) and not body.verified:
@@ -3585,7 +3820,7 @@ def admin_update_verification(user_id: str, body: AdminVerificationUpdate, reque
         db.execute("update users set email_verified=?,updated_at=? where id=?",(1 if body.verified else 0,now(),user_id))
         if not body.verified:
             db.execute("delete from sessions where user_id=?",(user_id,))
-    log_admin_action(admin["id"],"update_verification",user_id,f"verified={body.verified}")
+    log_admin_action(admin["id"],"update_verification",target_user_id=user_id,category="security",target_type="user",target_id=user_id,summary=f"修改電子郵件驗證狀態：{target['email']}",before={"email_verified":bool(target["email_verified"])},after={"email_verified":bool(body.verified)},actor_ip=client_ip(request))
     return {"ok":True}
 
 
@@ -3595,11 +3830,11 @@ def admin_force_logout(user_id: str, request: Request):
     if user_id==admin["id"]:
         raise HTTPException(status_code=400,detail="請使用右上角的登出按鈕登出自己。")
     with connect_db() as db:
-        target=db.execute("select id from users where id=?",(user_id,)).fetchone()
+        target=db.execute("select id,email from users where id=?",(user_id,)).fetchone()
         if not target:
             raise HTTPException(status_code=404,detail="找不到此帳號。")
         db.execute("delete from sessions where user_id=?",(user_id,))
-    log_admin_action(admin["id"],"force_logout",user_id)
+    log_admin_action(admin["id"],"force_logout",target_user_id=user_id,category="security",target_type="user",target_id=user_id,summary=f"強制登出帳號：{target['email']}",actor_ip=client_ip(request))
     return {"ok":True}
 
 
@@ -3627,7 +3862,7 @@ def admin_block_user(user_id: str, body: AdminUserBlockPayload, request: Request
             target_email=target["email"]
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=409,detail="此帳號已在封鎖名單中。")
-    log_admin_action(admin["id"],"create_block",user_id,f"email:{normalize_email(target_email)}; sessions={session_count}; source=account_management")
+    log_admin_action(admin["id"],"create_block",target_user_id=user_id,category="security",target_type="user",target_id=user_id,summary=f"封鎖帳號：{target_email}",after={"blocked":True,"reason":reason,"removed_sessions":session_count},actor_ip=client_ip(request))
     return {"ok":True,"id":block_id,"email":target_email,"logged_out_users":1,"logged_out_sessions":session_count}
 
 
@@ -3646,7 +3881,7 @@ def admin_unblock_user(user_id: str, request: Request):
         target_email=target["email"]
     if not deleted:
         raise HTTPException(status_code=404,detail="此帳號目前不在電子信箱封鎖名單中。")
-    log_admin_action(admin["id"],"delete_block",user_id,f"email:{normalize_email(target_email)}; source=account_management")
+    log_admin_action(admin["id"],"delete_block",target_user_id=user_id,category="security",target_type="user",target_id=user_id,summary=f"解除帳號封鎖：{target_email}",before={"blocked":True},after={"blocked":False},actor_ip=client_ip(request))
     return {"ok":True,"email":target_email,"removed_blocks":int(deleted)}
 
 
@@ -3676,6 +3911,10 @@ def admin_reset_user_progress(user_id: str, request: Request, game_id: str = "al
         if not target:
             raise HTTPException(status_code=404,detail="找不到此帳號。")
         before=_user_progress_summary(db,user_id)
+        removed_items=[{"game":game_display_name(row["game_id"]),"name":row["name"] or row["achievement_id"],"achievement_id":row["achievement_id"]} for row in db.execute(
+            "select p.game_id,p.achievement_id,c.name from game_progress p left join game_catalog_items c on c.game_id=p.game_id and c.achievement_id=p.achievement_id where p.user_id=? and (?='all' or p.game_id=?) order by p.game_id,p.achievement_id",
+            (user_id,scope,scope),
+        ).fetchall()]
     selected_ids=list(valid_ids) if scope=="all" else [scope]
     selected_counts={row["id"]:int(row["completed_count"]) for row in before["games"] if row["id"] in selected_ids}
     if not any(selected_counts.values()):
@@ -3694,10 +3933,7 @@ def admin_reset_user_progress(user_id: str, request: Request, game_id: str = "al
     for selected in selected_ids:
         bump_game_live_scope(selected,"stats")
     removed_total=sum(removed_by_game.values())
-    log_admin_action(
-        admin["id"],"reset_progress",user_id,
-        f"scope={scope}; removed={removed_total}; legacy_wuwa={legacy_removed}; backup={backup.name}; by_game={json.dumps(removed_by_game,ensure_ascii=False,sort_keys=True)}",
-    )
+    log_admin_action(admin["id"],"reset_progress",target_user_id=user_id,category="security",target_type="achievement_progress",target_id=user_id,summary=f"清除 {target['email']} 的成就完成紀錄：{scope}，共 {removed_total} 項",before={"completed_achievements":removed_items},after={"completed_achievements":[],"removed_by_game":removed_by_game,"legacy_wuwa_removed":legacy_removed},backup_name=backup.name,actor_ip=client_ip(request),locked=True)
     return {"ok":True,"removed":removed_total,"removed_by_game":removed_by_game,"backup":backup.name,"scope":scope}
 
 
@@ -3713,7 +3949,7 @@ def admin_resend_user_verification(user_id: str, request: Request):
     if not target["is_active"]:
         raise HTTPException(status_code=400,detail="請先啟用此帳號。")
     issue_verification(target["id"],target["email"])
-    log_admin_action(admin["id"],"resend_verification",user_id)
+    log_admin_action(admin["id"],"resend_verification",target_user_id=user_id,category="security",target_type="user",target_id=user_id,summary=f"重新寄送驗證信給 {target['email']}",actor_ip=client_ip(request))
     return {"ok":True}
 
 
@@ -3734,7 +3970,7 @@ def admin_delete_user(user_id: str, request: Request):
                 raise HTTPException(status_code=400,detail="不能刪除最後一位啟用中的管理員。")
         target_email=row["email"]
         db.execute("delete from users where id=?",(user_id,))
-    log_admin_action(admin["id"],"delete_user",None,f"deleted={target_email}")
+    log_admin_action(admin["id"],"delete_user",category="security",target_type="user",target_id=user_id,summary=f"刪除帳號：{target_email}",before={"email":target_email,"role":row["role"],"is_active":bool(row["is_active"])},actor_ip=client_ip(request),locked=True)
     return {"ok":True}
 
 
@@ -3743,7 +3979,7 @@ def admin_clear_rate_limits(request: Request):
     admin=require_admin(request)
     with connect_db() as db:
         deleted=db.execute("delete from rate_limits").rowcount
-    log_admin_action(admin["id"],"clear_rate_limits",details=f"deleted={deleted}")
+    log_admin_action(admin["id"],"clear_rate_limits",category="security",target_type="rate_limits",target_id="all",summary="清除操作頻率限制紀錄",before={"entry_count":deleted},after={"entry_count":0},actor_ip=client_ip(request))
     return {"ok":True,"deleted":deleted}
 
 
@@ -3752,7 +3988,7 @@ def admin_clear_rate_limits(request: Request):
 def admin_backup_database(request: Request):
     admin=require_admin(request)
     target=create_database_backup()
-    log_admin_action(admin["id"],"backup_database",details=target.name)
+    log_admin_action(admin["id"],"backup_database",category="system",target_type="database_backup",target_id=target.name,summary=f"建立資料庫備份：{target.name}",after={"filename":target.name,"size_bytes":target.stat().st_size},backup_name=target.name,actor_ip=client_ip(request),locked=True)
     return {"ok":True,"filename":target.name,"path":str(target)}
 
 
@@ -3817,7 +4053,7 @@ def admin_restore_backup(body: BackupRestorePayload, request: Request):
             except Exception as rollback_exc:
                 raise HTTPException(status_code=500,detail=f"備份還原失敗，且安全備份回復也失敗：{exc}；{rollback_exc}") from rollback_exc
             raise HTTPException(status_code=500,detail=f"備份還原失敗，已回到還原前狀態：{exc}") from exc
-        log_admin_action(admin["id"],"restore_database_backup",details=f"source={source.name}; safety={safety.name}")
+        log_admin_action(admin["id"],"restore_database_backup",category="system",target_type="database_backup",target_id=source.name,summary=f"以 {source.name} 還原資料庫；還原前安全備份為 {safety.name}",before={"safety_backup":safety.name},after={"restored_backup":source.name},backup_name=safety.name,actor_ip=client_ip(request),locked=True)
         return {"ok":True,"restored":source.name,"safety_backup":safety.name,"requires_relogin":True}
     finally:
         BACKUP_OPERATION_GUARD.release()
@@ -3886,8 +4122,9 @@ def admin_delete_backup(filename: str, request: Request):
         path=_safe_backup_path(filename)
         if not path.exists():
             raise HTTPException(status_code=404,detail="找不到備份檔。")
+        size_bytes=path.stat().st_size
         path.unlink()
-        log_admin_action(admin["id"],"delete_database_backup",details=path.name)
+        log_admin_action(admin["id"],"delete_database_backup",category="system",target_type="database_backup",target_id=path.name,summary=f"刪除資料庫備份：{path.name}",before={"filename":path.name,"size_bytes":size_bytes},actor_ip=client_ip(request),locked=True)
         return {"ok":True}
     finally:
         BACKUP_OPERATION_GUARD.release()
@@ -3921,7 +4158,7 @@ def admin_system_health(request: Request):
     with connect_db() as db:
         integrity=str(db.execute("pragma integrity_check").fetchone()[0])
         tables={str(row["name"]) for row in db.execute("select name from sqlite_master where type='table'").fetchall()}
-        required={"users","sessions","game_catalog_items","game_progress","game_achievement_choice_groups","message_center_items","message_center_reads","message_center_deletions","email_logs","game_sync_previews","source_isolation_exclusions","source_isolation_approvals","redeem_games","redeem_servers","redeem_codes","achievement_guide_submissions","achievement_guides","guide_media","guide_submission_media"}
+        required={"users","sessions","game_catalog_items","game_progress","game_achievement_choice_groups","message_center_items","message_center_reads","message_center_deletions","email_logs","game_sync_previews","game_sync_preview_jobs","source_isolation_exclusions","source_isolation_approvals","redeem_games","redeem_servers","redeem_codes","achievement_guide_submissions","achievement_guides","guide_media","guide_submission_media"}
         game_rows=[]
         for project in enabled_game_projects():
             gid=project["id"]
@@ -3933,6 +4170,7 @@ def admin_system_health(request: Request):
             "support_tickets":int(db.execute("select count(*) c from support_tickets where status not in ('resolved','closed')").fetchone()["c"] or 0),
             "failed_emails":int(db.execute("select count(*) c from email_logs where status='failed'").fetchone()["c"] or 0),
             "sync_previews":int(db.execute("select count(*) c from game_sync_previews where expires_at> ?",(now(),)).fetchone()["c"] or 0),
+            "sync_preview_jobs":int(db.execute("select count(*) c from game_sync_preview_jobs where expires_at>? and status in ('queued','running')",(now(),)).fetchone()["c"] or 0),
             "guide_submissions":int(db.execute("select count(*) c from achievement_guide_submissions where status='pending'").fetchone()["c"] or 0),
         }
     backup_files=list((ROOT/"backups").glob("app-*.db"))
@@ -4136,6 +4374,9 @@ def redeem_dataset(db: sqlite3.Connection, *, public_only: bool = False) -> dict
     game_where = "where enabled=1" if public_only else ""
     games_rows = db.execute(f"select * from redeem_games {game_where} order by display_order,name,game_id").fetchall()
     games = [redeem_game_payload(row) for row in games_rows]
+    for game in games:
+        game["manualLocalizations"]=manual_localization_overrides(db,"redeem_game",game["game_id"]).get(game["game_id"],{})
+        game["localizations"]=game["manualLocalizations"]
     games_by_id = {row["game_id"]: row for row in games}
     if not games_by_id:
         return {"games": [], "servers": [], "codes": []}
@@ -4771,9 +5012,11 @@ def user_redeem_notification_preferences(request: Request):
     user = require_user(request)
     with connect_db() as db:
         games = [redeem_game_payload(row) for row in db.execute("select * from redeem_games where enabled=1 order by display_order,name,game_id").fetchall()]
+        for game in games:
+            game["localizations"]=manual_localization_overrides(db,"redeem_game",game["game_id"]).get(game["game_id"],{})
         rows = db.execute("select * from redeem_notification_preferences where user_id=?", (user["id"],)).fetchall()
     selected = {str(row["game_id"]) for row in rows}
-    preferences = [{"game_id": game["game_id"], "name": game["name"], "selected": game["game_id"] in selected} for game in games]
+    preferences = [{"game_id": game["game_id"], "name": game["name"], "localizations":game.get("localizations",{}), "selected": game["game_id"] in selected} for game in games]
     return {"ok": True, "game_ids": sorted(selected), "preferences": preferences}
 
 
@@ -4782,6 +5025,7 @@ def update_user_redeem_notification_preferences(body: RedeemNotificationPreferen
     user = require_user(request); stamp = now()
     selected = list(dict.fromkeys(str(game_id or "").strip() for game_id in body.game_ids if str(game_id or "").strip()))
     with connect_db() as db:
+        previous=[str(row["game_id"]) for row in db.execute("select game_id from redeem_notification_preferences where user_id=? order by game_id",(user["id"],)).fetchall()]
         valid = {str(row["game_id"]) for row in db.execute("select game_id from redeem_games where enabled=1").fetchall()}
         unknown = sorted(set(selected) - valid)
         if unknown:
@@ -4791,6 +5035,8 @@ def update_user_redeem_notification_preferences(body: RedeemNotificationPreferen
             "insert into redeem_notification_preferences(user_id,game_id,updated_at) values(?,?,?)",
             [(user["id"], game_id, stamp) for game_id in selected],
         )
+        names={str(row["game_id"]):str(row["name"]) for row in db.execute("select game_id,name from redeem_games where game_id in ("+",".join("?" for _ in set(previous+selected))+")",tuple(set(previous+selected))).fetchall()} if previous or selected else {}
+    log_admin_action(user["id"],"update_redeem_notification_preferences",category="user",target_user_id=user["id"],target_type="redeem_notification_preferences",target_id=user["id"],summary="更新兌換碼通知的遊戲選擇",before={"games":[names.get(item,item) for item in previous]},after={"games":[names.get(item,item) for item in selected]},actor_ip=client_ip(request))
     return {"ok": True, "game_ids": selected}
 
 
@@ -5177,7 +5423,7 @@ def admin_reorder_redeem_games(body: RedeemReorderPayload, request: Request):
         raise HTTPException(status_code=400, detail="兌換碼遊戲排序清單包含重複項目。")
     with connect_db() as db:
         db.execute("begin immediate")
-        current_rows = db.execute("select game_id from redeem_games order by display_order,name,game_id").fetchall()
+        current_rows = db.execute("select game_id,name from redeem_games order by display_order,name,game_id").fetchall()
         current_ids = [str(row["game_id"]) for row in current_rows]
         if len(requested) != len(current_ids) or set(requested) != set(current_ids):
             raise HTTPException(status_code=409, detail="兌換碼遊戲清單已變更，請重新整理後再調整順序。")
@@ -5187,7 +5433,11 @@ def admin_reorder_redeem_games(body: RedeemReorderPayload, request: Request):
             [(index, admin["id"], stamp, game_id) for index, game_id in enumerate(requested)],
         )
         rows = db.execute("select * from redeem_games order by display_order,name,game_id").fetchall()
-    log_admin_action(admin["id"], "reorder_redeem_games", category="redeem", target_type="redeem_games", target_id="all", summary="調整兌換碼遊戲順序", before={"item_ids": current_ids}, after={"item_ids": requested}, actor_ip=client_ip(request))
+    names={str(row["game_id"]):str(row["name"]) for row in current_rows}
+    before_order=[{"name":names[item],"position":index+1} for index,item in enumerate(current_ids)]
+    after_order=[{"name":names[item],"position":index+1} for index,item in enumerate(requested)]
+    moved=[{"name":names[item],"from_position":current_ids.index(item)+1,"to_position":index+1} for index,item in enumerate(requested) if current_ids.index(item)!=index]
+    log_admin_action(admin["id"], "reorder_redeem_games", category="redeem", target_type="redeem_games", target_id="all", summary="調整兌換碼遊戲順序："+("、".join(f'{item["name"]} 第 {item["from_position"]} 位→第 {item["to_position"]} 位' for item in moved) if moved else "順序未變更"), before={"game_order":before_order}, after={"game_order":after_order},metadata={"moved_games":moved}, actor_ip=client_ip(request))
     return {"ok": True, "games": [redeem_game_payload(row) for row in rows]}
 
 
@@ -5258,7 +5508,7 @@ def admin_reorder_redeem_servers(game_id: str, body: RedeemReorderPayload, reque
         db.execute("begin immediate")
         require_redeem_game(db, gid)
         current_rows = db.execute(
-            "select id from redeem_servers where game_id=? order by display_order,name,id",
+            "select id,name from redeem_servers where game_id=? order by display_order,name,id",
             (gid,),
         ).fetchall()
         current_ids = [str(row["id"]) for row in current_rows]
@@ -5273,7 +5523,11 @@ def admin_reorder_redeem_servers(game_id: str, body: RedeemReorderPayload, reque
             "select * from redeem_servers where game_id=? order by display_order,name,id",
             (gid,),
         ).fetchall()
-    log_admin_action(admin["id"], "reorder_redeem_servers", category="redeem", game_id=gid, target_type="redeem_servers", target_id=gid, summary="調整兌換碼服務器順序", before={"item_ids": current_ids}, after={"item_ids": requested}, actor_ip=client_ip(request))
+    names={str(row["id"]):str(row["name"]) for row in current_rows}
+    before_order=[{"name":names[item],"position":index+1} for index,item in enumerate(current_ids)]
+    after_order=[{"name":names[item],"position":index+1} for index,item in enumerate(requested)]
+    moved=[{"name":names[item],"from_position":current_ids.index(item)+1,"to_position":index+1} for index,item in enumerate(requested) if current_ids.index(item)!=index]
+    log_admin_action(admin["id"], "reorder_redeem_servers", category="redeem", game_id=gid, target_type="redeem_servers", target_id=gid, summary="調整兌換碼服務器順序："+("、".join(f'{item["name"]} 第 {item["from_position"]} 位→第 {item["to_position"]} 位' for item in moved) if moved else "順序未變更"), before={"server_order":before_order}, after={"server_order":after_order},metadata={"moved_servers":moved}, actor_ip=client_ip(request))
     return {"ok": True, "game_id": gid, "servers": [redeem_server_payload(row) for row in rows]}
 
 
@@ -5402,28 +5656,34 @@ def admin_announcements(request: Request):
 @app.post("/api/admin/announcements")
 def admin_create_announcement(body: AnnouncementPayload, request: Request):
     admin=require_admin(request); aid=str(uuid.uuid4()); t=now(); level=normalize_announcement_level(body.level)
+    after={"title":body.title.strip(),"body":body.body.strip(),"level":level,"is_active":bool(body.is_active),"pinned":bool(body.pinned),"starts_at":body.starts_at,"ends_at":body.ends_at}
     with connect_db() as db:
         db.execute("insert into announcements(id,title,body,level,is_active,pinned,starts_at,ends_at,created_by,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?)",
                    (aid,body.title.strip(),body.body.strip(),level,1 if body.is_active else 0,1 if body.pinned else 0,body.starts_at,body.ends_at,admin["id"],t,t))
-    log_admin_action(admin["id"],"create_announcement",details=body.title)
+    log_admin_action(admin["id"],"create_announcement",category="content",target_type="announcement",target_id=aid,summary=f"建立公告：{after['title']}",after=after,actor_ip=client_ip(request))
     return {"ok":True,"id":aid}
 
 @app.put("/api/admin/announcements/{announcement_id}")
 def admin_update_announcement(announcement_id: str, body: AnnouncementPayload, request: Request):
     admin=require_admin(request); level=normalize_announcement_level(body.level)
     with connect_db() as db:
-        if not (current:=db.execute("select id,updated_at from announcements where id=?",(announcement_id,)).fetchone()): raise HTTPException(status_code=404,detail="找不到公告。")
+        if not (current:=db.execute("select * from announcements where id=?",(announcement_id,)).fetchone()): raise HTTPException(status_code=404,detail="找不到公告。")
+        before={key:(bool(current[key]) if key in {"is_active","pinned"} else current[key]) for key in ("title","body","level","is_active","pinned","starts_at","ends_at")}
+        after={"title":body.title.strip(),"body":body.body.strip(),"level":level,"is_active":bool(body.is_active),"pinned":bool(body.pinned),"starts_at":body.starts_at,"ends_at":body.ends_at}
         db.execute("update announcements set title=?,body=?,level=?,is_active=?,pinned=?,starts_at=?,ends_at=?,updated_at=? where id=?",
                    (body.title.strip(),body.body.strip(),level,1 if body.is_active else 0,1 if body.pinned else 0,body.starts_at,body.ends_at,max(now(),int(current["updated_at"] or 0)+1),announcement_id))
-    log_admin_action(admin["id"],"update_announcement",details=announcement_id)
+    log_admin_action(admin["id"],"update_announcement",category="content",target_type="announcement",target_id=announcement_id,summary=f"更新公告：{after['title']}",before=before,after=after,actor_ip=client_ip(request))
     return {"ok":True}
 
 @app.delete("/api/admin/announcements/{announcement_id}")
 def admin_delete_announcement(announcement_id: str, request: Request):
     admin=require_admin(request)
-    with connect_db() as db: deleted=db.execute("delete from announcements where id=?",(announcement_id,)).rowcount
+    with connect_db() as db:
+        current=db.execute("select title,body,level,is_active,pinned,starts_at,ends_at from announcements where id=?",(announcement_id,)).fetchone()
+        deleted=db.execute("delete from announcements where id=?",(announcement_id,)).rowcount
     if not deleted: raise HTTPException(status_code=404,detail="找不到公告。")
-    log_admin_action(admin["id"],"delete_announcement",details=announcement_id)
+    before={key:(bool(current[key]) if key in {"is_active","pinned"} else current[key]) for key in current.keys()}
+    log_admin_action(admin["id"],"delete_announcement",category="content",target_type="announcement",target_id=announcement_id,summary=f"刪除公告：{current['title']}",before=before,actor_ip=client_ip(request))
     return {"ok":True}
 
 @app.get("/api/admin/notifications")
@@ -5459,9 +5719,10 @@ def admin_notifications(request: Request):
 def admin_delete_notification(notification_id: str, request: Request):
     admin=require_admin(request)
     with connect_db() as db:
+        current=db.execute("select title,body,kind,link,target_user_id from message_center_items where id=? and item_type='notification'",(notification_id,)).fetchone()
         deleted=db.execute("delete from message_center_items where id=? and item_type='notification'",(notification_id,)).rowcount
     if not deleted: raise HTTPException(status_code=404,detail="找不到通知。")
-    log_admin_action(admin["id"],"delete_notification",details=notification_id)
+    log_admin_action(admin["id"],"delete_notification",category="content",target_type="notification",target_id=notification_id,summary=f"刪除通知：{current['title']}",before={"title":current["title"],"body":current["body"],"kind":current["kind"],"link":current["link"],"target_scope":"指定使用者" if current["target_user_id"] else "全體使用者"},actor_ip=client_ip(request))
     return {"ok":True}
 
 
@@ -5500,10 +5761,7 @@ def admin_create_notification(body: NotificationPayload, request: Request):
             target_ids=[None]
             recipient_count=int(db.execute("select count(*) from users where is_active=1").fetchone()[0] or 0)
     ids=[create_notification(body.title,body.body,body.kind,body.link,target_id,admin["id"]) for target_id in target_ids]
-    log_admin_action(
-        admin["id"],"create_notification",None,
-        f"target_scope={scope}; target={target_label}; recipients={recipient_count}; title={body.title.strip()}"
-    )
+    log_admin_action(admin["id"],"create_notification",category="content",target_type="notification",target_id=ids[0],summary=f"建立通知：{body.title.strip()}；對象：{target_label}",after={"title":body.title.strip(),"body":body.body.strip(),"kind":body.kind,"link":body.link,"target_scope":scope,"target_label":target_label,"recipient_count":recipient_count},metadata={"notification_ids":ids},actor_ip=client_ip(request))
     return {"ok":True,"id":ids[0],"ids":ids,"target_scope":scope,"target_label":target_label,"recipient_count":recipient_count}
 
 # ----- 郵件紀錄 -----
@@ -5531,17 +5789,18 @@ def admin_retry_email(log_id: int, request: Request):
     if row["mail_type"]=="verification": issue_verification(user["id"],user["email"])
     elif row["mail_type"]=="password_reset": issue_reset(user["id"],user["email"])
     else: raise HTTPException(status_code=400,detail="此類郵件不支援自動重寄。")
-    log_admin_action(admin["id"],"retry_email",user["id"],f"log={log_id} type={row['mail_type']}")
+    log_admin_action(admin["id"],"retry_email",target_user_id=user["id"],category="system",target_type="email_log",target_id=str(log_id),summary=f"重新寄送 {row['mail_type']} 郵件至 {user['email']}",after={"mail_type":row["mail_type"],"recipient":user["email"]},actor_ip=client_ip(request))
     return {"ok":True}
 
 @app.delete("/api/admin/email-logs/{log_id}")
 def admin_delete_email_log(log_id: int, request: Request):
     admin=require_admin(request)
     with connect_db() as db:
+        current=db.execute("select recipient,mail_type,status from email_logs where id=?",(log_id,)).fetchone()
         deleted=db.execute("delete from email_logs where id=?",(log_id,)).rowcount
     if not deleted:
         raise HTTPException(status_code=404,detail="找不到郵件紀錄。")
-    log_admin_action(admin["id"],"delete_email_log",details=f"log={log_id}")
+    log_admin_action(admin["id"],"delete_email_log",category="system",target_type="email_log",target_id=str(log_id),summary=f"刪除寄送紀錄：{current['mail_type']} → {current['recipient']}",before=dict(current),actor_ip=client_ip(request))
     return {"ok":True}
 
 
@@ -5554,7 +5813,7 @@ def admin_test_email(body: AdminTestEmailPayload, request: Request):
         deliver_email(message,"admin_test")
     except Exception as exc:
         raise HTTPException(status_code=502,detail=f"測試郵件寄送失敗：{exc}")
-    log_admin_action(admin["id"],"send_test_email",details=f"recipient={recipient}")
+    log_admin_action(admin["id"],"send_test_email",category="system",target_type="email",target_id=recipient,summary=f"寄送測試郵件至 {recipient}",after={"recipient":recipient,"mail_type":"admin_test"},actor_ip=client_ip(request))
     return {"ok":True}
 
 
@@ -5593,15 +5852,17 @@ def admin_create_block(body: BlockEntryPayload, request: Request):
                     logged_out_sessions=int(db.execute(f"select count(*) as c from sessions where user_id in ({placeholders})",user_ids).fetchone()["c"] or 0)
                     db.execute(f"delete from sessions where user_id in ({placeholders})",user_ids)
     except sqlite3.IntegrityError: raise HTTPException(status_code=409,detail="此封鎖項目已存在。")
-    log_admin_action(admin["id"],"create_block",details=f"{kind}:{value}; users={logged_out_users}; sessions={logged_out_sessions}")
+    log_admin_action(admin["id"],"create_block",category="security",target_type="blocked_entry",target_id=bid,summary=f"新增{kind}封鎖：{value}",after={"kind":kind,"value":value,"reason":body.reason.strip(),"active":bool(body.active),"logged_out_users":logged_out_users,"logged_out_sessions":logged_out_sessions},actor_ip=client_ip(request))
     return {"ok":True,"id":bid,"logged_out_users":logged_out_users,"logged_out_sessions":logged_out_sessions}
 
 @app.delete("/api/admin/blocks/{block_id}")
 def admin_delete_block(block_id: str, request: Request):
     admin=require_admin(request)
-    with connect_db() as db: deleted=db.execute("delete from blocked_entries where id=?",(block_id,)).rowcount
+    with connect_db() as db:
+        current=db.execute("select kind,value_key,reason,active from blocked_entries where id=?",(block_id,)).fetchone()
+        deleted=db.execute("delete from blocked_entries where id=?",(block_id,)).rowcount
     if not deleted: raise HTTPException(status_code=404,detail="找不到封鎖項目。")
-    log_admin_action(admin["id"],"delete_block",details=block_id)
+    log_admin_action(admin["id"],"delete_block",category="security",target_type="blocked_entry",target_id=block_id,summary=f"刪除{current['kind']}封鎖：{current['value_key']}",before=dict(current),actor_ip=client_ip(request))
     return {"ok":True}
 
 # ----- 成就編輯、自訂標籤、精選與版本紀錄 -----
@@ -5756,7 +6017,9 @@ def _scan_catalog_for_admin(game_id: str, items: list[dict[str,Any]], admin_id: 
 @app.post("/api/admin/catalog/validate")
 def admin_validate_catalog(body: CatalogValidationPayload, request: Request):
     admin=require_admin(request)
-    return {"ok":True,**_scan_catalog_for_admin("wuwa",body.items,admin["id"])}
+    result=_scan_catalog_for_admin("wuwa",body.items,admin["id"])
+    log_admin_action(admin["id"],"validate_achievement_catalog",category="catalog",game_id="wuwa",target_type="catalog_scan_preview",target_id=result["scan_id"],summary="檢查鳴潮成就目錄並建立問題預覽",after={"issue_count":len(result.get("issues") or []),"scan_id":result["scan_id"]},actor_ip=client_ip(request))
+    return {"ok":True,**result}
 
 
 def _write_catalog_items_payload(game_id: str, items: list[dict[str,Any]]) -> None:
@@ -5975,6 +6238,7 @@ def admin_merge_accounts(body: MergeAccountsPayload, request: Request):
         if not source or not target: raise HTTPException(status_code=404,detail="找不到來源或目標帳號。")
         if is_site_owner_email(source["email"]): raise HTTPException(status_code=400,detail="站長帳號無法作為合併來源。")
         if source["role"]=="admin": raise HTTPException(status_code=400,detail="管理員帳號不能直接合併，請先降為一般用戶。")
+        moved_by_game={str(row["game_id"]):int(row["count"]) for row in db.execute("select game_id,count(*) count from game_progress where user_id=? group by game_id",(body.source_user_id,)).fetchall()}
         db.execute("""insert into game_progress(game_id,user_id,achievement_id,completed_at)
         select game_id,?,achievement_id,completed_at from game_progress where user_id=?
         on conflict(game_id,user_id,achievement_id) do update set completed_at=min(game_progress.completed_at,excluded.completed_at)""",
@@ -5986,13 +6250,61 @@ def admin_merge_accounts(body: MergeAccountsPayload, request: Request):
         source_email=source["email"]; target_email=target["email"]
         db.execute("delete from users where id=?",(body.source_user_id,))
     create_notification("帳號進度已合併",f"已將 {source_email} 的成就進度合併至此帳號。","account",target_user_id=body.target_user_id,created_by=admin["id"])
-    log_admin_action(admin["id"],"merge_accounts",body.target_user_id,f"source={source_email} target={target_email}")
+    log_admin_action(admin["id"],"merge_accounts",target_user_id=body.target_user_id,category="security",target_type="user",target_id=body.target_user_id,summary=f"合併帳號：{source_email} → {target_email}",before={"source_email":source_email,"target_email":target_email,"source_progress_by_game":moved_by_game},after={"source_account_deleted":True,"target_email":target_email},actor_ip=client_ip(request),locked=True)
     return {"ok":True}
 
 # ----- 問題回報／客服單 -----
+def ensure_report_thread(db: sqlite3.Connection, report: sqlite3.Row) -> str:
+    existing=db.execute("select ticket_id from achievement_report_threads where report_id=?",(report["id"],)).fetchone()
+    if existing: return existing["ticket_id"]
+    tid="report-"+report["id"]
+    ticket=db.execute("select user_id from support_tickets where id=?",(tid,)).fetchone()
+    if ticket:
+        linked=db.execute("select report_id from achievement_report_threads where ticket_id=?",(tid,)).fetchone()
+        if ticket["user_id"]==report["user_id"] and not linked:
+            db.execute("insert into achievement_report_threads(report_id,ticket_id) values(?,?)",(report["id"],tid))
+            return tid
+        # Never attach a report to another owner's or another report's conversation.
+        tid="report-"+str(uuid.uuid4())
+    status={"reviewing":"pending","rejected":"closed"}.get(report["status"],report["status"])
+    subject=f"{game_display_name(report['game_id'])}｜{report['achievement_name']}（{report['report_type']}）"[:200]
+    db.execute("insert into support_tickets(id,user_id,subject,status,priority,created_at,updated_at) values(?,?,?,?,'normal',?,?)",(tid,report["user_id"],subject,status,report["created_at"],report["updated_at"]))
+    db.execute("insert into achievement_report_threads(report_id,ticket_id) values(?,?)",(report["id"],tid))
+    db.execute("insert into support_ticket_messages(id,ticket_id,sender_user_id,message,created_at) values(?,?,?,?,?)",(str(uuid.uuid4()),tid,report["user_id"],report["message"],report["created_at"]))
+    if report["admin_note"]:
+        db.execute("insert into support_ticket_messages(id,ticket_id,sender_user_id,message,created_at) values(?,?,null,?,?)",(str(uuid.uuid4()),tid,"管理員既有回覆：\n"+report["admin_note"],report["updated_at"]))
+    return tid
+
+
+def sync_ticket_report(db: sqlite3.Connection, ticket_id: str, status: str) -> None:
+    state={"pending":"reviewing","closed":"rejected"}.get(status,status)
+    report=db.execute("select r.game_id from game_achievement_reports r join achievement_report_threads t on t.report_id=r.id where t.ticket_id=?",(ticket_id,)).fetchone()
+    db.execute("update game_achievement_reports set status=?,updated_at=? where id in (select report_id from achievement_report_threads where ticket_id=?)",(state,now(),ticket_id))
+    if report:
+        db.execute("update game_live_revisions set revision=revision+1,updated_at=? where game_id=? and scope='reports'",(now(),report["game_id"]))
+
+
 def ticket_payload(db: sqlite3.Connection, row: sqlite3.Row) -> dict[str,Any]:
-    messages=db.execute("select m.*,u.email sender_email,u.role sender_role from support_ticket_messages m left join users u on u.id=m.sender_user_id where ticket_id=? order by created_at",(row["id"],)).fetchall()
-    d=dict(row); d["messages"]=[dict(m) for m in messages]; return d
+    messages=db.execute("select m.*,u.email sender_email,u.role sender_role from support_ticket_messages m left join users u on u.id=m.sender_user_id where ticket_id=? order by created_at,m.rowid",(row["id"],)).fetchall()
+    d=dict(row); d["messages"]=[dict(m) for m in messages]; d["version"]=ticket_version(db,row)
+    report=db.execute("select r.game_id,r.achievement_id,r.achievement_name,r.report_type from game_achievement_reports r join achievement_report_threads t on t.report_id=r.id where t.ticket_id=?",(row["id"],)).fetchone()
+    if report:
+        d["achievement_report"]=dict(report)
+        d["achievement_report"]["game_name"]=game_display_name(report["game_id"])
+    return d
+
+
+def ticket_version(db: sqlite3.Connection, row: sqlite3.Row) -> str:
+    messages=db.execute("select count(*) as count,max(rowid) as last_row from support_ticket_messages where ticket_id=?",(row["id"],)).fetchone()
+    value=f"{row['id']}|{row['status']}|{row['priority']}|{row['updated_at']}|{messages['count']}|{messages['last_row']}"
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def require_ticket_version(db: sqlite3.Connection, row: sqlite3.Row, expected: str | None) -> None:
+    if not expected:
+        raise HTTPException(status_code=428,detail="客服單頁面版本已過期，請重新載入後再回覆。")
+    if not secrets.compare_digest(ticket_version(db,row),expected):
+        raise HTTPException(status_code=409,detail="客服單已有新內容或狀態變更，請先查看最新內容；未送出的回覆已保留。")
 
 @app.post("/api/support/tickets")
 def create_support_ticket(body: TicketCreatePayload, request: Request):
@@ -6000,6 +6312,7 @@ def create_support_ticket(body: TicketCreatePayload, request: Request):
     with connect_db() as db:
         db.execute("insert into support_tickets(id,user_id,subject,status,priority,created_at,updated_at) values(?,?,?,'open','normal',?,?)",(tid,user["id"],body.subject.strip(),t,t))
         db.execute("insert into support_ticket_messages(id,ticket_id,sender_user_id,message,created_at) values(?,?,?,?,?)",(mid,tid,user["id"],body.message.strip(),t))
+    log_admin_action(user["id"],"create_support_ticket",category="user",target_user_id=user["id"],target_type="support_ticket",target_id=tid,summary=f"建立客服單：{body.subject.strip()}",after={"subject":body.subject.strip(),"status":"open","priority":"normal","message_count":1},actor_ip=client_ip(request))
     return {"ok":True,"id":tid}
 
 @app.get("/api/support/tickets")
@@ -6013,18 +6326,24 @@ def my_support_tickets(request: Request):
 def user_reply_ticket(ticket_id: str, body: TicketReplyPayload, request: Request):
     user=require_user(request); t=now()
     with connect_db() as db:
-        row=db.execute("select id,status from support_tickets where id=? and user_id=?",(ticket_id,user["id"])).fetchone()
+        row=db.execute("select id,subject,status from support_tickets where id=? and user_id=?",(ticket_id,user["id"])).fetchone()
         if not row: raise HTTPException(status_code=404,detail="找不到客服單。")
         db.execute("insert into support_ticket_messages(id,ticket_id,sender_user_id,message,created_at) values(?,?,?,?,?)",(str(uuid.uuid4()),ticket_id,user["id"],body.message.strip(),t))
         db.execute("update support_tickets set status='open',updated_at=? where id=?",(t,ticket_id))
+        sync_ticket_report(db,ticket_id,"open")
+    log_admin_action(user["id"],"reply_support_ticket",category="user",target_user_id=user["id"],target_type="support_ticket",target_id=ticket_id,summary=f"回覆客服單：{row['subject']}",before={"status":row["status"]},after={"status":"open","reply_added":True},metadata={"message_body":"客服內容不複製到操作紀錄"},actor_ip=client_ip(request))
     return {"ok":True}
 
 @app.delete("/api/support/tickets/{ticket_id}")
 def user_delete_support_ticket(ticket_id: str, request: Request):
     user=require_user(request)
     with connect_db() as db:
+        current=db.execute("select subject,status,priority from support_tickets where id=? and user_id=?",(ticket_id,user["id"])).fetchone()
+        if current:
+            db.execute("delete from game_achievement_reports where id in (select report_id from achievement_report_threads where ticket_id=?)",(ticket_id,))
         deleted=db.execute("delete from support_tickets where id=? and user_id=?",(ticket_id,user["id"])).rowcount
     if not deleted: raise HTTPException(status_code=404,detail="找不到客服單。")
+    log_admin_action(user["id"],"delete_own_support_ticket",category="user",target_user_id=user["id"],target_type="support_ticket",target_id=ticket_id,summary=f"刪除自己的客服單：{current['subject']}",before=dict(current),actor_ip=client_ip(request))
     return {"ok":True}
 
 
@@ -6039,21 +6358,29 @@ def admin_support_tickets(request: Request):
 def admin_reply_ticket(ticket_id: str, body: TicketReplyPayload, request: Request):
     admin=require_admin(request); t=now(); status=(body.status or "pending").strip().lower()
     if status not in {"open","pending","resolved","closed"}: raise HTTPException(status_code=400,detail="客服單狀態錯誤。")
+    priority=(body.priority or "normal").strip().lower()
+    if priority not in {"low","normal","high","urgent"}: raise HTTPException(status_code=400,detail="優先級錯誤。")
     with connect_db() as db:
-        row=db.execute("select user_id,subject from support_tickets where id=?",(ticket_id,)).fetchone()
+        db.execute("begin immediate")
+        row=db.execute("select * from support_tickets where id=?",(ticket_id,)).fetchone()
         if not row: raise HTTPException(status_code=404,detail="找不到客服單。")
+        require_ticket_version(db,row,body.expected_version)
         db.execute("insert into support_ticket_messages(id,ticket_id,sender_user_id,message,created_at) values(?,?,?,?,?)",(str(uuid.uuid4()),ticket_id,admin["id"],body.message.strip(),t))
-        db.execute("update support_tickets set status=?,updated_at=? where id=?",(status,t,ticket_id))
+        db.execute("update support_tickets set status=?,priority=?,updated_at=? where id=?",(status,priority,t,ticket_id))
+        sync_ticket_report(db,ticket_id,status)
     if row["user_id"]: create_notification("客服單有新回覆",f"「{row['subject']}」收到管理員回覆。","support",f"#ticket-{ticket_id}",row["user_id"],admin["id"])
+    log_admin_action(admin["id"],"admin_reply_support_ticket",category="administration",target_user_id=row["user_id"],target_type="support_ticket",target_id=ticket_id,summary=f"管理員回覆客服單：{row['subject']}",before={"status":row["status"],"priority":row["priority"]},after={"status":status,"priority":priority,"reply_added":True},metadata={"message_body":"客服內容不複製到操作紀錄"},actor_ip=client_ip(request))
     return {"ok":True}
 
 @app.delete("/api/admin/support/tickets/{ticket_id}")
 def admin_delete_support_ticket(ticket_id: str, request: Request):
     admin=require_admin(request)
     with connect_db() as db:
+        current=db.execute("select user_id,subject,status,priority from support_tickets where id=?",(ticket_id,)).fetchone()
+        db.execute("delete from game_achievement_reports where id in (select report_id from achievement_report_threads where ticket_id=?)",(ticket_id,))
         deleted=db.execute("delete from support_tickets where id=?",(ticket_id,)).rowcount
     if not deleted: raise HTTPException(status_code=404,detail="找不到客服單。")
-    # 客服單操作不寫入一般操作紀錄，避免紀錄被大量客服資料淹沒。
+    log_admin_action(admin["id"],"admin_delete_support_ticket",category="administration",target_user_id=current["user_id"],target_type="support_ticket",target_id=ticket_id,summary=f"管理員刪除客服單：{current['subject']}",before={"subject":current["subject"],"status":current["status"],"priority":current["priority"]},actor_ip=client_ip(request))
     return {"ok":True}
 
 
@@ -6063,8 +6390,13 @@ def admin_update_ticket(ticket_id: str, body: TicketStatusPayload, request: Requ
     if status not in {"open","pending","resolved","closed"}: raise HTTPException(status_code=400,detail="客服單狀態錯誤。")
     if priority not in {"low","normal","high","urgent"}: raise HTTPException(status_code=400,detail="優先級錯誤。")
     with connect_db() as db:
-        if not db.execute("select id from support_tickets where id=?",(ticket_id,)).fetchone(): raise HTTPException(status_code=404,detail="找不到客服單。")
+        db.execute("begin immediate")
+        row=db.execute("select * from support_tickets where id=?",(ticket_id,)).fetchone()
+        if not row: raise HTTPException(status_code=404,detail="找不到客服單。")
+        require_ticket_version(db,row,body.expected_version)
         db.execute("update support_tickets set status=?,priority=?,updated_at=? where id=?",(status,priority,now(),ticket_id))
+        sync_ticket_report(db,ticket_id,status)
+    log_admin_action(admin["id"],"update_support_ticket",category="administration",target_user_id=row["user_id"],target_type="support_ticket",target_id=ticket_id,summary=f"調整客服單狀態：{row['subject']}",before={"status":row["status"],"priority":row["priority"]},after={"status":status,"priority":priority},actor_ip=client_ip(request))
     return {"ok":True}
 
 @app.get("/api/progress")
@@ -6279,11 +6611,10 @@ GUIDE_IMAGE_TYPES = {
     "image/png": (b"\x89PNG\r\n\x1a\n", ".png"),
     "image/jpeg": (b"\xff\xd8\xff", ".jpg"),
     "image/webp": (b"RIFF", ".webp"),
+    "image/gif": (b"GIF8", ".gif"),
 }
-GUIDE_IMAGE_MAX_BYTES = 5 * 1024 * 1024
-GUIDE_MEDIA_USER_MAX_BYTES = int(os.getenv("GUIDE_MEDIA_USER_MAX_BYTES", str(100 * 1024 * 1024)))
-GUIDE_MEDIA_USER_MAX_FILES = int(os.getenv("GUIDE_MEDIA_USER_MAX_FILES", "100"))
-GUIDE_MEDIA_GLOBAL_MAX_BYTES = int(os.getenv("GUIDE_MEDIA_GLOBAL_MAX_BYTES", str(5 * 1024 * 1024 * 1024)))
+GUIDE_IMAGE_MAX_BYTES = 20 * 1024 * 1024
+GUIDE_MEDIA_HOURLY_BYTES = 4 * 1024 * 1024 * 1024
 GUIDE_MEDIA_DISK_RESERVE_BYTES = int(os.getenv("GUIDE_MEDIA_DISK_RESERVE_BYTES", str(1024 * 1024 * 1024)))
 GUIDE_MEDIA_UNBOUND_SECONDS = int(os.getenv("GUIDE_MEDIA_UNBOUND_SECONDS", str(24 * 60 * 60)))
 GUIDE_MEDIA_REJECTED_SECONDS = int(os.getenv("GUIDE_MEDIA_REJECTED_SECONDS", str(30 * 24 * 60 * 60)))
@@ -6300,6 +6631,17 @@ def guide_media_ids(content_html: str) -> set[str]:
     return values
 
 
+def published_guide_media_ids(db: sqlite3.Connection, game_id: str, achievement_id: str) -> set[str]:
+    return {
+        str(row[0]) for row in db.execute(
+            """select sm.media_id from achievement_guides g
+            join guide_submission_media sm on sm.submission_id=g.submission_id
+            where g.game_id=? and g.achievement_id=?""",
+            (game_id, achievement_id),
+        ).fetchall()
+    }
+
+
 def _guide_media_target(storage_name: str) -> Path | None:
     target = (GUIDE_MEDIA_DIR / str(storage_name)).resolve()
     return target if target.parent == GUIDE_MEDIA_DIR.resolve() else None
@@ -6313,9 +6655,10 @@ def cleanup_expired_guide_media(db: sqlite3.Connection, stamp: int | None = None
             where m.expires_at is not null and m.expires_at<=?
             and not exists (
                 select 1 from guide_submission_media sm
-                join achievement_guide_submissions s on s.id=sm.submission_id
-                left join achievement_guides g on g.submission_id=s.id
-                where sm.media_id=m.id and (s.status='pending' or g.submission_id=s.id)
+                where sm.media_id=m.id
+            ) and not exists (
+                select 1 from guide_draft_media dm
+                where dm.media_id=m.id
             )""",
             (current,),
         ).fetchall()
@@ -6330,11 +6673,34 @@ def cleanup_expired_guide_media(db: sqlite3.Connection, stamp: int | None = None
     return removed
 
 
+def reserve_guide_media_upload_bytes(db: sqlite3.Connection, user_id: str, size_bytes: int) -> tuple[bool, bool]:
+    bucket = now() // 3600 * 3600
+    action = "guide-media-bytes-1h"
+    row = db.execute(
+        "select count from rate_limits where action=? and rate_key=? and window_start=?",
+        (action, user_id, bucket),
+    ).fetchone()
+    used = int(row["count"]) if row else 0
+    if used + size_bytes > GUIDE_MEDIA_HOURLY_BYTES:
+        alert = bool(db.execute(
+            "insert or ignore into rate_limits(action,rate_key,window_start,count) values(?,?,?,1)",
+            ("guide-media-alert-1h", user_id, bucket),
+        ).rowcount)
+        return False, alert
+    db.execute(
+        "insert into rate_limits(action,rate_key,window_start,count) values(?,?,?,?) "
+        "on conflict(action,rate_key,window_start) do update set count=count+excluded.count",
+        (action, user_id, bucket, size_bytes),
+    )
+    return True, False
+
+
 def sync_guide_submission_media(
     db: sqlite3.Connection,
     submission_id: str,
     content_html: str,
     allowed_owner_ids: set[str],
+    allowed_media_ids: set[str] | None = None,
 ) -> None:
     requested = guide_media_ids(content_html)
     stamp = now()
@@ -6348,7 +6714,7 @@ def sync_guide_submission_media(
     if set(media_rows) != requested:
         raise HTTPException(status_code=422, detail="攻略內含找不到或已失效的圖片。")
     for media_id, row in media_rows.items():
-        if str(row["owner_user_id"] or "") not in allowed_owner_ids:
+        if str(row["owner_user_id"] or "") not in allowed_owner_ids and media_id not in (allowed_media_ids or set()):
             raise HTTPException(status_code=403, detail="攻略不可引用其他帳號上傳的圖片。")
         if row["expires_at"] is not None and int(row["expires_at"]) <= stamp:
             raise HTTPException(status_code=422, detail="攻略圖片已過期，請重新上傳。")
@@ -6364,15 +6730,83 @@ def sync_guide_submission_media(
         db.execute(
             """update guide_media set expires_at=coalesce(expires_at,?) where id=? and not exists (
             select 1 from guide_submission_media sm
-            join achievement_guide_submissions s on s.id=sm.submission_id
-            left join achievement_guides g on g.submission_id=s.id
-            where sm.media_id=guide_media.id and (s.status='pending' or g.submission_id=s.id)
+            where sm.media_id=guide_media.id
+            ) and not exists (
+            select 1 from guide_draft_media dm
+            where dm.media_id=guide_media.id
             )""",
             (stamp + GUIDE_MEDIA_UNBOUND_SECONDS, media_id),
         )
     for media_id in requested:
         db.execute("insert or ignore into guide_submission_media(submission_id,media_id) values(?,?)", (submission_id, media_id))
         db.execute("update guide_media set expires_at=null where id=?", (media_id,))
+
+
+def sync_guide_draft_media(
+    db: sqlite3.Connection, user_id: str, game_id: str, achievement_id: str, content_html: str
+) -> None:
+    requested = guide_media_ids(content_html)
+    stamp = now()
+    media_rows = {
+        str(row["id"]): row
+        for row in db.execute(
+            f"select id,owner_user_id,storage_name,expires_at from guide_media where id in ({','.join('?' for _ in requested)})",
+            tuple(sorted(requested)),
+        ).fetchall()
+    } if requested else {}
+    if set(media_rows) != requested:
+        raise HTTPException(status_code=422, detail="草稿內含找不到或已失效的圖片。")
+    inherited_media = published_guide_media_ids(db, game_id, achievement_id)
+    for media_id, row in media_rows.items():
+        if str(row["owner_user_id"] or "") != user_id and media_id not in inherited_media:
+            raise HTTPException(status_code=403, detail="草稿不可引用其他帳號上傳的圖片。")
+        if row["expires_at"] is not None and int(row["expires_at"]) <= stamp:
+            raise HTTPException(status_code=422, detail="草稿圖片已過期，請重新上傳。")
+        target = _guide_media_target(str(row["storage_name"] or ""))
+        if not target or not target.is_file():
+            raise HTTPException(status_code=422, detail="草稿圖片檔案不存在，請重新上傳。")
+    key = (user_id, game_id, achievement_id)
+    existing = {
+        str(row[0]) for row in db.execute(
+            "select media_id from guide_draft_media where user_id=? and game_id=? and achievement_id=?", key
+        ).fetchall()
+    }
+    for media_id in existing - requested:
+        db.execute(
+            "delete from guide_draft_media where user_id=? and game_id=? and achievement_id=? and media_id=?",
+            (*key, media_id),
+        )
+        db.execute(
+            """update guide_media set expires_at=coalesce(expires_at,?) where id=? and not exists (
+            select 1 from guide_submission_media sm where sm.media_id=guide_media.id
+            ) and not exists (
+            select 1 from guide_draft_media dm where dm.media_id=guide_media.id
+            )""",
+            (stamp + GUIDE_MEDIA_UNBOUND_SECONDS, media_id),
+        )
+    for media_id in requested:
+        db.execute(
+            "insert or ignore into guide_draft_media(user_id,game_id,achievement_id,media_id) values(?,?,?,?)",
+            (*key, media_id),
+        )
+        db.execute("update guide_media set expires_at=null where id=?", (media_id,))
+
+
+def delete_guide_draft(db: sqlite3.Connection, user_id: str, game_id: str, achievement_id: str) -> None:
+    key = (user_id, game_id, achievement_id)
+    media_ids = [str(row[0]) for row in db.execute(
+        "select media_id from guide_draft_media where user_id=? and game_id=? and achievement_id=?", key
+    ).fetchall()]
+    db.execute("delete from achievement_guide_drafts where user_id=? and game_id=? and achievement_id=?", key)
+    for media_id in media_ids:
+        db.execute(
+            """update guide_media set expires_at=coalesce(expires_at,?) where id=? and not exists (
+            select 1 from guide_submission_media sm where sm.media_id=guide_media.id
+            ) and not exists (
+            select 1 from guide_draft_media dm where dm.media_id=guide_media.id
+            )""",
+            (now() + GUIDE_MEDIA_UNBOUND_SECONDS, media_id),
+        )
 
 
 def _guide_achievement_payload(row: dict[str, Any], game_id: str) -> dict[str, Any]:
@@ -6440,6 +6874,8 @@ def _guide_image_type(content: bytes) -> tuple[str, str] | None:
         if content.startswith(signature):
             if media_type == "image/webp" and (len(content) < 12 or content[8:12] != b"WEBP"):
                 continue
+            if media_type == "image/gif" and not content.startswith((b"GIF87a", b"GIF89a")):
+                continue
             return media_type, extension
     return None
 
@@ -6462,7 +6898,14 @@ def achievement_guide(game_id: str, achievement_id: str, request: Request):
             (game_id, aid),
         ).fetchone()
         my_submission = None
+        guide_draft = None
         if user:
+            draft_row = db.execute(
+                "select content_html,updated_at from achievement_guide_drafts where user_id=? and game_id=? and achievement_id=?",
+                (user["id"], game_id, aid),
+            ).fetchone()
+            if draft_row:
+                guide_draft = {"content_html": draft_row["content_html"], "updated_at": draft_row["updated_at"]}
             my_submission = db.execute(
                 """select s.*,author.username author_username,reviewer.username reviewer_username,
                 case when g.submission_id=s.id then 1 else 0 end is_published
@@ -6510,9 +6953,49 @@ def achievement_guide(game_id: str, achievement_id: str, request: Request):
         "authenticated": bool(user),
         "user": user,
         "my_submission": _guide_submission_payload(my_submission) if my_submission else None,
+        "guide_draft": guide_draft,
         "admin_pending": admin_pending,
         "approved_history": approved_history,
     }
+
+
+@app.put("/api/games/{game_id}/achievements/{achievement_id}/guide/draft")
+def save_achievement_guide_draft(game_id: str, achievement_id: str, body: GuideDraftPayload, request: Request):
+    game_id = require_extra_game(game_id)
+    user = require_user(request)
+    try:
+        content_html = sanitize_guide_html(body.content_html)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    stamp = now()
+    with connect_db() as db:
+        aid = _resolve_effective_achievement_id(db, game_id, achievement_id)
+        if not _effective_achievement_row(db, game_id, aid):
+            raise HTTPException(status_code=404, detail="找不到此成就。")
+        previous=db.execute("select content_html from achievement_guide_drafts where user_id=? and game_id=? and achievement_id=?",(str(user["id"]),game_id,aid)).fetchone()
+        db.execute(
+            """insert into achievement_guide_drafts(user_id,game_id,achievement_id,content_html,updated_at)
+            values(?,?,?,?,?) on conflict(user_id,game_id,achievement_id)
+            do update set content_html=excluded.content_html,updated_at=excluded.updated_at""",
+            (user["id"], game_id, aid, content_html, stamp),
+        )
+        sync_guide_draft_media(db, str(user["id"]), game_id, aid, content_html)
+    if not previous or previous["content_html"]!=content_html:
+        log_admin_action(user["id"],"save_guide_draft",category="user",game_id=game_id,target_user_id=user["id"],target_type="guide_draft",target_id=aid,summary=f"儲存{game_display_name(game_id)}成就攻略草稿：{aid}",before={"content_html":previous["content_html"]} if previous else None,after={"content_html":content_html},actor_ip=client_ip(request))
+    return {"ok": True, "guide_draft": {"content_html": content_html, "updated_at": stamp}}
+
+
+@app.delete("/api/games/{game_id}/achievements/{achievement_id}/guide/draft")
+def discard_achievement_guide_draft(game_id: str, achievement_id: str, request: Request):
+    game_id = require_extra_game(game_id)
+    user = require_user(request)
+    with connect_db() as db:
+        aid = _resolve_effective_achievement_id(db, game_id, achievement_id)
+        draft=db.execute("select content_html from achievement_guide_drafts where user_id=? and game_id=? and achievement_id=?",(str(user["id"]),game_id,aid)).fetchone()
+        delete_guide_draft(db, str(user["id"]), game_id, aid)
+    if draft:
+        log_admin_action(user["id"],"discard_guide_draft",category="user",game_id=game_id,target_user_id=user["id"],target_type="guide_draft",target_id=aid,summary=f"捨棄{game_display_name(game_id)}成就攻略草稿：{aid}",before={"content_html":draft["content_html"]},actor_ip=client_ip(request))
+    return {"ok": True}
 
 
 @app.post("/api/games/{game_id}/achievements/{achievement_id}/guide/submissions")
@@ -6533,6 +7016,7 @@ def submit_achievement_guide(game_id: str, achievement_id: str, body: GuideSubmi
         ).fetchone()
         if existing:
             submission_id = str(existing["id"])
+            previous=db.execute("select content_html,content_text from achievement_guide_submissions where id=?",(submission_id,)).fetchone()
             db.execute(
                 """update achievement_guide_submissions set content_html=?,content_text=?,author_name_snapshot=?,
                 review_note='',updated_at=? where id=?""",
@@ -6540,27 +7024,32 @@ def submit_achievement_guide(game_id: str, achievement_id: str, body: GuideSubmi
             )
         else:
             submission_id = str(uuid.uuid4())
+            previous=None
             db.execute(
                 """insert into achievement_guide_submissions(
                 id,game_id,achievement_id,author_user_id,author_name_snapshot,content_html,content_text,status,
                 review_note,created_at,updated_at) values(?,?,?,?,?,?,?,'pending','',?,?)""",
                 (submission_id, game_id, aid, user["id"], provider, content_html, content_text, stamp, stamp),
             )
-        sync_guide_submission_media(db, submission_id, content_html, {str(user["id"])})
+        sync_guide_submission_media(
+            db, submission_id, content_html, {str(user["id"])}, published_guide_media_ids(db, game_id, aid)
+        )
+        delete_guide_draft(db, str(user["id"]), game_id, aid)
         row = _guide_submission_row(db, submission_id)
+    log_admin_action(user["id"],"update_guide_submission" if previous else "submit_guide",category="content",game_id=game_id,target_user_id=user["id"],target_type="guide_submission",target_id=submission_id,summary=f"{'更新待審投稿' if previous else '提交攻略'}：{game_display_name(game_id)}成就 {aid}",before={"content_html":previous["content_html"],"content_text":previous["content_text"]} if previous else None,after={"content_html":content_html,"content_text":content_text,"status":"pending"},actor_ip=client_ip(request))
     return {"ok": True, "submission": _guide_submission_payload(row), "message": "攻略已送出，狀態為「等待審查」。"}
 
 
 @app.post("/api/guide-media")
 def upload_guide_media(body: GuideImageUploadPayload, request: Request):
     user = require_user(request)
-    consume_rate_limit("guide-media-user-5m", user["id"], 20, AUTH_RATE_WINDOW_SECONDS)
+    consume_rate_limit("guide-media-user-5m", user["id"], 120, AUTH_RATE_WINDOW_SECONDS)
     try:
         content = base64.b64decode(body.content_base64, validate=True)
     except (ValueError, binascii.Error) as exc:
         raise HTTPException(status_code=422, detail="圖片資料格式不正確。") from exc
     if not content or len(content) > GUIDE_IMAGE_MAX_BYTES:
-        raise HTTPException(status_code=413, detail="圖片不可超過 5 MB。")
+        raise HTTPException(status_code=413, detail="圖片不可超過 20 MB。")
     detected = _guide_image_type(content)
     if not detected:
         raise HTTPException(status_code=422, detail="只支援 JPG、PNG 或 WebP 圖片，不支援 SVG。")
@@ -6568,32 +7057,72 @@ def upload_guide_media(body: GuideImageUploadPayload, request: Request):
     media_id = str(uuid.uuid4())
     storage_name = f"{media_id}{extension}"
     target = GUIDE_MEDIA_DIR / storage_name
+    volume_blocked = False
+    alert_admins = False
     try:
         with connect_db() as cleanup_db:
             cleanup_expired_guide_media(cleanup_db)
         with connect_db() as db:
             db.execute("begin immediate")
-            user_usage = db.execute(
-                "select count(*) file_count,coalesce(sum(size_bytes),0) total_bytes from guide_media where owner_user_id=?",
-                (user["id"],),
-            ).fetchone()
-            global_bytes = int(db.execute("select coalesce(sum(size_bytes),0) from guide_media").fetchone()[0] or 0)
-            if int(user_usage["file_count"] or 0) >= GUIDE_MEDIA_USER_MAX_FILES or int(user_usage["total_bytes"] or 0) + len(content) > GUIDE_MEDIA_USER_MAX_BYTES:
-                raise HTTPException(status_code=413, detail="攻略圖片已達帳號儲存上限，請移除未使用圖片或稍後再試。")
-            if global_bytes + len(content) > GUIDE_MEDIA_GLOBAL_MAX_BYTES:
-                raise HTTPException(status_code=503, detail="攻略圖片儲存空間暫時已滿。")
-            if shutil.disk_usage(GUIDE_MEDIA_DIR).free - len(content) < GUIDE_MEDIA_DISK_RESERVE_BYTES:
-                raise HTTPException(status_code=503, detail="伺服器可用空間不足，暫停上傳攻略圖片。")
-            db.execute(
-                """insert into guide_media(id,owner_user_id,original_filename,media_type,size_bytes,sha256,storage_name,created_at,expires_at)
-                values(?,?,?,?,?,?,?,?,?)""",
-                (media_id, user["id"], Path(body.filename).name[:255], media_type, len(content), hashlib.sha256(content).hexdigest(), storage_name, now(), now() + GUIDE_MEDIA_UNBOUND_SECONDS),
-            )
-            target.write_bytes(content)
+            allowed, alert_admins = reserve_guide_media_upload_bytes(db, str(user["id"]), len(content))
+            volume_blocked = not allowed
+            if not volume_blocked:
+                if shutil.disk_usage(GUIDE_MEDIA_DIR).free - len(content) < GUIDE_MEDIA_DISK_RESERVE_BYTES:
+                    raise HTTPException(status_code=503, detail="伺服器可用空間不足，暫停上傳攻略圖片。")
+                db.execute(
+                    """insert into guide_media(id,owner_user_id,original_filename,media_type,size_bytes,sha256,storage_name,created_at,expires_at)
+                    values(?,?,?,?,?,?,?,?,?)""",
+                    (media_id, user["id"], Path(body.filename).name[:255], media_type, len(content), hashlib.sha256(content).hexdigest(), storage_name, now(), now() + GUIDE_MEDIA_UNBOUND_SECONDS),
+                )
+                target.write_bytes(content)
     except Exception:
         target.unlink(missing_ok=True)
         raise
+    if volume_blocked:
+        if alert_admins:
+            try:
+                with connect_db() as db:
+                    admin_ids = [str(row["id"]) for row in db.execute("select id from users where role='admin' and is_active=1").fetchall()]
+                for admin_id in admin_ids:
+                    create_notification(
+                        "攻略圖片上傳量異常",
+                        f"帳號 ID {user['id']} 在一小時內達到攻略圖片上傳保護門檻，已暫停該時段的新上傳；既有圖片未刪除。",
+                        target_user_id=admin_id,
+                    )
+            except Exception as exc:
+                print("[攻略圖片上傳警示失敗]", repr(exc))
+        raise HTTPException(status_code=429, detail="一小時內上傳圖片量較多，請稍後再試；已上傳的圖片不受影響。")
+    log_admin_action(user["id"],"upload_guide_media",category="user",target_user_id=user["id"],target_type="guide_media",target_id=media_id,summary=f"上傳攻略圖片：{Path(body.filename).name[:255]}",after={"filename":Path(body.filename).name[:255],"media_type":media_type,"size_bytes":len(content),"sha256":hashlib.sha256(content).hexdigest()},actor_ip=client_ip(request))
     return {"ok": True, "id": media_id, "url": f"/api/guide-media/{media_id}", "media_type": media_type, "size_bytes": len(content)}
+
+
+@app.post("/api/guide-media-upload")
+async def upload_guide_media_for_suneditor(request: Request):
+    require_user(request)
+    length_header = request.headers.get("content-length", "")
+    if not length_header.isdecimal() or int(length_header) > GUIDE_IMAGE_MAX_BYTES + 1024 * 1024:
+        raise HTTPException(status_code=413, detail="圖片不可超過 20 MB。")
+    form = await request.form(max_files=1, max_fields=0)
+    try:
+        files = [(name, value) for name, value in form.multi_items() if name.startswith("file-")]
+        if len(files) != 1 or any(not isinstance(value, UploadFile) for _, value in files):
+            raise HTTPException(status_code=422, detail="請選擇一張有效圖片。")
+        result = []
+        for _, file in files:
+            content = await file.read(GUIDE_IMAGE_MAX_BYTES + 1)
+            if not content or len(content) > GUIDE_IMAGE_MAX_BYTES:
+                raise HTTPException(status_code=413, detail="圖片不可超過 20 MB。")
+            saved = upload_guide_media(
+                GuideImageUploadPayload(
+                    filename=file.filename or "攻略圖片",
+                    content_base64=base64.b64encode(content).decode("ascii"),
+                ),
+                request,
+            )
+            result.append({"url": saved["url"], "name": file.filename or "攻略圖片", "size": saved["size_bytes"]})
+        return {"result": result}
+    finally:
+        await form.close()
 
 
 @app.get("/api/guide-media/{media_id}")
@@ -6622,6 +7151,31 @@ def validate_guide_video(body: GuideVideoValidatePayload, request: Request):
     if not normalized or not embed:
         raise HTTPException(status_code=422, detail="目前只支援 YouTube 與 Bilibili 影片網址。")
     return {"ok": True, "url": normalized, "embed_url": embed}
+
+
+@app.get("/api/guide-members")
+def guide_members(request: Request, q: str = "", limit: int = 8):
+    user = require_user(request)
+    consume_rate_limit("guide-member-search-user-5m", user["id"], 120, AUTH_RATE_WINDOW_SECONDS)
+    search = str(q or "").strip().casefold()[:40]
+    if len(search) < 2:
+        return {"users": []}
+    with connect_db() as db:
+        rows = db.execute(
+            "select username from users where is_active=1 and instr(username_key, ?) > 0 order by username_key limit ?",
+            (search, max(1, min(int(limit), 10))),
+        ).fetchall()
+    return {"users": [{"username": row["username"]} for row in rows]}
+
+
+@app.post("/api/guide-preview")
+def guide_preview(body: GuideDraftPayload, request: Request):
+    require_user(request)
+    try:
+        content_html = sanitize_guide_html(body.content_html)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"content_html": content_html}
 
 
 @app.get("/api/admin/guide-submissions")
@@ -6713,47 +7267,19 @@ def admin_review_guide_submission(submission_id: str, body: GuideSubmissionRevie
             """update achievement_guide_submissions set status=?,review_note=?,reviewed_by=?,reviewed_at=?,updated_at=? where id=?""",
             (status, body.review_note.strip(), admin["id"], stamp, stamp, submission_id),
         )
+        db.execute(
+            """update guide_media set expires_at=null where id in (
+            select media_id from guide_submission_media where submission_id=?
+            )""",
+            (submission_id,),
+        )
         if action == "approve":
-            previous = db.execute(
-                "select submission_id from achievement_guides where game_id=? and achievement_id=?",
-                (row["game_id"], row["achievement_id"]),
-            ).fetchone()
             db.execute(
                 """insert into achievement_guides(game_id,achievement_id,submission_id,published_by,published_at,updated_at)
                 values(?,?,?,?,?,?) on conflict(game_id,achievement_id) do update set
                 submission_id=excluded.submission_id,published_by=excluded.published_by,
                 published_at=excluded.published_at,updated_at=excluded.updated_at""",
                 (row["game_id"], row["achievement_id"], submission_id, admin["id"], stamp, stamp),
-            )
-            db.execute(
-                """update guide_media set expires_at=null where id in (
-                select media_id from guide_submission_media where submission_id=?
-                )""",
-                (submission_id,),
-            )
-            if previous and str(previous["submission_id"]) != submission_id:
-                db.execute(
-                    """update guide_media set expires_at=coalesce(expires_at,?) where id in (
-                    select media_id from guide_submission_media where submission_id=?
-                    ) and not exists (
-                    select 1 from guide_submission_media sm
-                    join achievement_guide_submissions s on s.id=sm.submission_id
-                    left join achievement_guides g on g.submission_id=s.id
-                    where sm.media_id=guide_media.id and (s.status='pending' or g.submission_id=s.id)
-                    )""",
-                    (stamp + GUIDE_MEDIA_REJECTED_SECONDS, previous["submission_id"]),
-                )
-        else:
-            db.execute(
-                """update guide_media set expires_at=coalesce(expires_at,?) where id in (
-                select media_id from guide_submission_media where submission_id=?
-                ) and not exists (
-                select 1 from guide_submission_media sm
-                join achievement_guide_submissions s on s.id=sm.submission_id
-                left join achievement_guides g on g.submission_id=s.id
-                where sm.media_id=guide_media.id and (s.status='pending' or g.submission_id=s.id)
-                )""",
-                (stamp + GUIDE_MEDIA_REJECTED_SECONDS, submission_id),
             )
         updated = _guide_submission_row(db, submission_id)
     link = f"/{row['game_id']}/{row['achievement_id']}"
@@ -6808,13 +7334,15 @@ def extra_game_catalog(game_id: str):
     stored_rewards=catalog_reward_map(game_id)
     for index,row in enumerate(rows):
         value=dict(row)
-        source_rewards=public_catalog_rewards(value.get("source_raw_json")) if game_id=="nte" else []
+        source_rewards=public_catalog_rewards(value.get("source_raw_json")) if game_id in {"nte","zzz"} else []
+        from backend.services.catalog_localization import public_localizations
         items.append({
             "id":value["achievement_id"],
             "officialId":value.get("official_source_id") or value["achievement_id"],
             "displayId":value.get("official_source_id") or value["achievement_id"],
             "name":value["name"],
             "condition":value["condition"],
+            "localizations":public_localizations(value.get("source_raw_json"),value) if game_id in {"genshin","hsr","zzz","wuwa","nte"} else {},
             "version":value["version"],
             "category":value["category"],
             "reward":int(value["reward"] or 0),
@@ -6834,6 +7362,7 @@ def extra_game_catalog(game_id: str):
     with connect_db() as db:
         categories=_achievement_category_rows(db,game_id)
         items=_sort_achievement_display_rows(db,game_id,items,categories)
+        _overlay_achievement_localizations(db,game_id,items)
         effective_count=_effective_achievement_count_for_ids(db,game_id,[str(item["id"]) for item in items])
     return {"ok":True,"items":items,"categories":categories,"count":effective_count,"raw_count":len(items),"game_id":game_id}
 
@@ -7081,6 +7610,7 @@ def _catalog_sync_diff(current_rows: list[dict[str,Any]],candidate_rows: list[di
 
 
 def _write_game_catalog_candidate(game_id: str,rows: list[dict[str,Any]],metadata: dict[str,Any]) -> None:
+    from backend.services.catalog_localization import public_localizations
     path=game_catalog_file(game_id)
     path.parent.mkdir(parents=True,exist_ok=True)
     items=[]
@@ -7088,7 +7618,9 @@ def _write_game_catalog_candidate(game_id: str,rows: list[dict[str,Any]],metadat
         items.append({
             "id":row["achievement_id"],"officialId":str(row.get("official_source_id") or row["achievement_id"]),
             "name":row["name"],"condition":row["condition"],
+            "localizations":public_localizations(row.get("raw_json"),row) if game_id in {"genshin","hsr","zzz","wuwa","nte"} else {},
             "version":row["version"],"category":row["category"],"reward":int(row["reward"] or 0),
+            **({"rewards":public_catalog_rewards(row.get("raw_json"))} if game_id=="zzz" else {}),
             "hidden":bool(row["hidden"]),"tags":json_list(row.get("tags_json")),"source":row["source"],
             "sourceOrder":int(row["source_order"] or 0),
             "categoryId":str(row.get("category_id") or ""),"groupId":str(row.get("group_id") or ""),
@@ -7118,7 +7650,7 @@ def _write_game_catalog_candidate(game_id: str,rows: list[dict[str,Any]],metadat
     temp.replace(path)
 
 
-def _merge_applied_source_metadata(rows: list[dict[str,Any]],candidate_rows: list[dict[str,Any]],current_rows: list[dict[str,Any]],metadata: dict[str,Any]) -> list[dict[str,Any]]:
+def _merge_applied_source_metadata(rows: list[dict[str,Any]],candidate_rows: list[dict[str,Any]],current_rows: list[dict[str,Any]],metadata: dict[str,Any],game_id: str="") -> list[dict[str,Any]]:
     candidate_by_id={str(row.get("achievement_id") or ""):row for row in candidate_rows}
     current_by_id={str(row.get("achievement_id") or ""):row for row in current_rows}
     primary_id=str((metadata.get("primary_source") or {}).get("id") or "")
@@ -7133,6 +7665,22 @@ def _merge_applied_source_metadata(rows: list[dict[str,Any]],candidate_rows: lis
             value[key]=source.get(key,0 if key in {"progress_value","level"} else ("{}" if key in {"raw_json","provenance_json"} else ""))
         if not value.get("primary_source_id"): value["primary_source_id"]=primary_id
         if not value.get("source_ref"): value["source_ref"]=source_ref
+        if "rewards" in core and (game_id or metadata.get("game_id"))=="zzz":
+            raw=_json_object(value.get("raw_json"),{})
+            raw["_tracker_rewards"]=core["rewards"]
+            value["raw_json"]=json.dumps(raw,ensure_ascii=False,separators=(",",":"))
+        if "localizations" in core and metadata.get("localization"):
+            raw=_json_object(value.get("raw_json"),{})
+            previous=_json_object((current_by_id.get(achievement_id) or {}).get("raw_json"),{})
+            for key in ("_tracker_localizations","_tracker_localization_commit","_tracker_localization_base"):
+                raw.pop(key,None)
+            chosen=core["localizations"]
+            for origin in (_json_object(source.get("raw_json"),{}),previous):
+                if origin.get("_tracker_localizations")==chosen:
+                    for key in ("_tracker_localizations","_tracker_localization_commit","_tracker_localization_base"):
+                        if key in origin: raw[key]=origin[key]
+                    break
+            value["raw_json"]=json.dumps(raw,ensure_ascii=False,separators=(",",":"))
         result.append(_candidate_row_for_json(value))
     return result
 
@@ -7589,6 +8137,13 @@ def _sync_preview_response(record: sqlite3.Row) -> dict[str, Any]:
     diff=json.loads(record["diff_json"] or "{}")
     metadata=_annotate_source_isolation_exclusions(str(record["game_id"]),json.loads(record["metadata_json"] or "{}"))
     candidate_rows=json.loads(record["candidate_json"] or "[]")
+    if str(record["game_id"]) in {"genshin","hsr","zzz","wuwa","nte"}:
+        from backend.services.catalog_localization import localization_update_count
+        with connect_db() as db:
+            current=_current_official_catalog_rows(db,str(record["game_id"]))
+        metadata["localization_updates"]=localization_update_count(current,candidate_rows)
+        from backend.services.catalog_localization import localization_preview_samples
+        metadata["localization_samples"]=localization_preview_samples(current,candidate_rows)
     response_changes=list(diff.get("changes") or [])[:200]
     return {
         "ok":True,
@@ -7620,6 +8175,8 @@ def _sync_preview_pipeline_version(record: sqlite3.Row | dict[str,Any]) -> str:
 
 
 def _reject_stale_sync_preview(db: sqlite3.Connection, record: sqlite3.Row | dict[str,Any]) -> None:
+    if str(record["game_id"]) in {"genshin","hsr","zzz","wuwa","nte"} and _json_object(record["metadata_json"],{}).get("localization_diff_schema")!=2:
+        raise HTTPException(status_code=409,detail="此預覽尚未合併翻譯差異，請按「抓取並預覽差異」重新建立；正式資料未變更。")
     preview_version=_sync_preview_pipeline_version(record)
     if preview_version==SOURCE_PIPELINE_VERSION:
         return
@@ -7711,7 +8268,8 @@ def admin_sync_preview_changes(
         row["relation_types"]=sorted(value for value in relation_types.get(str(row.get("achievement_id") or ""),set()) if value)
     rows.sort(key=lambda row: sync_change_sort_key(game_id,row))
     if risk: rows=[row for row in rows if row.get("risk")==risk]
-    if change_type: rows=[row for row in rows if row.get("type")==change_type]
+    from backend.services.sync_engine import filter_change_type
+    rows=filter_change_type(rows,change_type)
     if search:
         key=search.casefold(); rows=[row for row in rows if key in str(row.get("achievement_id") or "").casefold() or key in str(row.get("name") or "").casefold()]
     def contains(value: Any, query: str) -> bool:
@@ -7861,38 +8419,79 @@ def admin_restore_included_source_item(game_id: str, preview_id: str, source_ite
     return {"ok":True,"preview":refreshed}
 
 
-@app.post("/api/games/{game_id}/admin/official-achievements/preview")
-def preview_game_official_achievements(game_id: str, request: Request):
-    game_id=require_extra_game(game_id)
-    admin=require_admin(request)
+SYNC_PREVIEW_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="sync-preview")
+SYNC_PREVIEW_JOB_GUARD = threading.Lock()
+
+
+def _sync_preview_job_payload(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": str(row["id"]), "game_id": str(row["game_id"]), "status": str(row["status"]),
+        "progress": _json_object(row["progress_json"], {}), "error": str(row["error_message"] or ""),
+        "created_at": int(row["created_at"] or 0), "updated_at": int(row["updated_at"] or 0),
+        "expires_at": int(row["expires_at"] or 0),
+    }
+
+
+def _update_sync_preview_job(job_id: str, *, status: str | None = None, phase: str | None = None,
+                             message: str | None = None, result: dict[str, Any] | None = None,
+                             error: str | None = None) -> None:
+    stamp = now()
+    with connect_db() as db:
+        row = db.execute("select progress_json from game_sync_preview_jobs where id=?", (job_id,)).fetchone()
+        if not row:
+            return
+        progress = _json_object(row["progress_json"], {})
+        if phase is not None:
+            progress["phase"] = phase
+        if message is not None:
+            progress["message"] = message
+        progress["updated_at"] = stamp
+        assignments = ["progress_json=?", "updated_at=?"]
+        values: list[Any] = [json.dumps(progress, ensure_ascii=False), stamp]
+        if status is not None:
+            assignments.append("status=?"); values.append(status)
+        if result is not None:
+            assignments.append("result_json=?"); values.append(json.dumps(result, ensure_ascii=False, separators=(",", ":")))
+        if error is not None:
+            assignments.append("error_message=?"); values.append(error[:4000])
+        values.append(job_id)
+        db.execute(f"update game_sync_preview_jobs set {','.join(assignments)} where id=?", values)
+
+
+def _build_game_sync_preview(game_id: str, admin_id: str, actor_ip: str, *, job_id: str = "") -> dict[str, Any]:
+    if job_id:
+        _update_sync_preview_job(job_id, status="running", phase="fetching", message="正在下載並解析官方來源資料；資料尚未套用。")
     try:
         rows,metadata,source_payload=_prepare_game_sync_candidate(game_id)
     except Exception as exc:
         rows,metadata,source_payload=_safe_degraded_sync_candidate(game_id, exc)
-    # The preview row must always be stamped by the same compatibility version
-    # that the loader validates.  Individual source adapters may keep their own
-    # source_architecture_version, but must never control preview compatibility.
-    metadata={
-        **metadata,
-        "pipeline_version":SOURCE_PIPELINE_VERSION,
-        "adapter_id":source_adapter_id(game_id),
-    }
+    if job_id:
+        _update_sync_preview_job(job_id, phase="comparing", message="來源解析完成，正在與正式目錄逐筆比對。")
+    metadata={**metadata,"pipeline_version":SOURCE_PIPELINE_VERSION,"adapter_id":source_adapter_id(game_id)}
     with connect_db() as db:
         current=_current_official_catalog_rows(db,game_id)
     metadata={**metadata,"current_fingerprint":_catalog_rows_fingerprint(current)}
+    if game_id in {"genshin","hsr","zzz","wuwa","nte"}: metadata["localization_diff_schema"]=2
+    if game_id in {"genshin","hsr","zzz","wuwa","nte"}:
+        from backend.services.catalog_localization import localization_update_count
+        metadata["localization_updates"]=localization_update_count(current,rows)
+        from backend.services.catalog_localization import localization_preview_samples
+        metadata["localization_samples"]=localization_preview_samples(current,rows)
     diff=_catalog_sync_diff(current,rows,game_id=game_id,metadata=metadata)
     preview_id=secrets.token_urlsafe(24)
     created=now(); expires=created+SYNC_PREVIEW_RETENTION_SECONDS
     with connect_db() as db:
-        db.execute("delete from game_sync_previews where admin_user_id=? and game_id=?",(admin["id"],game_id))
+        db.execute("delete from game_sync_previews where admin_user_id=? and game_id=?",(admin_id,game_id))
         db.execute("""insert into game_sync_previews(id,game_id,admin_user_id,candidate_json,source_payload_json,metadata_json,diff_json,created_at,expires_at)
           values(?,?,?,?,?,?,?,?,?)""",(
-            preview_id,game_id,admin["id"],json.dumps(rows,ensure_ascii=False,separators=(",",":")),
+            preview_id,game_id,admin_id,json.dumps(rows,ensure_ascii=False,separators=(",",":")),
             json.dumps(source_payload,ensure_ascii=False,separators=(",",":")) if source_payload is not None else "",
             json.dumps(metadata,ensure_ascii=False,separators=(",",":")),json.dumps(diff,ensure_ascii=False,separators=(",",":")),created,expires,
         ))
+    if job_id:
+        _update_sync_preview_job(job_id, phase="saving", message="差異比對完成，正在保存預覽。")
     response_changes=diff["changes"][:200]
-    log_admin_action(admin["id"],"preview_official_achievements",details=f"game={game_id}; changes={diff['summary']['total_changes']}; candidate={len(rows)}",category="sync",game_id=game_id,target_type="sync_preview",target_id=preview_id,summary="建立官方成就同步預覽",after=diff["summary"],metadata=metadata,actor_ip=client_ip(request))
+    log_admin_action(admin_id,"preview_official_achievements",details=f"game={game_id}; changes={diff['summary']['total_changes']}; candidate={len(rows)}",category="sync",game_id=game_id,target_type="sync_preview",target_id=preview_id,summary="建立官方成就同步預覽",after=diff["summary"],metadata=metadata,actor_ip=actor_ip)
     response_metadata=_annotate_source_isolation_exclusions(game_id,metadata)
     return {"ok":True,"preview_id":preview_id,"game_id":game_id,"game_name":game_display_name(game_id),
             "expires_at":expires,"metadata":response_metadata,"summary":diff["summary"],"current_count":diff["current_count"],
@@ -7901,11 +8500,73 @@ def preview_game_official_achievements(game_id: str, request: Request):
             "changes_offset":0,"changes_limit":len(response_changes),"changes_truncated":len(diff["changes"])>len(response_changes)}
 
 
+def _execute_sync_preview_job(job_id: str, game_id: str, admin_id: str, actor_ip: str) -> None:
+    try:
+        _update_sync_preview_job(job_id, status="running", phase="fetching", message="正在下載並解析官方來源資料；資料尚未套用。")
+        result = _build_game_sync_preview(game_id, admin_id, actor_ip, job_id=job_id)
+        _update_sync_preview_job(job_id, status="completed", phase="completed", message="差異預覽已建立；尚未套用任何資料。", result=result)
+    except Exception as exc:
+        message = str(exc) or type(exc).__name__
+        _update_sync_preview_job(job_id, status="failed", phase="failed", message="預覽建立失敗。", error=message)
+        log_admin_action(admin_id,"preview_official_achievements",details=f"game={game_id}; job={job_id}; error={message}",category="sync",status="failed",game_id=game_id,target_type="sync_preview_job",target_id=job_id,summary="建立官方成就同步預覽失敗",error_message=message,actor_ip=actor_ip)
+
+
+@app.post("/api/games/{game_id}/admin/official-achievements/preview")
+def preview_game_official_achievements(game_id: str, request: Request):
+    game_id=require_extra_game(game_id)
+    admin=require_admin(request)
+    admin_id=str(admin["id"])
+    actor_ip=client_ip(request)
+    if game_id in {"genshin","hsr","zzz","wuwa","nte"}:
+        return _build_game_sync_preview(game_id,admin_id,actor_ip)
+    with SYNC_PREVIEW_JOB_GUARD:
+        try:
+            with connect_db() as db:
+                active=db.execute(
+                    "select * from game_sync_preview_jobs where game_id=? and status in ('queued','running') order by created_at desc limit 1",
+                    (game_id,),
+                ).fetchone()
+                if active:
+                    if str(active["admin_user_id"]) != admin_id:
+                        raise HTTPException(status_code=409, detail="此遊戲已有另一位管理員正在建立同步預覽，請稍後再試。")
+                    return {"ok":True,"job_id":str(active["id"]),"status":str(active["status"])}
+                job_id=secrets.token_urlsafe(24)
+                created=now()
+                db.execute(
+                    """insert into game_sync_preview_jobs
+                       (id,game_id,admin_user_id,status,progress_json,result_json,error_message,created_at,updated_at,expires_at)
+                       values(?,?,?,?,?,?,?,?,?,?)""",
+                    (job_id,game_id,admin_id,"queued",
+                     json.dumps({"phase":"queued","message":"正在等待來源抓取工作；資料尚未套用。","updated_at":created},ensure_ascii=False),
+                     "{}","",created,created,created+SYNC_PREVIEW_RETENTION_SECONDS),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(status_code=409,detail="此遊戲已有同步預覽正在建立，請稍後再試。") from exc
+        try:
+            SYNC_PREVIEW_EXECUTOR.submit(_execute_sync_preview_job,job_id,game_id,admin_id,actor_ip)
+        except Exception as exc:
+            _update_sync_preview_job(job_id,status="failed",phase="failed",message="無法啟動預覽工作，請稍後再試。",error=str(exc))
+            raise HTTPException(status_code=503,detail="無法啟動預覽工作，請稍後再試。") from exc
+    return {"ok":True,"job_id":job_id,"status":"queued"}
+
+
+@app.get("/api/games/{game_id}/admin/official-achievements/preview/jobs/{job_id}")
+def get_game_sync_preview_job(game_id: str, job_id: str, request: Request):
+    game_id=require_extra_game(game_id);admin=require_admin(request)
+    with connect_db() as db:
+        row=db.execute("select * from game_sync_preview_jobs where id=? and game_id=? and admin_user_id=? and expires_at>?",(job_id,game_id,admin["id"],now())).fetchone()
+    if not row: raise HTTPException(status_code=404,detail="找不到此同步預覽工作，請重新產生預覽。")
+    job=_sync_preview_job_payload(row)
+    payload={"ok":True,"job_id":job_id,"status":job["status"],"progress":job["progress"],"error":job["error"]}
+    if job["status"]=="completed": payload["result"]=_json_object(row["result_json"],{})
+    return payload
+
+
 def _verify_sync_apply_result(game_id: str, rows: list[dict[str,Any]], applied_changes: list[dict[str,Any]]) -> dict[str,Any]:
     expected={str(row.get("achievement_id") or ""):row for row in rows}
     with connect_db() as db:
         database={str(row["achievement_id"]):dict(row) for row in db.execute(
-            "select achievement_id,name,condition,version,category,reward,hidden,tags_json,source,source_order from game_catalog_items where game_id=?",(game_id,)
+            "select c.achievement_id,c.name,c.condition,c.version,c.category,c.reward,c.hidden,c.tags_json,c.source,c.source_order,s.raw_json from game_catalog_items c left join game_catalog_source_records s on s.game_id=c.game_id and s.achievement_id=c.achievement_id where c.game_id=?",(game_id,)
         ).fetchall()}
     payload=json.loads(game_catalog_file(game_id).read_text(encoding="utf-8-sig"))
     json_rows={str(row.get("id") or ""):row for row in payload.get("items") or []}
@@ -7925,6 +8586,17 @@ def _verify_sync_apply_result(game_id: str, rows: list[dict[str,Any]], applied_c
             failures.append({"achievement_id":achievement_id,"field":"__row__","reason":"applied_row_missing"})
             continue
         for field in fields:
+            if field=="rewards" and game_id=="zzz":
+                expected_value=public_catalog_rewards(expected_row.get("raw_json"))
+                if expected_value!=public_catalog_rewards(db_row.get("raw_json")) or expected_value!=json_row.get("rewards",[]):
+                    failures.append({"achievement_id":achievement_id,"field":field,"reason":"reward_readback_mismatch"})
+                continue
+            if field=="localizations":
+                from backend.services.catalog_localization import public_localizations
+                expected_value=public_localizations(expected_row.get("raw_json"),expected_row)
+                if expected_value!=public_localizations(db_row.get("raw_json"),db_row) or expected_value!=json_row.get("localizations",{}):
+                    failures.append({"achievement_id":achievement_id,"field":field,"reason":"localization_readback_mismatch"})
+                continue
             expected_value=expected_row.get(field)
             db_value=db_row.get(field)
             json_value=json_row.get(field_map.get(field,field))
@@ -8027,7 +8699,7 @@ def apply_game_official_achievements(game_id: str, body: AdminSyncApplyPayload, 
         rows,applied_summary=apply_sync_decisions(current_rows,candidate_rows,list(all_changes.values()),selected_ids,normalized_decisions,game_id=game_id)
     except ValueError as exc:
         raise HTTPException(status_code=400,detail=str(exc)) from exc
-    rows=_merge_applied_source_metadata(rows,candidate_rows,current_rows,metadata)
+    rows=_merge_applied_source_metadata(rows,candidate_rows,current_rows,metadata,game_id)
     with connect_db() as db:
         rows=_apply_managed_category_aliases(db,game_id,rows)
     applied_summary["unchanged"]=int((diff.get("summary") or {}).get("unchanged") or 0)
@@ -8046,11 +8718,12 @@ def apply_game_official_achievements(game_id: str, body: AdminSyncApplyPayload, 
         _write_game_catalog_candidate(game_id,rows,metadata)
         with connect_db() as db:
             db.execute("begin immediate")
+            existing_wuwa_conflicts=_wuwa_progress_conflict_members(db) if game_id=="wuwa" else None
             _replace_official_catalog_rows(db,game_id,rows)
             applied_summary["admin_overrides_written"]=_write_sync_admin_overrides(db,game_id,rows,list(applied_summary.get("applied_changes") or []),admin["id"])
             db.execute("delete from game_sync_previews where id=?",(body.preview_id,))
             if game_id=="wuwa":
-                _verify_wuwa_shared_model(db)
+                _verify_wuwa_shared_model(db,existing_progress_conflicts=existing_wuwa_conflicts)
         applied_summary["verification"]=_verify_sync_apply_result(game_id,rows,list(applied_summary.get("applied_changes") or []))
         post_context=sync_rollback_context(game_id)
     except Exception as exc:
@@ -8184,10 +8857,16 @@ def extra_game_live_state(game_id: str):
     with connect_db() as db:
         global_rows=db.execute("select scope,revision from live_revisions").fetchall()
         game_rows=db.execute("select scope,revision from game_live_revisions where game_id=?",(game_id,)).fetchall()
+        catalog_versions={
+            str(row["version"] or "").strip()
+            for row in db.execute("select distinct version from game_catalog_items where game_id=?",(game_id,)).fetchall()
+            if str(row["version"] or "").strip()
+        }
     revisions={r["scope"]:int(r["revision"] or 0) for r in global_rows}
     for row in game_rows:
         revisions[row["scope"]]=int(row["revision"] or 0)
-    return {"ok":True,"revisions":revisions,"server_time":now()}
+    catalog_version=max(catalog_versions,key=lambda value:tuple(int(part) for part in re.findall(r"\d+",value)) or (-1,),default="")
+    return {"ok":True,"revisions":revisions,"catalog_version":catalog_version,"server_time":now()}
 
 
 @app.get("/api/games/{game_id}/preferences/achievement-filter")
@@ -8216,12 +8895,16 @@ def extra_game_save_achievement_filter_preference(
     user = require_user(request)
     state = normalize_achievement_filter_preference(body.model_dump())
     with connect_db() as db:
+        previous=db.execute("select state_json from achievement_filter_preferences where user_id=? and game_id=?",(user["id"],game_id)).fetchone()
+        before=_json_object(previous["state_json"],{}) if previous else {}
         db.execute(
             """insert into achievement_filter_preferences(user_id,game_id,state_json,updated_at)
             values(?,?,?,?)
             on conflict(user_id,game_id) do update set state_json=excluded.state_json,updated_at=excluded.updated_at""",
             (user["id"], game_id, json.dumps(state, ensure_ascii=False, separators=(",", ":")), now()),
         )
+    if before!=state:
+        log_admin_action(user["id"],"update_achievement_filter_preference",category="user",game_id=game_id,target_user_id=user["id"],target_type="achievement_filter_preference",target_id=user["id"],summary=f"更新{game_display_name(game_id)}的成就篩選設定",before=before,after=state,actor_ip=client_ip(request))
     return {"ok": True, "game_id": game_id, "state": state}
 
 
@@ -8286,9 +8969,10 @@ def extra_game_admin_reset_user_progress(game_id: str, user_id: str, request: Re
     with connect_db() as db:
         if not db.execute("select id from users where id=?",(user_id,)).fetchone():
             raise HTTPException(status_code=404,detail="找不到此帳號。")
+        before=[{"name":row["name"] or row["achievement_id"],"achievement_id":row["achievement_id"]} for row in db.execute("select p.achievement_id,c.name from game_progress p left join game_catalog_items c on c.game_id=p.game_id and c.achievement_id=p.achievement_id where p.game_id=? and p.user_id=?",(game_id,user_id)).fetchall()]
         db.execute("delete from game_progress where game_id=? and user_id=?",(game_id,user_id))
     bump_game_live_scope(game_id,"stats")
-    log_admin_action(admin["id"],"reset_progress",user_id,f"game={game_id}")
+    log_admin_action(admin["id"],"reset_progress",target_user_id=user_id,category="catalog",game_id=game_id,target_type="achievement_progress",target_id=user_id,summary=f"清除{game_display_name(game_id)}的 {len(before)} 筆成就完成紀錄",before={"completed_achievements":before},after={"completed_achievements":[]},actor_ip=client_ip(request),locked=True)
     return {"ok":True}
 
 
@@ -8303,6 +8987,9 @@ def extra_game_create_report(game_id: str, body: AchievementReportCreate, reques
         db.execute("""insert into game_achievement_reports(id,game_id,user_id,achievement_id,achievement_name,report_type,message,status,admin_note,created_at,updated_at)
         values(?,?,?,?,?,?,?,'open','',?,?)""",
         (rid,game_id,user["id"],aid,achievement_name,body.report_type.strip(),body.message.strip(),t,t))
+        report=db.execute("select * from game_achievement_reports where id=?",(rid,)).fetchone()
+        ensure_report_thread(db,report)
+    log_admin_action(user["id"],"create_achievement_report",category="user",game_id=game_id,target_user_id=user["id"],target_type="achievement_report",target_id=rid,summary=f"回報成就資料：{achievement_name}",after={"achievement_name":achievement_name,"report_type":body.report_type.strip(),"status":"open"},actor_ip=client_ip(request))
     bump_game_live_scope(game_id,"reports")
     return {"ok":True,"id":rid,"achievement_id":aid}
 
@@ -8334,11 +9021,17 @@ def extra_game_admin_update_report(game_id: str, report_id: str, body: Achieveme
         row=db.execute("select status,admin_note,user_id,achievement_name from game_achievement_reports where game_id=? and id=?",(game_id,report_id)).fetchone()
         if not row: raise HTTPException(status_code=404,detail="找不到回報。")
         if row["status"]==status and (row["admin_note"] or "")==note: return {"ok":True,"changed":False}
+        tid=ensure_report_thread(db,db.execute("select * from game_achievement_reports where id=?",(report_id,)).fetchone())
+        if note and note!=(row["admin_note"] or ""):
+            db.execute("insert into support_ticket_messages(id,ticket_id,sender_user_id,message,created_at) values(?,?,?,?,?)",(str(uuid.uuid4()),tid,admin["id"],note,now()))
+        ticket_status={"reviewing":"pending","rejected":"closed"}.get(status,status)
+        db.execute("update support_tickets set status=?,updated_at=? where id=?",(ticket_status,now(),tid))
         db.execute("update game_achievement_reports set status=?,admin_note=?,updated_at=? where game_id=? and id=?",(status,note,now(),game_id,report_id))
     if row["user_id"]:
         status_name={"open":"待處理","reviewing":"處理中","resolved":"已解決","rejected":"不採納"}.get(status,status)
-        body_text=f"你回報的成就「{row['achievement_name']}」狀態已更新為「{status_name}」。"+(f" 管理員說明：{note}" if note else "")
-        create_notification("成就資料回報已更新",body_text,"report",f"/_projects/{game_id}/index.html",row["user_id"],admin["id"])
+        body_text=f"成就：{row['achievement_name']}\n處理狀態：{status_name}\n"+(f"\n管理員回覆：\n{note}" if note else "")
+        create_notification("成就資料回報已更新",body_text,"report",f"#ticket-{tid}",row["user_id"],admin["id"])
+    log_admin_action(admin["id"],"update_achievement_report",category="catalog",game_id=game_id,target_user_id=row["user_id"],target_type="achievement_report",target_id=report_id,summary=f"處理成就回報：{row['achievement_name']}",before={"status":row["status"],"admin_note":row["admin_note"]},after={"status":status,"admin_note":note},actor_ip=client_ip(request))
     bump_game_live_scope(game_id,"reports")
     return {"ok":True,"changed":True}
 
@@ -8346,10 +9039,14 @@ def extra_game_admin_update_report(game_id: str, report_id: str, body: Achieveme
 @app.delete("/api/games/{game_id}/admin/achievement-reports/{report_id}")
 @high_risk_operation
 def extra_game_admin_delete_report(game_id: str, report_id: str, request: Request):
-    game_id=require_extra_game(game_id); require_admin(request)
+    game_id=require_extra_game(game_id); admin=require_admin(request)
     with connect_db() as db:
+        current=db.execute("select user_id,achievement_name,report_type,status,admin_note from game_achievement_reports where game_id=? and id=?",(game_id,report_id)).fetchone()
+        if current:
+            db.execute("delete from support_tickets where id in (select ticket_id from achievement_report_threads where report_id=?)",(report_id,))
         deleted=db.execute("delete from game_achievement_reports where game_id=? and id=?",(game_id,report_id)).rowcount
     if not deleted: raise HTTPException(status_code=404,detail="找不到回報。")
+    log_admin_action(admin["id"],"delete_achievement_report",category="catalog",game_id=game_id,target_user_id=current["user_id"],target_type="achievement_report",target_id=report_id,summary=f"刪除成就回報：{current['achievement_name']}",before={key:current[key] for key in current.keys()},actor_ip=client_ip(request))
     bump_game_live_scope(game_id,"reports")
     return {"ok":True}
 
@@ -8676,7 +9373,7 @@ def extra_game_restore_achievement(game_id: str, achievement_id: str, request: R
             db.execute("update game_achievement_overrides set is_deleted=0,updated_by=?,updated_at=? where game_id=? and achievement_id=?",(admin["id"],now(),game_id,achievement_id)); restored_to_catalog=False
     record_game_achievement_revision(game_id,achievement_id,"restore",snapshot,admin["id"])
     bump_game_live_scope(game_id,"catalog")
-    log_admin_action(admin["id"],"restore_achievement",details=f"game={game_id}; {achievement_id}")
+    log_admin_action(admin["id"],"restore_achievement",category="catalog",game_id=game_id,target_type="achievement",target_id=achievement_id,summary=f"恢復成就：{snapshot.get('name') or achievement_id}",before={"is_deleted":True},after=snapshot,metadata={"restored_to_official":restored_to_catalog},actor_ip=client_ip(request),locked=True)
     return {"ok":True,"changed":True,"restored_to_official":restored_to_catalog}
 
 
@@ -9586,14 +10283,16 @@ def extra_game_rebuild_catalog(game_id: str, request: Request):
         db.execute("delete from game_featured_achievements where game_id=?",(game_id,))
         db.execute("delete from game_deleted_achievements where game_id=?",(game_id,))
     bump_game_live_scope(game_id,"catalog")
-    log_admin_action(admin["id"],"rebuild_achievement_catalog",details=f"game={game_id}; overrides={removed_overrides}; featured={removed_featured}; deleted={removed_deleted}; progress={progress_records}; backup={backup.name}",backup_name=backup.name,locked=True)
+    log_admin_action(admin["id"],"rebuild_achievement_catalog",category="catalog",game_id=game_id,target_type="achievement_catalog",target_id=game_id,summary=f"重建{game_display_name(game_id)}成就目錄，清除管理員覆寫與推薦設定",before={"overrides":removed_overrides,"featured":removed_featured,"deleted":removed_deleted,"progress_records":progress_records},after={"overrides":0,"featured":0,"deleted":0,"progress_records":progress_records},backup_name=backup.name,actor_ip=client_ip(request),locked=True)
     return {"ok":True,"removed_overrides":removed_overrides,"removed_featured":removed_featured,"removed_permanent_deletions":removed_deleted,"progress_records":progress_records,"backup":backup.name}
 
 
 @app.post("/api/games/{game_id}/admin/catalog/validate")
 def extra_game_validate_catalog(game_id: str, body: CatalogValidationPayload, request: Request):
     game_id=require_extra_game(game_id); admin=require_admin(request)
-    return {"ok":True,**_scan_catalog_for_admin(game_id,body.items,admin["id"])}
+    result=_scan_catalog_for_admin(game_id,body.items,admin["id"])
+    log_admin_action(admin["id"],"validate_achievement_catalog",category="catalog",game_id=game_id,target_type="catalog_scan_preview",target_id=result["scan_id"],summary=f"檢查{game_display_name(game_id)}成就目錄並建立問題預覽",after={"issue_count":len(result.get("issues") or []),"scan_id":result["scan_id"]},actor_ip=client_ip(request))
+    return {"ok":True,**result}
 
 
 @app.post("/api/games/{game_id}/admin/catalog/repair")
@@ -9676,6 +10375,52 @@ def extra_game_completion_stats(game_id: str, include_counts: bool) -> dict[str,
 
 
 
+class ManualLocalizationPayload(BaseModel):
+    language: str
+    fields: dict[str,str]
+
+
+@app.put("/api/admin/content-localizations/{resource_type}/{game_id}/{resource_id}")
+def admin_save_content_localization(resource_type: str, game_id: str, resource_id: str, body: ManualLocalizationPayload, request: Request):
+    admin=require_admin(request)
+    if resource_type not in {"achievement","category","redeem_game"}:
+        raise HTTPException(status_code=400,detail="不支援的翻譯資源。")
+    game_id=normalize_redeem_game_id(game_id) if resource_type=="redeem_game" else require_extra_game(game_id)
+    consume_rate_limit("localization-admin-5m",admin["id"],120,300)
+    with connect_db() as db:
+        if resource_type=="achievement":
+            target=_effective_achievement_row(db,game_id,resource_id)
+        elif resource_type=="category":
+            target=db.execute("select id,name from game_achievement_categories where game_id=? and id=?",(game_id,resource_id)).fetchone()
+        else:
+            target=db.execute("select game_id,name from redeem_games where game_id=? and game_id=?",(game_id,resource_id)).fetchone()
+        if not target:
+            raise HTTPException(status_code=404,detail="找不到此語言資料所屬項目，請先儲存原始項目。")
+        try:
+            before,after=save_manual_localization(db,resource_type,game_id,resource_id,body.language,body.fields,admin["id"],now())
+        except ValueError as exc:
+            raise HTTPException(status_code=422,detail=str(exc)) from exc
+        if resource_type=="redeem_game":
+            db.execute("update live_revisions set revision=revision+1,updated_at=? where scope='redeem_codes'",(now(),))
+    if resource_type!="redeem_game": bump_game_live_scope(game_id,"catalog")
+    log_admin_action(admin["id"],"save_content_localization",category="redeem" if resource_type=="redeem_game" else "catalog",game_id=game_id,target_type=resource_type,target_id=resource_id,summary=f"編輯{body.language}翻譯：{dict(target).get('name') or resource_id}",before={body.language:before},after={body.language:after},actor_ip=client_ip(request))
+    return {"ok":True,"language":body.language,"fields":after}
+
+
+def _overlay_achievement_localizations(db: sqlite3.Connection, game_id: str, rows: list[dict[str,Any]]) -> None:
+    achievements=manual_localization_overrides(db,"achievement",game_id)
+    category_values=manual_localization_overrides(db,"category",game_id)
+    categories={str(row["name"]):category_values.get(str(row["id"]),{}) for row in db.execute("select id,name from game_achievement_categories where game_id=?",(game_id,))}
+    for row in rows:
+        source=row.get("localizations") or {}
+        manual={language:dict(fields) for language,fields in achievements.get(str(row.get("id") or row.get("achievement_id") or ""),{}).items()}
+        for language,fields in categories.get(str(row.get("category") or ""),{}).items():
+            if fields.get("name"): manual.setdefault(language,{})["category"]=fields["name"]
+        row["sourceLocalizations"]=source
+        row["manualLocalizations"]=manual
+        row["localizations"]=merge_manual_localizations(source,manual)
+
+
 # ----- 成就類別管理 -----
 @app.get("/api/games/{game_id}/admin/achievement-categories")
 def admin_achievement_categories(game_id: str, request: Request):
@@ -9726,7 +10471,11 @@ def admin_reorder_achievement_categories(game_id: str, body: AchievementCategory
         )
         rows=_achievement_category_rows(db,game_id)
     bump_game_live_scope(game_id,"catalog")
-    log_admin_action(admin["id"],"reorder_achievement_categories",category="catalog",game_id=game_id,target_type="achievement_categories",target_id=game_id,summary="調整成就分類順序",before={"category_ids":current_ids},after={"category_ids":requested},actor_ip=client_ip(request),locked=True)
+    category_names={str(row["id"]):str(row["name"]) for row in current}
+    before_order=[{"name":category_names[category_id],"position":index+1,"category_id":category_id} for index,category_id in enumerate(current_ids)]
+    after_order=[{"name":category_names[category_id],"position":index+1,"category_id":category_id} for index,category_id in enumerate(requested)]
+    moved=[{"name":category_names[category_id],"from_position":current_ids.index(category_id)+1,"to_position":index+1} for index,category_id in enumerate(requested) if current_ids.index(category_id)!=index]
+    log_admin_action(admin["id"],"reorder_achievement_categories",category="catalog",game_id=game_id,target_type="achievement_categories",target_id=game_id,summary="調整成就分類順序："+("、".join(f'{item["name"]} 第 {item["from_position"]} 位→第 {item["to_position"]} 位' for item in moved) if moved else "順序未變更"),before={"category_order":before_order},after={"category_order":after_order},metadata={"moved_categories":moved},actor_ip=client_ip(request),locked=True)
     return {"ok":True,"categories":rows}
 
 
@@ -9838,9 +10587,10 @@ def admin_delete_achievement_category(game_id: str, category_id: str, body: Achi
 @app.get("/api/games/{game_id}/admin/achievement-management")
 def extra_game_admin_achievement_management(game_id: str, request: Request):
     game_id=require_extra_game(game_id); require_admin(request)
+    from backend.services.catalog_localization import public_localizations
     with connect_db() as db:
         catalog_rows=db.execute(
-            """select c.*,coalesce(s.official_source_id,c.achievement_id) as official_source_id,
+            """select c.*,s.raw_json as source_raw_json,coalesce(s.official_source_id,c.achievement_id) as official_source_id,
             g.group_id as relation_group,g.relation_type,g.stage_order,
             (select count(*) from game_achievement_choice_groups x
              where x.game_id=c.game_id and x.group_id=g.group_id) as relation_group_size
@@ -9871,6 +10621,7 @@ def extra_game_admin_achievement_management(game_id: str, request: Request):
             "displayId":value.get("official_source_id") or value["achievement_id"],
             "name":value["name"],
             "condition":value["condition"],
+            "localizations":public_localizations(value.get("source_raw_json"),value) if game_id in {"genshin","hsr","zzz","wuwa","nte"} else {},
             "version":value["version"],
             "category":value["category"],
             "reward":int(value["reward"] or 0),
@@ -9888,6 +10639,7 @@ def extra_game_admin_achievement_management(game_id: str, request: Request):
         })
     with connect_db() as db:
         catalog=_sort_achievement_display_rows(db,game_id,catalog,category_rows)
+        _overlay_achievement_localizations(db,game_id,catalog)
     return {
         "ok":True,
         "game_id":game_id,
@@ -9922,11 +10674,30 @@ def extra_game_get_progress(game_id: str, request: Request):
     return {"ok":True,"completed":[r["achievement_id"] for r in rows]}
 
 
+def _log_user_progress_change(game_id: str, user_id: str, action: str, before_ids: list[str], after_ids: list[str], request: Request) -> None:
+    added=sorted(set(after_ids)-set(before_ids))
+    removed=sorted(set(before_ids)-set(after_ids))
+    if not added and not removed:
+        return
+    with connect_db() as db:
+        names={str(row["achievement_id"]):str(row["name"]) for row in db.execute(
+            "select achievement_id,name from game_catalog_items where game_id=?",(game_id,)
+        ).fetchall()}
+    added_items=[{"name":names.get(item,item),"achievement_id":item} for item in added]
+    removed_items=[{"name":names.get(item,item),"achievement_id":item} for item in removed]
+    log_admin_action(user_id,action,category="user",game_id=game_id,target_user_id=user_id,
+                     target_type="achievement_progress",target_id=user_id,
+                     summary=f"更新{game_display_name(game_id)}成就進度：新增完成 {len(added)} 項、取消完成 {len(removed)} 項",
+                     before={"completed_count":len(before_ids),"removed_achievements":removed_items},
+                     after={"completed_count":len(after_ids),"added_achievements":added_items},actor_ip=client_ip(request))
+
+
 @app.post("/api/games/{game_id}/progress/set")
 @high_risk_operation
 def extra_game_set_progress(game_id: str, body: ProgressSet, request: Request):
     game_id=require_extra_game(game_id); user=require_user(request)
     with connect_db() as db:
+        before_ids=[str(row["achievement_id"]) for row in db.execute("select achievement_id from game_progress where game_id=? and user_id=?",(game_id,user["id"])).fetchall()]
         aid=_resolve_effective_achievement_id(db,game_id,body.achievement_id)
         if body.completed:
             if not _stage_prerequisites_completed(db,game_id,user["id"],aid):
@@ -9937,6 +10708,8 @@ def extra_game_set_progress(game_id: str, body: ProgressSet, request: Request):
         else:
             _delete_stage_from(db,game_id,user["id"],aid)
         rows=db.execute("select achievement_id from game_progress where game_id=? and user_id=? order by completed_at,achievement_id",(game_id,user["id"])).fetchall()
+    after_ids=[str(row["achievement_id"]) for row in rows]
+    _log_user_progress_change(game_id,user["id"],"set_achievement_progress",before_ids,after_ids,request)
     bump_game_live_scope(game_id,"stats")
     return {"ok":True,"completed":[r["achievement_id"] for r in rows]}
 
@@ -9946,6 +10719,7 @@ def extra_game_set_progress(game_id: str, body: ProgressSet, request: Request):
 def extra_game_batch_progress(game_id: str, body: ProgressBatch, request: Request):
     game_id=require_extra_game(game_id); user=require_user(request); requested=validate_ids(body.achievement_ids); t=now()
     with connect_db() as db:
+        before_ids=[str(row["achievement_id"]) for row in db.execute("select achievement_id from game_progress where game_id=? and user_id=?",(game_id,user["id"])).fetchall()]
         ids=list(dict.fromkeys(_resolve_effective_achievement_id(db,game_id,aid) for aid in requested))
         if body.completed:
             ids=_normalize_choice_progress_ids(db,game_id,ids)
@@ -9958,6 +10732,8 @@ def extra_game_batch_progress(game_id: str, body: ProgressBatch, request: Reques
         else:
             for aid in ids: _delete_stage_from(db,game_id,user["id"],aid)
         rows=db.execute("select achievement_id from game_progress where game_id=? and user_id=? order by completed_at,achievement_id",(game_id,user["id"])).fetchall()
+    after_ids=[str(row["achievement_id"]) for row in rows]
+    _log_user_progress_change(game_id,user["id"],"batch_achievement_progress",before_ids,after_ids,request)
     bump_game_live_scope(game_id,"stats")
     return {"ok":True,"completed":[r["achievement_id"] for r in rows]}
 
@@ -9967,11 +10743,13 @@ def extra_game_batch_progress(game_id: str, body: ProgressBatch, request: Reques
 def extra_game_replace_progress(game_id: str, body: ProgressReplace, request: Request):
     game_id=require_extra_game(game_id); user=require_user(request); requested=validate_ids(body.achievement_ids); t=now()
     with connect_db() as db:
+        before_ids=[str(row["achievement_id"]) for row in db.execute("select achievement_id from game_progress where game_id=? and user_id=?",(game_id,user["id"])).fetchall()]
         ids=list(dict.fromkeys(_resolve_effective_achievement_id(db,game_id,aid) for aid in requested))
         ids=_normalize_choice_progress_ids(db,game_id,ids)
         ids=_normalize_stage_ids(db,game_id,ids)
         db.execute("delete from game_progress where game_id=? and user_id=?",(game_id,user["id"]))
         db.executemany("insert into game_progress(game_id,user_id,achievement_id,completed_at) values(?,?,?,?)",[(game_id,user["id"],aid,t) for aid in ids])
+    _log_user_progress_change(game_id,user["id"],"replace_achievement_progress",before_ids,ids,request)
     bump_game_live_scope(game_id,"stats")
     return {"ok":True,"completed":ids}
 
@@ -9995,7 +10773,7 @@ async def admin_game_achievement_save(request: Request):
     return extra_game_save_achievement(require_extra_game(game_id), achievement_id, body, request)
 
 # ----- 成就資料治理中心與共用訊息中心 -----
-GOVERNANCE_RULES_VERSION = "2026.06.26-final-governance-v1"
+GOVERNANCE_RULES_VERSION = "2026.09.28-manual-comparison-v1"
 GOVERNANCE_ACTIVE_STATES = {"new", "waiting_review", "assigned", "ready", "processing", "reopened", "failed"}
 GOVERNANCE_TERMINAL_STATES = {"resolved", "accepted_current", "ignored", "legal_exception", "rolled_back"}
 GOVERNANCE_OPERATION_GUARD = HIGH_RISK_OPERATION_GUARD
@@ -10063,13 +10841,14 @@ def _governance_decision_snapshot_hash(
     *, kind: str, entity_ids: list[str] | tuple[str, ...], evidence: Any,
     entity_snapshots: dict[str, Any], progress_count: int, relation_count: int
 ) -> str:
+    comparison_kinds = {"exact_duplicate", "same_name_different_condition", "same_condition_different_name", "similar_name"}
     return governance_hash({
         "kind": str(kind or ""),
         "entities": sorted(str(value) for value in entity_ids if str(value)),
         "evidence": evidence if isinstance(evidence, (dict, list)) else {},
         "entity_snapshots": _governance_semantic_entity_snapshots(entity_snapshots),
-        "progress_count": int(progress_count or 0),
-        "relation_count": int(relation_count or 0),
+        "progress_count": 0 if kind in comparison_kinds else int(progress_count or 0),
+        "relation_count": 0 if kind in comparison_kinds else int(relation_count or 0),
     })
 
 
@@ -10379,6 +11158,19 @@ def _migrate_completed_keep_decisions(db: sqlite3.Connection) -> int:
     return migrated
 
 
+def _governance_manual_achievement_ids(catalog_items: list[dict[str, Any]], database_items: list[dict[str, Any]]) -> set[str]:
+    official_ids = {
+        str(row.get("achievement_id") or row.get("id") or "")
+        for row in database_items
+        if str(row.get("source") or "").casefold() not in {"manual", "admin", "admin_manual"}
+    }
+    return {
+        str(row.get("id") or row.get("achievement_id") or "")
+        for row in catalog_items
+        if str(row.get("id") or row.get("achievement_id") or "") not in official_ids
+    }
+
+
 def _governance_context(game_id: str, options: dict[str, Any] | None = None) -> dict[str, Any]:
     options = options or {}
     raw_catalog_items = _load_catalog_items_for_health(game_id)
@@ -10438,6 +11230,8 @@ def _governance_context(game_id: str, options: dict[str, Any] | None = None) -> 
         catalog_items.append(value)
         database_items.append(dict(value))
 
+    manual_achievement_ids = _governance_manual_achievement_ids(catalog_items, raw_database_items)
+
     config = get_game_config(game_id) or {}
     result = scan_governance(
         game_id=game_id,
@@ -10456,6 +11250,7 @@ def _governance_context(game_id: str, options: dict[str, Any] | None = None) -> 
         registered_fields=registered_fields,
         identity_rows=identities,
         source_id_rows=source_ids,
+        manual_achievement_ids=manual_achievement_ids,
     )
 
     def canonical_storage_row(row: dict[str, Any]) -> dict[str, Any]:
@@ -12023,6 +12818,38 @@ def message_center_list(request: Request, item_type: str = "all"):
     return {"ok": True, "items": items, "unread": sum(1 for row in items if not row["is_read"]), "unread_announcements": sum(1 for row in items if row["item_type"] == "announcement" and not row["is_read"]), "unread_notifications": sum(1 for row in items if row["item_type"] == "notification" and not row["is_read"])}
 
 
+@app.delete("/api/message-center/notifications")
+def message_center_delete_all_notifications(request: Request):
+    user = require_user(request); stamp = now()
+    clauses, params = message_center_visible_clauses(user["id"], stamp, "notification", exclude_deleted=True)
+    with connect_db() as db:
+        rows = db.execute(f"""select m.id,m.title from message_center_items m
+            left join message_center_deletions d on d.item_id=m.id and d.user_id=?
+            where {' and '.join(clauses)}""", [user["id"], *params]).fetchall()
+        db.executemany("insert or ignore into message_center_deletions(user_id,item_id,deleted_at) values(?,?,?)",
+                       [(user["id"], row["id"], stamp) for row in rows])
+    if rows:
+        log_admin_action(user["id"],"delete_all_own_notifications",category="user",target_user_id=user["id"],target_type="notifications",target_id=user["id"],summary=f"刪除訊息中心的 {len(rows)} 則通知",before={"notifications":[{"title":row["title"],"id":row["id"]} for row in rows]},actor_ip=client_ip(request))
+    return {"ok": True, "deleted": len(rows)}
+
+
+@app.delete("/api/message-center/{item_id}")
+def message_center_delete_notification(item_id: str, request: Request):
+    user = require_user(request); stamp = now()
+    clauses, params = message_center_visible_clauses(user["id"], stamp)
+    clauses.insert(0, "m.id=?")
+    with connect_db() as db:
+        item = db.execute(f"""select m.id,m.item_type,m.title from message_center_items m
+            where {' and '.join(clauses)}""", [item_id, *params]).fetchone()
+        if not item:
+            raise HTTPException(status_code=404, detail="找不到可刪除的通知。")
+        if item["item_type"] != "notification":
+            raise HTTPException(status_code=403, detail="公告不可由使用者刪除。")
+        db.execute("insert or ignore into message_center_deletions(user_id,item_id,deleted_at) values(?,?,?)", (user["id"], item_id, stamp))
+    log_admin_action(user["id"],"delete_own_notification",category="user",target_user_id=user["id"],target_type="notification",target_id=item_id,summary=f"刪除訊息中心通知：{item['title']}",before={"title":item["title"]},actor_ip=client_ip(request))
+    return {"ok": True}
+
+
 def message_center_visible_clauses(user_id: str, stamp: int, item_type: str = "all", *, exclude_deleted: bool = False) -> tuple[list[str], list[Any]]:
     clauses = ["m.is_active=1", "(m.target_user_id is null or m.target_user_id=?)", "(m.starts_at is null or m.starts_at<=?)", "(m.ends_at is null or m.ends_at>?)"]
     params: list[Any] = [user_id, stamp, stamp]
@@ -12039,11 +12866,14 @@ def message_center_read(item_id: str, request: Request):
     clauses, params = message_center_visible_clauses(user["id"], stamp, exclude_deleted=True)
     clauses.insert(0, "m.id=?")
     with connect_db() as db:
-        item = db.execute(f"""select m.id,m.target_user_id,m.created_at,m.updated_at from message_center_items m
+        item = db.execute(f"""select m.id,m.title,m.item_type,m.target_user_id,m.created_at,m.updated_at,r.read_at from message_center_items m
             left join message_center_deletions d on d.item_id=m.id and d.user_id=?
-            where {' and '.join(clauses)}""", [user["id"], item_id, *params]).fetchone()
+            left join message_center_reads r on r.item_id=m.id and r.user_id=?
+            where {' and '.join(clauses)}""", [user["id"], user["id"], item_id, *params]).fetchone()
         if not item or (item["target_user_id"] and item["target_user_id"] != user["id"]): raise HTTPException(status_code=404, detail="找不到訊息。")
         db.execute("insert into message_center_reads(user_id,item_id,read_at) values(?,?,?) on conflict(user_id,item_id) do update set read_at=excluded.read_at", (user["id"], item_id, max(stamp,int(item["updated_at"] or item["created_at"] or 0))))
+    if not item["read_at"] or int(item["read_at"])<int(item["updated_at"] or item["created_at"] or 0):
+        log_admin_action(user["id"],"read_message_center_item",category="user",target_user_id=user["id"],target_type=item["item_type"],target_id=item_id,summary=f"閱讀{('公告' if item['item_type']=='announcement' else '通知')}：{item['title']}",before={"is_read":False},after={"is_read":True},actor_ip=client_ip(request))
     return {"ok": True}
 
 
@@ -12052,10 +12882,14 @@ def message_center_read_all(request: Request, item_type: str = "all"):
     user = require_user(request); stamp = now()
     clauses, params = message_center_visible_clauses(user["id"], stamp, item_type, exclude_deleted=True)
     with connect_db() as db:
-        rows = db.execute(f"""select m.id,m.created_at,m.updated_at from message_center_items m
+        rows = db.execute(f"""select m.id,m.title,m.item_type,m.created_at,m.updated_at,r.read_at from message_center_items m
             left join message_center_deletions d on d.item_id=m.id and d.user_id=?
-            where {' and '.join(clauses)}""", [user["id"], *params]).fetchall()
+            left join message_center_reads r on r.item_id=m.id and r.user_id=?
+            where {' and '.join(clauses)}""", [user["id"], user["id"], *params]).fetchall()
+        unread=[row for row in rows if not row["read_at"] or int(row["read_at"])<int(row["updated_at"] or row["created_at"] or 0)]
         for row in rows: db.execute("insert into message_center_reads(user_id,item_id,read_at) values(?,?,?) on conflict(user_id,item_id) do update set read_at=excluded.read_at", (user["id"], row["id"], max(stamp,int(row["updated_at"] or row["created_at"] or 0))))
+    if unread:
+        log_admin_action(user["id"],"read_all_message_center_items",category="user",target_user_id=user["id"],target_type="message_center",target_id=user["id"],summary=f"將 {len(unread)} 則{('公告' if item_type=='announcement' else '通知' if item_type=='notification' else '訊息')}標為已讀",after={"items":[{"title":row["title"],"item_type":row["item_type"],"id":row["id"]} for row in unread]},actor_ip=client_ip(request))
     return {"ok": True, "count": len(rows)}
 
 
@@ -12084,6 +12918,9 @@ def admin_dashboard_overview(request: Request):
             game_cards.append({"id": game_id, "name": project.get("name") or game_id, "achievement_count": total, "hidden_count": hidden, "category_count": categories, "relation_count": relations, "progress_count": progress, "pending_issue_count": pending, "pending_issue_severity": severity, "pending_sync_preview_count": preview, "active_preview_summary": _json_object(preview_row["diff_json"], {}).get("summary", {}) if preview_row else {}, "last_scan": {**dict(scan), "summary": _json_object(scan["summary_json"], {})} if scan else None, "latest_sync": {**dict(latest_sync), "summary": _json_object(latest_sync["summary_json"], {})} if latest_sync else None, "latest_source_test": dict(latest_source_test) if latest_source_test else None, "source_freshness": freshness, "source_last_activity_at": last_activity or None, "source_policy": get_source_policy(game_id)})
         pending_reports = int(db.execute("select count(*) from game_achievement_reports where status in ('open','reviewing')").fetchone()[0])
         pending_tickets = int(db.execute("select count(*) from support_tickets where status in ('open','pending','reviewing')").fetchone()[0])
+        pending_feedback = pending_tickets + int(db.execute("""select count(*) from game_achievement_reports r
+            where r.status in ('open','reviewing') and not exists
+            (select 1 from achievement_report_threads t where t.report_id=r.id)""").fetchone()[0])
         pending_guides = int(db.execute("select count(*) from achievement_guide_submissions where status='pending'").fetchone()[0])
         unread_announcements = int(db.execute("select count(*) from message_center_items where item_type='announcement' and is_active=1 and (starts_at is null or starts_at<=?) and (ends_at is null or ends_at>?)", (stamp, stamp)).fetchone()[0])
         redeem_row = db.execute("""select count(*) total,
@@ -12123,7 +12960,7 @@ def admin_dashboard_overview(request: Request):
         health_status = "error"; health_messages.append(str(exc))
     if any(card["pending_issue_count"] for card in game_cards) and health_status == "ok":
         health_status = "warning"; health_messages.append("存在待處理的成就資料問題")
-    return {"ok": True, "health_summary": {"status": health_status, "message": "；".join(health_messages) or "核心檢查正常", "checked_at": stamp}, "games": game_cards, "redeem": redeem_summary, "work": {"pending_reports": pending_reports, "pending_tickets": pending_tickets, "pending_guides": pending_guides, "active_announcements": unread_announcements, "pending_issues": sum(card["pending_issue_count"] for card in game_cards), "pending_sync_previews": sum(card["pending_sync_preview_count"] for card in game_cards), "pending_redeem_imports": redeem_summary["pending_import_batches"]}, "recent_logs": recent_logs, "latest_scan": dict(latest_validation) if latest_validation else None}
+    return {"ok": True, "health_summary": {"status": health_status, "message": "；".join(health_messages) or "核心檢查正常", "checked_at": stamp}, "games": game_cards, "redeem": redeem_summary, "work": {"pending_feedback": pending_feedback, "pending_reports": pending_reports, "pending_tickets": pending_tickets, "pending_guides": pending_guides, "active_announcements": unread_announcements, "pending_issues": sum(card["pending_issue_count"] for card in game_cards), "pending_sync_previews": sum(card["pending_sync_preview_count"] for card in game_cards), "pending_redeem_imports": redeem_summary["pending_import_batches"]}, "recent_logs": recent_logs, "latest_scan": dict(latest_validation) if latest_validation else None}
 
 
 @app.get("/api/admin/system-health/detail")
@@ -12354,6 +13191,49 @@ def _hub_response():
     return _html_no_store_response(HUB_INDEX)
 
 
+def _redeem_hub_response():
+    if not HUB_INDEX.exists():
+        raise HTTPException(status_code=404, detail="找不到遊戲成就紀錄器首頁。")
+    page = HUB_INDEX.read_text(encoding="utf-8-sig")
+    replacements = {
+        '<meta id="seoDescription" name="description" content="免費使用的遊戲成就紀錄器（成就記錄器），支援鳴潮、崩壞：星穹鐵道（崩鐵）、原神、絕區零與異環的成就查詢、完成進度紀錄、成就統計與攻略，並提供遊戲兌換碼查詢。">': '<meta id="seoDescription" name="description" content="查詢鳴潮、崩壞：星穹鐵道、原神、絕區零與異環的遊戲兌換碼、獎勵、適用伺服器、有效狀態及兌換資訊。">',
+        '<meta id="seoOgTitle" property="og:title" content="遊戲成就紀錄器｜鳴潮、崩鐵、原神、絕區零、異環">': '<meta id="seoOgTitle" property="og:title" content="遊戲兌換碼｜遊戲成就紀錄器">',
+        '<meta id="seoOgDescription" property="og:description" content="免費使用的遊戲成就紀錄器（成就記錄器），支援鳴潮、崩壞：星穹鐵道（崩鐵）、原神、絕區零與異環的成就查詢、完成進度紀錄、成就統計與攻略，並提供遊戲兌換碼查詢。">': '<meta id="seoOgDescription" property="og:description" content="查詢鳴潮、崩壞：星穹鐵道、原神、絕區零與異環的遊戲兌換碼、獎勵、適用伺服器、有效狀態及兌換資訊。">',
+        '<meta id="seoOgUrl" property="og:url" content="https://miloratool.tdvr.tw/">': '<meta id="seoOgUrl" property="og:url" content="https://miloratool.tdvr.tw/redeem/">',
+        '<link id="seoCanonical" rel="canonical" href="https://miloratool.tdvr.tw/">': '<link id="seoCanonical" rel="canonical" href="https://miloratool.tdvr.tw/redeem/">',
+        '<title>遊戲成就紀錄器｜鳴潮、崩鐵、原神、絕區零、異環</title>': '<title>遊戲兌換碼｜遊戲成就紀錄器</title>',
+        '<section class="indexableHomeIntro" id="indexableHomeIntro" aria-labelledby="indexableHomeTitle">': '<section class="indexableHomeIntro" id="indexableHomeIntro" aria-labelledby="indexableHomeTitle" hidden>',
+    }
+    for original, replacement in replacements.items():
+        tag_id = re.search(r'\bid="([^"]+)"', original)
+        if tag_id:
+            tag_name = original.split()[0][1:]
+            pattern = rf'<{tag_name}\b(?=[^>]*\bid="{re.escape(tag_id.group(1))}")[^>]*>'
+        else:
+            pattern = r'<title\b[^>]*>.*?</title>'
+        page, count = re.subn(pattern, lambda match: replacement, page, flags=re.S)
+        if count != 1:
+            raise HTTPException(status_code=500, detail="兌換碼頁的搜尋資訊範本不一致。")
+    structured_data = re.search(r'(<script id="seoStructuredData" type="application/ld\+json">)(.*?)(</script>)', page, re.S)
+    if not structured_data:
+        raise HTTPException(status_code=500, detail="兌換碼頁缺少結構化資料。")
+    graph = json.loads(structured_data.group(2))
+    application = next((item for item in graph.get("@graph", []) if item.get("@type") == "WebApplication"), None)
+    if application is None:
+        raise HTTPException(status_code=500, detail="兌換碼頁缺少應用程式資料。")
+    application.update({
+        "name": "遊戲兌換碼",
+        "url": "https://miloratool.tdvr.tw/redeem/",
+        "description": "查詢鳴潮、崩壞：星穹鐵道、原神、絕區零與異環的遊戲兌換碼、獎勵、適用伺服器、有效狀態及兌換資訊。",
+    })
+    page = page[:structured_data.start(2)] + json.dumps(graph, ensure_ascii=False, separators=(",", ":")) + page[structured_data.end(2):]
+    return HTMLResponse(page, headers={
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    })
+
+
 def _game_hub_response():
     response = _hub_response()
     response.headers["X-Robots-Tag"] = "noindex, follow"
@@ -12421,7 +13301,7 @@ def hna_page():
 @app.get("/redeem")
 @app.get("/redeem/")
 def redeem_page():
-    return _hub_response()
+    return _redeem_hub_response()
 
 @app.get("/account")
 @app.get("/account/")

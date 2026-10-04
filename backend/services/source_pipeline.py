@@ -4,7 +4,7 @@ import re
 import urllib.error
 from typing import Any
 
-PIPELINE_VERSION = "source-architecture-preview-generation-guard-v8"
+PIPELINE_VERSION = "source-architecture-preview-generation-guard-v9"
 
 
 

@@ -2,14 +2,17 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
+<script defer src="/assets/shared/i18n.js?v=20260930-language-globe"></script>
+<script defer src="/assets/shared/i18n-public-extra.js?v=20261004-milora-brand"></script>
+<script defer src="/assets/shared/i18n-redeem.js?v=20260930-redeem-language"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="查詢各遊戲目前可用與已過期兌換碼、獎勵、來源、適用服務器及兌換連結。">
 <meta name="robots" content="noindex,follow">
 <link rel="canonical" href="https://miloratool.tdvr.tw/redeem/">
 <meta name="color-scheme" content="dark">
 <link rel="stylesheet" href="/assets/shared/common.css">
-<script defer src="/assets/shared/runtime.js?v=20260713-responsive-mobile-shell-1220"></script>
-<title>兌換碼｜遊戲成就紀錄器</title>
+<script defer src="/assets/shared/runtime.js?v=20260928-auth-link-token-handling-1525"></script>
+<title>兌換碼｜milora</title>
 <style>
 :root{--bg:#071019;--panel:#0c151f;--panel2:#111d29;--line:#243445;--text:#eef6fb;--muted:#8ea2b5;--a:#62dbc9;--b:#88aaff;--danger:#ff8793;--ok:#76e4a4;--gold:#ffd477}
 *{box-sizing:border-box}html,body{min-height:100%;margin:0;background:var(--bg);color:var(--text);font-family:"Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif}button{font:inherit;cursor:pointer}button:disabled{opacity:.55;cursor:not-allowed}
@@ -20,7 +23,9 @@
 .settingsDialog{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 24px);padding:0;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);box-shadow:0 28px 90px rgba(0,0,0,.55)}.settingsDialog::backdrop{background:rgba(2,7,12,.78);backdrop-filter:blur(5px)}.settingsHead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid var(--line)}.settingsHead h2{margin:0;font-size:20px}.settingsHead p{margin:5px 0 0;color:var(--muted);font-size:12px}.iconClose{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid var(--line);border-radius:8px;background:#0b121a;color:var(--text);font-size:24px;line-height:1}.settingsBody{padding:16px 18px 18px}.preferenceList{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.gameSubscription{display:flex;align-items:center;gap:9px;min-height:46px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#071019;color:#cbd8e5;font-size:14px;font-weight:900;cursor:pointer}.gameSubscription:has(input:checked){border-color:rgba(98,219,201,.65);background:rgba(98,219,201,.1);color:#dffffa}.gameSubscription input{width:18px;height:18px;margin:0;accent-color:var(--a);cursor:pointer}.settingsActions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.settingsMessage{min-height:22px;margin-top:10px;color:var(--muted);font-size:13px}.settingsMessage.ok{color:var(--ok)}.settingsMessage.error{color:#ffbdc5}
 @media(max-width:760px){.shell{padding:14px}.top{align-items:flex-start;flex-direction:column}.topSide{width:100%;justify-content:space-between}.gameOption{flex:1 1 100%;justify-content:flex-start}.mobileGameMenu{position:static;max-height:320px;margin-top:6px;box-shadow:none}.tableWrap{overflow:visible;border:0;background:transparent}body.redeemGameUnselected .tableWrap{display:none}table,tbody,tr,td{display:block;width:100%}table{min-width:0}thead{display:none}tbody{display:grid;gap:10px}tr{padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}td{display:grid;grid-template-columns:82px minmax(0,1fr);gap:10px;align-items:center;padding:8px 0;border:0;text-align:left}td::before{content:attr(data-label);color:var(--muted);font-size:12px;font-weight:800}.codeCell{display:block;padding:0 0 10px;border-bottom:1px solid var(--line);text-align:center}.codeCell::before{display:none}.codeCell strong{font-size:17px;overflow-wrap:anywhere}.sourceText,.rewardText,.timeText,.serverText{max-width:none;margin:0;text-align:left}.actions{justify-content:flex-start}.actions>*{flex:1}.empty{display:block!important;padding:34px 14px;text-align:center}.empty::before{display:none}.pager.show{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}.pagerInfo{grid-column:1/-1;grid-row:1;min-width:0;padding:2px 0 5px}.pagerBtn{width:100%;min-height:44px;padding:9px 12px}.pagerPrev{grid-column:1}.pagerNext{grid-column:2}.preferenceList{grid-template-columns:1fr}}
 .timeText{white-space:nowrap}
+.pager{flex-wrap:wrap}.pagerJump{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}.pagerJump select{min-height:36px;max-width:88px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text)}@media(max-width:760px){.pagerJump{grid-column:1/-1;justify-content:center}}
 </style>
+<script defer src="/assets/shared/live-updates.js?v=20261003-refresh-i18n"></script>
 </head>
 <body>
 <main class="shell">
@@ -29,7 +34,7 @@
    <h1>兌換碼</h1>
    <p>各遊戲目前收錄的兌換碼與服務器適用範圍。</p>
   </div>
-  <div class="topSide"><div class="statusLine" id="statusLine">正在載入……</div><button class="secondary notificationSettingsBtn" id="notificationSettingsBtn" type="button" hidden>兌換碼通知</button></div>
+  <div class="topSide"><div class="statusLine" id="statusLine" data-i18n="redeem.loading">正在載入……</div><button class="secondary notificationSettingsBtn" id="notificationSettingsBtn" type="button" hidden>兌換碼通知</button></div>
  </section>
  <section class="filters" aria-label="兌換碼篩選">
   <div class="filtersHead"><div class="filtersLabel">選擇遊戲</div><button class="secondary notificationSettingsBtn mobileNotificationSettingsBtn" id="mobileNotificationSettingsBtn" type="button" hidden>兌換碼通知</button></div>
@@ -39,7 +44,7 @@
  <section class="tableWrap">
   <table>
    <thead><tr><th>兌換碼</th><th>來源</th><th>獎勵</th><th>時間</th><th>服務器名稱</th><th>狀態</th><th>操作</th></tr></thead>
-   <tbody id="redeemBody"><tr><td colspan="7" class="empty">正在載入兌換碼……</td></tr></tbody>
+   <tbody id="redeemBody"><tr><td colspan="7" class="empty" data-i18n="redeem.loadingCodes">正在載入兌換碼……</td></tr></tbody>
  </table>
  </section>
  <nav class="pager" id="pager" aria-label="兌換碼分頁"></nav>
@@ -47,37 +52,40 @@
 </main>
 <dialog class="settingsDialog" id="notificationSettingsDialog" aria-labelledby="notificationSettingsTitle">
  <div class="settingsHead"><div><h2 id="notificationSettingsTitle">兌換碼通知</h2><p>新增兌換碼時通知</p></div><button class="iconClose" id="closeNotificationSettingsBtn" type="button" aria-label="關閉">×</button></div>
- <div class="settingsBody"><form id="notificationSettingsForm"><div class="preferenceList" id="notificationPreferenceList"><div class="empty">正在載入設定……</div></div><div class="settingsActions"><button class="secondary" id="cancelNotificationSettingsBtn" type="button">取消</button><button class="primary" id="saveNotificationSettingsBtn" type="submit">儲存設定</button></div></form><div class="settingsMessage" id="notificationSettingsMessage"></div></div>
+ <div class="settingsBody"><form id="notificationSettingsForm"><div class="preferenceList" id="notificationPreferenceList"><div class="empty" data-i18n="redeem.loadingSettings">正在載入設定……</div></div><div class="settingsActions"><button class="secondary" id="cancelNotificationSettingsBtn" type="button">取消</button><button class="primary" id="saveNotificationSettingsBtn" type="submit">儲存設定</button></div></form><div class="settingsMessage" id="notificationSettingsMessage"></div></div>
 </dialog>
 <script>
 const $=id=>document.getElementById(id);
 const PAGE_SIZE=50;
+function rt(key,fallback,params={}){const api=window.MiloraI18n;const value=api?.t('redeem.'+key,params);return value&&value!=='redeem.'+key?value:fallback.replace(/\{(\w+)\}/g,(_,name)=>String(params[name]??''))}
+function redeemGameName(id,name){const language=window.MiloraI18n?.getLanguage()||'zh-Hant',game=[...redeemState.games,...redeemState.preferences].find(game=>game.game_id===id),manual=game?.localizations?.[language]?.name;return language!=='zh-Hant'&&manual?manual:window.MiloraPublicText?.gameName(id,name)||name}
 const query=new URLSearchParams(location.search);
-const redeemState={games:[],codes:[],preferences:[],selectedGameId:query.get("game")||"",targetCode:query.get("code")||"",page:1,user:null};
+const redeemState={games:[],codes:[],preferences:[],selectedGameId:query.get("game")||"",targetCode:query.get("code")||"",page:1,user:null,loadState:'loading'};
 function esc(value){return String(value??"").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]))}
-function formatDate(value){const stamp=Number(value||0);if(!stamp)return "未設定";return new Date(stamp*1000).toLocaleDateString("zh-TW",{year:"numeric",month:"2-digit",day:"2-digit"})}
-function timeText(row){return `${row.start_at?formatDate(row.start_at):"未知"} ～ ${row.end_at?formatDate(row.end_at):"未知"}`}
-function gameIcon(gameId){return ""}
-function statusText(status){return status==="expired"?"已過期":"開放中"}
+function formatDate(value){const stamp=Number(value||0);if(!stamp)return rt('unset','未設定');return new Date(stamp*1000).toLocaleDateString(window.MiloraI18n?.getLanguage()||"zh-TW",{year:"numeric",month:"2-digit",day:"2-digit"})}
+function timeText(row){return `${row.start_at?formatDate(row.start_at):rt('unknown','未知')} ～ ${row.end_at?formatDate(row.end_at):rt('unknown','未知')}`}
+function gameIcon(gameId){return ""}/icon.png`}
+function statusText(status){return status==="expired"?rt('expired','已過期'):rt('open','開放中')}
 function showToast(message,type="ok"){
  const toast=$("toast");
  toast.textContent=message;
+ const key=window.MiloraRedeemUI?.keyFor(message);if(key)toast.dataset.i18n=key;else delete toast.dataset.i18n;window.MiloraI18n?.apply();
  toast.className=`toast show${type==="error"?" error":""}`;
  clearTimeout(showToast.timer);
  showToast.timer=setTimeout(()=>{toast.className="toast"},1800);
 }
 async function apiJson(path,options={}){const response=await fetch(path,{credentials:"same-origin",cache:"no-store",...options,headers:{"Content-Type":"application/json",...(options.headers||{})}});let value={};try{value=await response.json()}catch{}if(!response.ok||value.ok===false)throw new Error(value.detail||value.message||`請求失敗（${response.status}）`);return value}
-function setSettingsMessage(message="",type=""){$("notificationSettingsMessage").textContent=message;$("notificationSettingsMessage").className=`settingsMessage${type?` ${type}`:""}`}
-function renderNotificationPreferences(){const host=$("notificationPreferenceList");host.innerHTML=redeemState.preferences.length?redeemState.preferences.map(row=>`<label class="gameSubscription"><input type="checkbox" data-game-id="${esc(row.game_id)}" ${row.selected?"checked":""}><span>${esc(row.name||row.game_id)}</span></label>`).join(""):'<div class="empty">目前沒有可訂閱的遊戲。</div>'}
+function setSettingsMessage(message="",type=""){const el=$("notificationSettingsMessage");el.textContent=message;el.className=`settingsMessage${type?` ${type}`:""}`;const key=window.MiloraRedeemUI?.keyFor(message);if(key)el.dataset.i18n=key;else delete el.dataset.i18n;window.MiloraI18n?.apply()}
+function renderNotificationPreferences(){const host=$("notificationPreferenceList");host.innerHTML=redeemState.preferences.length?redeemState.preferences.map(row=>`<label class="gameSubscription"><input type="checkbox" data-game-id="${esc(row.game_id)}" ${row.selected?"checked":""}><span>${esc(redeemGameName(row.game_id,row.name||row.game_id))}</span></label>`).join(""):'<div class="empty" data-i18n="redeem.noSubscriptions">目前沒有可訂閱的遊戲。</div>';window.MiloraI18n?.apply()}
 async function loadNotificationPreferences(){const result=await apiJson("/api/redeem-notification-preferences");redeemState.preferences=result.preferences||[];renderNotificationPreferences()}
 async function loadAuthState(){try{const result=await apiJson("/api/auth/me");redeemState.user=result.authenticated?result.user:null}catch{redeemState.user=null}document.querySelectorAll(".notificationSettingsBtn").forEach(button=>button.hidden=!redeemState.user)}
 function renderGameChooser(){
  const games=redeemState.games;
- $("gameChooser").innerHTML=games.length?games.map(game=>`<button class="gameOption ${game.game_id===redeemState.selectedGameId?"active":""}" type="button" data-game-id="${esc(game.game_id)}" aria-pressed="${game.game_id===redeemState.selectedGameId?"true":"false"}"><span>${esc(game.name||game.game_id)}</span></button>`).join(""):'<div class="empty">目前沒有可選擇的遊戲。</div>';
+ $("gameChooser").innerHTML=games.length?games.map(game=>`<button class="gameOption ${game.game_id===redeemState.selectedGameId?"active":""}" type="button" data-game-id="${esc(game.game_id)}" aria-pressed="${game.game_id===redeemState.selectedGameId?"true":"false"}"><span>${esc(redeemGameName(game.game_id,game.name||game.game_id))}</span></button>`).join(""):`<div class="empty">${esc(rt('noGames','目前沒有可選擇的遊戲。'))}</div>`;
  const selected=games.find(game=>game.game_id===redeemState.selectedGameId);
   $("mobileGameDropdownTrigger").disabled=!games.length;
-  $("mobileGameSelection").innerHTML=selected?`<span>${esc(selected.name||selected.game_id)}</span>`:'<span class="mobileGameSelectionPlaceholder">選擇遊戲</span>';
-  $("mobileGameMenu").innerHTML=games.length?games.map(game=>`<button class="mobileGameMenuOption" type="button" role="option" data-mobile-game-id="${esc(game.game_id)}" aria-selected="${game.game_id===redeemState.selectedGameId?"true":"false"}"><span>${esc(game.name||game.game_id)}</span></button>`).join(""):'<div class="mobileGameMenuEmpty">目前沒有可選擇的遊戲。</div>';
+  $("mobileGameSelection").innerHTML=selected?`<span>${esc(redeemGameName(selected.game_id,selected.name||selected.game_id))}</span>`:`<span class="mobileGameSelectionPlaceholder">${esc(rt('choose','選擇遊戲'))}</span>`;
+  $("mobileGameMenu").innerHTML=games.length?games.map(game=>`<button class="mobileGameMenuOption" type="button" role="option" data-mobile-game-id="${esc(game.game_id)}" aria-selected="${game.game_id===redeemState.selectedGameId?"true":"false"}"><span>${esc(redeemGameName(game.game_id,game.name||game.game_id))}</span></button>`).join(""):`<div class="mobileGameMenuEmpty">${esc(rt('noGames','目前沒有可選擇的遊戲。'))}</div>`;
 }
 function selectedCodes(){
  return redeemState.selectedGameId?redeemState.codes.filter(row=>row.game_id===redeemState.selectedGameId):[];
@@ -86,9 +94,10 @@ function renderPager(total,pageCount){
  const pager=$("pager");
  if(total<=PAGE_SIZE){pager.className="pager";pager.innerHTML="";return}
  pager.className="pager show";
-  pager.innerHTML=`<button class="pagerBtn pagerPrev" type="button" data-page-action="prev" aria-label="上一頁" ${redeemState.page<=1?"disabled":""}>‹ 上一頁</button><span class="pagerInfo">第 ${redeemState.page} / ${pageCount} 頁</span><button class="pagerBtn pagerNext" type="button" data-page-action="next" aria-label="下一頁" ${redeemState.page>=pageCount?"disabled":""}>下一頁 ›</button>`;
+   pager.innerHTML=`<button class="pagerBtn pagerPrev" type="button" data-page-action="prev" aria-label="${esc(rt('prev','上一頁'))}" ${redeemState.page<=1?"disabled":""}>‹ ${esc(rt('prev','上一頁'))}</button><span class="pagerInfo">${esc(rt('page','第 {page} / {pages} 頁',{page:redeemState.page,pages:pageCount}))}</span><label class="pagerJump">${esc(rt('jump','跳至'))} <select aria-label="${esc(rt('choosePage','選擇頁碼'))}">${Array.from({length:pageCount},(_,index)=>`<option value="${index+1}" ${redeemState.page===index+1?'selected':''}>${index+1}</option>`).join('')}</select> ${esc(rt('pageUnit','頁'))}</label><button class="pagerBtn pagerNext" type="button" data-page-action="next" aria-label="${esc(rt('next','下一頁'))}" ${redeemState.page>=pageCount?"disabled":""}>${esc(rt('next','下一頁'))} ›</button>`;
 }
 function render(data){
+ redeemState.loadState='loaded';delete $("statusLine").dataset.i18n;
  redeemState.games=data.games||[];
  redeemState.codes=data.codes||[];
  if(redeemState.selectedGameId&&!redeemState.games.some(game=>game.game_id===redeemState.selectedGameId)){redeemState.selectedGameId="";redeemState.page=1}
@@ -100,8 +109,8 @@ function render(data){
 function renderSelectedCodes(){
   const codes=selectedCodes();
   if(!redeemState.selectedGameId){
-   $("statusLine").textContent="請先選擇遊戲";
-  $("redeemBody").innerHTML='<tr><td colspan="7" class="empty">請先選擇遊戲。</td></tr>';
+   $("statusLine").textContent=rt('chooseFirst','請先選擇遊戲');
+  $("redeemBody").innerHTML=`<tr><td colspan="7" class="empty">${esc(rt('chooseEmpty','請先選擇遊戲。'))}</td></tr>`;
   renderPager(0,1);
   return;
  }
@@ -110,18 +119,18 @@ function renderSelectedCodes(){
  redeemState.page=Math.min(Math.max(1,redeemState.page),pageCount);
  const start=(redeemState.page-1)*PAGE_SIZE;
  const pageRows=codes.slice(start,start+PAGE_SIZE);
- const pageLabel=codes.length>PAGE_SIZE?`，第 ${redeemState.page} / ${pageCount} 頁`:"";
- $("statusLine").textContent=`${selectedGame?.name||redeemState.selectedGameId}：共 ${codes.length} 筆${pageLabel}`;
+ const pageLabel=codes.length>PAGE_SIZE?` · ${rt('page','第 {page} / {pages} 頁',{page:redeemState.page,pages:pageCount})}`:"";
+ $("statusLine").textContent=rt('count','{game}：共 {count} 筆',{game:redeemGameName(redeemState.selectedGameId,selectedGame?.name||redeemState.selectedGameId),count:codes.length})+pageLabel;
  renderPager(codes.length,pageCount);
  $("redeemBody").innerHTML=pageRows.length?pageRows.map(row=>`<tr class="${redeemState.targetCode&&row.code.toLowerCase()===redeemState.targetCode.toLowerCase()?"targetCode":""}">
-  <td class="codeCell" data-label="兌換碼"><strong>${esc(row.code)}</strong></td>
-  <td data-label="來源"><div class="sourceText">${esc(row.source||"—")}</div></td>
-  <td data-label="獎勵"><div class="rewardText">${esc(row.reward||"—")}</div></td>
-  <td data-label="時間"><div class="timeText">${esc(timeText(row))}</div></td>
-  <td data-label="服務器"><div class="serverText">${esc(row.server_names||"—")}</div></td>
-  <td data-label="狀態"><span class="statusBadge ${esc(row.status)}">${esc(statusText(row.status))}</span></td>
-  <td data-label="操作"><div class="actions"><button class="secondary copyBtn" data-code="${esc(row.code)}" type="button">複製</button>${row.redeem_url?`<a class="primary linkBtn" href="${esc(row.redeem_url)}" target="_blank" rel="noreferrer">前往</a>`:""}</div></td>
- </tr>`).join(""):'<tr><td colspan="7" class="empty">目前沒有可顯示的兌換碼。</td></tr>';
+  <td class="codeCell" data-label="${esc(rt('title','兌換碼'))}"><strong>${esc(row.code)}</strong></td>
+  <td data-label="${esc(rt('source','來源'))}"><div class="sourceText">${esc(row.source||"—")}</div></td>
+  <td data-label="${esc(rt('reward','獎勵'))}"><div class="rewardText">${esc(row.reward||"—")}</div></td>
+  <td data-label="${esc(rt('time','時間'))}"><div class="timeText">${esc(timeText(row))}</div></td>
+  <td data-label="${esc(rt('server','服務器'))}"><div class="serverText">${esc(row.server_names||"—")}</div></td>
+  <td data-label="${esc(rt('status','狀態'))}"><span class="statusBadge ${esc(row.status)}">${esc(statusText(row.status))}</span></td>
+  <td data-label="${esc(rt('actions','操作'))}"><div class="actions"><button class="secondary copyBtn" data-code="${esc(row.code)}" type="button">${esc(rt('copy','複製'))}</button>${row.redeem_url?`<a class="primary linkBtn" href="${esc(row.redeem_url)}" target="_blank" rel="noreferrer">${esc(rt('go','前往'))}</a>`:""}</div></td>
+ </tr>`).join(""):`<tr><td colspan="7" class="empty">${esc(rt('noCodes','目前沒有可顯示的兌換碼。'))}</td></tr>`;
 }
 async function loadRedeemCodes(){
  try{
@@ -130,7 +139,8 @@ async function loadRedeemCodes(){
   if(!response.ok||!data.ok)throw new Error(data.detail||data.message||`請求失敗（${response.status}）`);
   render(data);
  }catch(error){
-  $("statusLine").textContent="載入失敗";
+  redeemState.loadState='error';$("statusLine").dataset.i18n='redeem.failed';
+  $("statusLine").textContent=rt('failed','載入失敗');
   $("redeemBody").innerHTML=`<tr><td colspan="7" class="empty error">${esc(error.message)}</td></tr>`;
   renderPager(0,1);
  }
@@ -162,6 +172,7 @@ $("pager").addEventListener("click",event=>{
  redeemState.page+=action==="next"?1:-1;
  renderSelectedCodes();
 });
+$("pager").addEventListener("change",event=>{if(!event.target.matches('.pagerJump select'))return;redeemState.page=Number(event.target.value);renderSelectedCodes()});
 async function copyText(text){
  if(navigator.clipboard&&window.isSecureContext){
   try{await navigator.clipboard.writeText(text);return}catch{}
@@ -185,7 +196,7 @@ $("redeemBody").addEventListener("click",async event=>{
  const code=button.dataset.code||"";
  try{await copyText(code);showToast("兌換碼已複製成功")}catch{showToast("複製失敗，請手動選取兌換碼。","error")}
 });
-async function openNotificationSettings(){setSettingsMessage("正在載入設定……");$("notificationPreferenceList").innerHTML='<div class="empty">正在載入設定……</div>';$("notificationSettingsDialog").showModal();try{await loadNotificationPreferences();setSettingsMessage("")}catch(error){setSettingsMessage(error.message,"error")}}
+async function openNotificationSettings(){setSettingsMessage("正在載入設定……");$("notificationPreferenceList").innerHTML='<div class="empty" data-i18n="redeem.loadingSettings">正在載入設定……</div>';window.MiloraI18n?.apply();$("notificationSettingsDialog").showModal();try{await loadNotificationPreferences();setSettingsMessage("")}catch(error){setSettingsMessage(error.message,"error")}}
 document.querySelectorAll(".notificationSettingsBtn").forEach(button=>button.addEventListener("click",openNotificationSettings));
 function closeNotificationSettings(){$("notificationSettingsDialog").close();setSettingsMessage("")}
 $("closeNotificationSettingsBtn").addEventListener("click",closeNotificationSettings);
@@ -193,6 +204,10 @@ $("cancelNotificationSettingsBtn").addEventListener("click",closeNotificationSet
 $("notificationSettingsDialog").addEventListener("click",event=>{if(event.target===$("notificationSettingsDialog"))closeNotificationSettings()});
 $("notificationSettingsForm").addEventListener("submit",async event=>{event.preventDefault();const gameIds=[...$("notificationPreferenceList").querySelectorAll("[data-game-id]:checked")].map(input=>input.dataset.gameId);$("saveNotificationSettingsBtn").disabled=true;setSettingsMessage("正在儲存……");try{await apiJson("/api/redeem-notification-preferences",{method:"PUT",body:JSON.stringify({game_ids:gameIds})});setSettingsMessage("通知設定已儲存。","ok");showToast("兌換碼通知已儲存")}catch(error){setSettingsMessage(error.message,"error")}finally{$("saveNotificationSettingsBtn").disabled=false}});
 window.addEventListener("focus",loadAuthState);window.addEventListener("storage",event=>{if(event.key==="achievement_auth_changed_at")loadAuthState()});
+window.addEventListener('milora:data-changed',()=>{void loadRedeemCodes()});
+function refreshRedeemLanguage(){if(redeemState.loadState==='loaded'){renderGameChooser();renderSelectedCodes()}document.querySelectorAll('#notificationPreferenceList .gameSubscription').forEach(label=>{const input=label.querySelector('input'),span=label.querySelector('span');if(input&&span){span.dataset.gameNameFallback=span.dataset.gameNameFallback||span.textContent;span.textContent=redeemGameName(input.dataset.gameId,span.dataset.gameNameFallback)}});window.MiloraI18n?.apply()}
+window.addEventListener('milora-language-change',refreshRedeemLanguage);
+window.addEventListener('milora:redeem-language-ready',refreshRedeemLanguage);
 loadRedeemCodes();loadAuthState();
 </script>
 </body>

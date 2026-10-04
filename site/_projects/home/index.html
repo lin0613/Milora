@@ -2,10 +2,14 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
+<script defer src="/assets/shared/i18n.js?v=20260930-language-globe"></script>
+<script defer src="/assets/shared/i18n-public-extra.js?v=20261004-milora-brand"></script>
+<script defer src="/assets/shared/i18n-public-ui.js?v=20261004-milora-brand"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <meta name="robots" content="noindex,follow">
-<title>遊戲成就紀錄器</title>
+<title>milora</title>
+<script>if(window.parent!==window)document.documentElement.classList.add("embeddedHub")</script>
 <style>
 :root{--bg:#071019;--text:#edf6fb;--muted:#91a5b5;--line:rgba(143,174,202,.2)}
 *{box-sizing:border-box}
@@ -17,14 +21,16 @@ body{min-height:100vh;min-height:100dvh}
 .intro{position:absolute;z-index:3;left:50%;top:50%;width:min(680px,calc(100% - 64px));transform:translate(-50%,-50%);text-align:center;pointer-events:none}
 .intro h1{margin:0;color:var(--text);font-size:44px;font-weight:900;line-height:1.2;letter-spacing:0;text-shadow:0 3px 18px #071019,0 0 5px #071019}
 .intro p{margin:16px 0 0;color:#b9cad6;font-size:18px;font-weight:700;line-height:1.7;letter-spacing:0;text-shadow:0 2px 14px #071019,0 0 5px #071019}
+.embeddedHub .intro{display:none}
 @media(max-width:760px){.home{min-height:240px}.gameIcon{border-radius:11px}.intro{width:calc(100% - 40px)}.intro h1{font-size:30px}.intro p{margin-top:12px;font-size:14px}}
 </style>
+<script defer src="/assets/shared/live-updates.js?v=20261003-refresh-i18n"></script>
 </head>
 <body>
 <main class="home" aria-labelledby="homeTitle">
  <div class="motionField" id="motionField" aria-hidden="true"></div>
  <section class="intro" id="intro">
-  <h1 id="homeTitle">遊戲成就紀錄器</h1>
+  <h1 id="homeTitle">milora</h1>
   <p>一個自製的成就紀錄器</p>
   <p>目前支援鳴潮、崩壞：星穹鐵道、原神、絕區零與異環的成就查詢、紀錄、統計與攻略</p>
  </section>

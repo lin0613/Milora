@@ -1,15 +1,19 @@
 <!DOCTYPE html>
 <!-- 20260622-genshin-stage-exclusive-v1 -->
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-game-id="genshin">
 <head>
 <meta charset="UTF-8">
+<script defer src="/assets/shared/i18n.js?v=20260930-language-globe"></script>
+<script defer src="/assets/shared/i18n-public-extra.js?v=20261004-milora-brand"></script>
+<script defer src="/assets/shared/i18n-public-ui.js?v=20261001-game-auth-ui"></script>
+<script defer src="/assets/shared/i18n-game-ui.js?v=20261003-hidden-tag"></script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="原神成就紀錄器，可查詢成就條件、分類與版本並記錄完成進度。">
 <meta name="robots" content="noindex,follow">
 <link rel="canonical" href="https://miloratool.tdvr.tw/genshin/">
 <link rel="stylesheet" href="/assets/shared/common.css">
-<script defer src="/assets/shared/runtime.js?v=20260713-responsive-mobile-shell-1220"></script>
-<title>原神成就紀錄器｜遊戲成就紀錄器</title>
+<script defer src="/assets/shared/runtime.js?v=20260928-auth-link-token-handling-1525"></script>
+<title>原神成就紀錄器｜milora</title>
 <style>
 :root{--bg:#080d13;--panel:#111a24;--panel2:#182532;--line:#2b3a4d;--text:#eef5fb;--muted:#95a9bd;--a:#62dbc9;--b:#88aaff;--gold:#ffd477;--danger:#ff7f8b;--ok:#76e4a4}
 *{box-sizing:border-box}html{scroll-behavior:smooth;background:var(--bg)}body{margin:0;background:var(--bg);background-image:none;color:var(--text);font-family:"Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif}
@@ -172,7 +176,7 @@ body.gameNavCollapsed .gameNavItem.active .gameNavText::after{color:#d5fff8}
 @media(max-width:570px){header .wrap{padding-left:62px}.gameNavToggle{top:10px;left:10px}.pageLayout{padding:10px}.gameNavBrand{height:70px}.gameNavScroll{height:calc(100vh - 70px)}}
 
 
-/* 獨立遊戲專案模式：側邊欄由遊戲成就紀錄器管理 */
+/* 獨立遊戲專案模式：側邊欄由milora管理 */
 body.gameProjectPage{padding-left:0!important;background:#071019!important;background-attachment:fixed!important}
 body.gameProjectPage .gameNavToggle,body.gameProjectPage .gameNavBackdrop,body.gameProjectPage .gameSelectorPanel{display:none!important}
 body.gameProjectPage .pageLayout{max-width:1680px;margin:0 auto;padding:16px}
@@ -182,8 +186,10 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
 /* 原神頁面不再維護獨立登入介面；帳號操作統一由帳號設定處理 */
 #authDialog,#resetDialog{display:none!important}
 
-.notificationBadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--danger);color:#fff;font-size:11px;font-weight:900;margin-left:5px}.notificationBadge[hidden]{display:none}.notificationList{display:grid;gap:10px}.notificationCard{padding:13px;border:1px solid var(--line);border-radius:13px;background:#0b121a}.notificationCard.unread{border-color:rgba(98,219,201,.55)}.notificationCard h4{margin:0 0 7px}.notificationCard p{white-space:pre-wrap;line-height:1.6}.notificationMeta{color:var(--muted);font-size:12px}.notificationActions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.notificationLink{color:var(--a);font-weight:900;text-decoration:none}
+.notificationBadge{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--danger);color:#fff;font-size:11px;font-weight:900;margin-left:5px}.notificationBadge[hidden]{display:none}.notificationList{display:grid;gap:10px}.notificationCard{padding:13px;border:1px solid var(--line);border-radius:13px;background:#0b121a}.notificationCard.unread{border-color:rgba(98,219,201,.55)}.notificationCard h4{margin:0 0 7px}.notificationCard p{white-space:pre-wrap;line-height:1.6}.notificationMeta{color:var(--muted);font-size:12px}.notificationActions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.notificationLink{color:var(--a);font-weight:900;text-decoration:none}.homeNotice{padding:15px 17px;border:1px solid var(--line);border-left:4px solid var(--a);border-radius:14px;background:#0b121a;line-height:1.6}.homeNotice.unread{border-color:rgba(98,219,201,.55)}.homeNotice.warning{border-left-color:var(--gold)}.homeNotice.danger{border-left-color:var(--danger)}.homeNotice.success{border-left-color:var(--ok)}.homeNotice.update{border-left-color:#7aa2ff;background:rgba(88,118,255,.08)}.announcementSummary{display:flex;align-items:flex-start;gap:10px}.announcementSummary h3{min-width:0;flex:1;margin:0 0 5px;font-size:15px}.announcementLevelBadge{display:inline-flex;align-items:center;padding:2px 8px;border:1px solid var(--line);border-radius:999px;font-size:11px;font-weight:900;margin-right:7px;vertical-align:middle}.announcementLevelBadge.update{border-color:rgba(122,162,255,.6);color:#b8c9ff}.announcementDetails p{margin:0;white-space:pre-wrap;line-height:1.6}.announcementDetails time{display:block;margin-top:7px;color:var(--muted);font-size:12px}.homeNotice .notificationMeta{margin-top:7px}
+.pager{flex-wrap:wrap}.pageJumpLabel{display:inline-flex;align-items:center;gap:5px;color:var(--muted);white-space:nowrap}.pageJumpLabel select{min-height:36px;max-width:88px;padding:5px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text)}
 </style>
+<script defer src="/assets/shared/live-updates.js?v=20261003-refresh-i18n"></script>
 </head>
 <body class="gameProjectPage">
 <!-- achievement-search-performance-fix-v2 -->
@@ -194,7 +200,7 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
 
 
 <header><div class="wrap top">
- <div><h1>原神成就紀錄器</h1><p>目前更新到7.0版本｜有bug請回報</p></div>
+ <div><h1>原神成就紀錄器</h1><p id="gameCatalogVersion">目前更新到7.1版本｜有bug請回報</p></div>
  <div class="accountActions">
   <button class="secondary" id="notificationBtn" hidden>通知<span class="notificationBadge" id="notificationBadge" hidden>0</span></button>
   <button class="secondary" id="supportBtn" hidden aria-hidden="true" style="display:none!important">問題回報</button>
@@ -283,7 +289,7 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
 <section class="achievementContent" id="achievementListSection">
  <div class="list" id="list"></div>
  <div class="empty" id="empty" hidden>沒有符合目前條件的成就。</div>
- <div class="pager" id="pager" hidden><button class="secondary" id="prevBtn">上一頁</button><span id="pageInfo"></span><button class="secondary" id="nextBtn">下一頁</button></div>
+ <div class="pager" id="pager" hidden><button class="secondary" id="prevBtn">上一頁</button><span id="pageInfo"></span><label class="pageJumpLabel">跳至<select id="pageJump" aria-label="選擇頁碼"></select>頁</label><button class="secondary" id="nextBtn">下一頁</button></div>
 </section>
 <input type="file" id="progressFile" accept=".json" hidden>
 </main>
@@ -312,7 +318,7 @@ body.gameProjectPage header .wrap{padding-left:16px!important}
    <button class="linkBtn" id="registerLink" type="button">註冊</button>
   </div>
   <div class="authMessage" id="authMessage"></div>
-  <div class="accountNote">登入一次即可在鳴潮與原神共用帳號及管理員權限；兩邊的成就進度仍分開保存。</div>
+  <div class="accountNote" data-shared-account-note>登入一次即可在所有遊戲共用帳號及管理員權限；各遊戲的成就進度仍分開保存。</div>
  </div>
 </dialog>
 
@@ -865,13 +871,33 @@ function officialZhTwRow(item){
  if(exactCondition)return exactCondition;
  return uniqueOneEditOfficialName(name);
 }
+function achievementLocalizedField(item,field){
+ if(!item||typeof item!=="object")return "";
+ const language=window.MiloraI18n?.getLanguage()||"zh-Hant";
+ const values=item.localizations||{},selected=values[language]?.[field];
+ if(language!=="zh-Hant"&&typeof selected==="string"&&selected.trim())return selected.trim();
+ if(typeof item[field]==="string"&&item[field].trim())return "";
+ for(const code of [...new Set([language,"zh-Hant","zh-Hans","en"])]){const value=values[code]?.[field];if(typeof value==="string"&&value.trim())return value.trim()}
+ return "";
+}
+function achievementDisplayCategory(item){
+ return achievementLocalizedField(item,"category")||normalizeCollectionName(item.category);
+}
+function categoryDisplayLabel(category){
+ const item=data.find(item=>normalizeCollectionName(item.category)===category&&achievementLocalizedField(item,"category"));
+ return item?achievementDisplayCategory(item):category;
+}
 function achievementDisplayName(item){
+ const localized=achievementLocalizedField(item,"name");
+ if(localized)return stripHiddenAchievementPrefix(localized);
  const raw=clean(typeof item==="object"&&item!==null?item.name:item);
  const visibleName=stripHiddenAchievementPrefix(raw);
  const official=typeof item==="object"&&item!==null?officialZhTwRow(item):null;
  return stripHiddenAchievementPrefix(exactOfficialGameText(official?.zh_hant_name||visibleName||raw));
 }
 function achievementDisplayCondition(item){
+ const localized=achievementLocalizedField(item,"condition");
+ if(localized)return localized;
  const official=typeof item==="object"&&item!==null?officialZhTwRow(item):null;
  return clean(exactOfficialGameText(official?.zh_hant_condition||(typeof item==="object"&&item!==null?item.condition:item)));
 }
@@ -977,7 +1003,7 @@ function renderCategorySelect(){
  el.innerHTML=`<option value="">全部分類</option>`+
   rows.map(row=>{
    const pct=row.total?Math.round(row.done/row.total*100):0;
-   const label=`${row.name}（${row.done}/${row.total}・${pct}%）`;
+   const label=`${categoryDisplayLabel(row.name)}（${row.done}/${row.total}・${pct}%）`;
    return `<option value="${esc(row.name)}">${esc(label)}</option>`;
   }).join("");
  if(rows.some(row=>row.name===cur))el.value=cur;
@@ -999,7 +1025,7 @@ function rebuildAchievementSearchIndex(){
   return {
    item,
    collection,
-   text:[displayName,displayCondition,item.name||"",item.condition||"",collection,item.version||"",item.id||"",(item.tags||[]).join(" ")].join(" ").toLowerCase()
+   text:[displayName,displayCondition,achievementDisplayCategory(item),item.name||"",item.condition||"",collection,item.version||"",item.id||"",(item.tags||[]).join(" ")].join(" ").toLowerCase()
   };
  });
  achievementSearchIndexSource=data;
@@ -1008,6 +1034,10 @@ function ensureAchievementSearchIndex(){
  if(achievementSearchIndexSource!==data)rebuildAchievementSearchIndex();
  return achievementSearchIndex;
 }
+window.addEventListener("milora-language-change",()=>{
+ achievementSearchIndexSource=null;
+ render();
+});
 
 function getFiltered(){
  const version=$("version").value;
@@ -1061,7 +1091,7 @@ function buildAchievementDisplayUnits(rows){
 }
 function renderAchievementCard(x){
  const done=completed.has(x.id);
- const collection=normalizeCollectionName(x.category);
+ const collection=achievementDisplayCategory(x);
  const tags=visibleAchievementTags(x).map(tag=>`<span class="tag customTag">${esc(tag)}</span>`).join("");
  const group=relationGroupOf(x),relationType=relationTypeOf(x);
  const selected=selectedChoiceMember(x);
@@ -1112,13 +1142,14 @@ function render(options={}){if(!options.skipFilterOptions)updateDependentFilters
    await loadPublicCompletionStats(true);
   }catch(err){
    el.checked=!nextValue;
-   alert("進度儲存失敗："+err.message);
+   alert(window.MiloraPublicText.translate("進度儲存失敗："+err.message));
   }finally{
    el.disabled=false;
   }
  });
  $("pager").hidden=displayUnits.length<=pageSize;saveTrackerPageState();
- $("pageInfo").textContent=`第 ${currentPage} / ${pages} 頁，共 ${effectiveAchievementCount(filteredCache)} 項成就`;
+  $("pageInfo").textContent=`第 ${currentPage} / ${pages} 頁，共 ${effectiveAchievementCount(filteredCache)} 項成就`;
+  $("pageJump").innerHTML=Array.from({length:pages},(_,index)=>`<option value="${index+1}">${index+1}</option>`).join("");$("pageJump").value=String(currentPage);
  $("prevBtn").disabled=currentPage<=1;
  $("nextBtn").disabled=currentPage>=pages;
  renderStats({skipCategory:options.skipFilterOptions,searchOnly:options.searchOnly});
@@ -1200,6 +1231,11 @@ function applyServerCustomizations(items){
    hidden:Boolean(override.hidden),tags:(override.tags&&override.tags.length)?override.tags:(old?.tags||[]),source:override.source||old?.source||"override",
    sourceOrder:old?.sourceOrder??(Number(override.achievement_id)||100000+map.size)
   }
+  if(old?.localizations){
+   value.localizations=Object.fromEntries(Object.entries(old.localizations).map(([language,fields])=>[
+    language,{...Object.fromEntries(Object.entries(fields).filter(([field])=>value[field]===old[field])),...(old.manualLocalizations?.[language]||{})}
+   ]));
+  }
   map.set(override.achievement_id,value)
  }
   return managedAchievementDisplayOrder([...map.values()])
@@ -1263,7 +1299,16 @@ async function pollLiveState(initial=false){
  }catch(err){console.warn("即時更新暫時失敗",err)}
  finally{livePollRunning=false}
 }
-function startLiveUpdates(){if(liveTimer)clearInterval(liveTimer);pollLiveState(true);liveTimer=setInterval(()=>{if(!document.hidden)pollLiveState(false)},15000)}
+function startLiveUpdates(){if(liveTimer)clearInterval(liveTimer);liveTimer=null;pollLiveState(true)}
+window.addEventListener('milora:data-changed',async()=>{
+ await pollLiveState(false);
+ if(!currentUser)return;
+ try{
+  const result=await apiJson('/api/progress'),next=new Set(result.completed||[]);
+  if(next.size===completed.size&&[...next].every(id=>completed.has(id)))return;
+  completed=next;normalizeCurrentChoiceProgress(false);refreshIncompleteFilterSnapshot();render({skipFilterOptions:true});
+ }catch(error){console.warn('成就進度即時更新失敗',error)}
+});
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)pollLiveState(false)});
 
 function showResetMessage(message,type=""){
@@ -1287,7 +1332,7 @@ function formatAdminDate(value){
 function renderNotificationBadge(){const unread=userNotifications.filter(item=>!item.is_read).length;$("notificationBadge").hidden=!unread;$("notificationBadge").textContent=unread>99?"99+":String(unread)}
 function isSafeNotificationLink(value){return typeof value==="string"&&/^(?:#[^\u0000-\u001F\u007F-\u009F\\]*|\/(?!\/)[^\u0000-\u001F\u007F-\u009F\\]*)$/.test(value)}
 async function loadUserNotifications(silent=false){if(!currentUser){userNotifications=[];renderNotificationBadge();return}try{const result=await apiJson("/api/message-center?item_type=notification");userNotifications=result.items||[];renderNotificationBadge();if($("notificationDialog").open)renderUserNotifications()}catch(err){if(!silent)alert(err.message)}}
-function renderUserNotifications(){$("userNotificationList").innerHTML=userNotifications.length?userNotifications.map(item=>`<article class="notificationCard ${item.is_read?'':'unread'}"><h4>${esc(item.title)} ${item.is_read?'':'<span class="statusBadge pending">未讀</span>'}</h4><p>${esc(item.body)}</p><div class="notificationMeta">${esc(formatAdminDate(item.created_at))}｜${esc(item.kind||'info')}</div><div class="listItemActions">${isSafeNotificationLink(item.link)?`<a class="notificationLink" href="${esc(item.link)}">前往</a>`:''}${item.is_read?'':`<button class="secondary readNotificationBtn" data-id="${esc(item.id)}">標為已讀</button>`}</div></article>`).join(""):'<div class="adminEmpty">目前沒有通知。</div>'}
+function renderUserNotifications(){$("userNotificationList").innerHTML=userNotifications.length?userNotifications.map(item=>{const kind=["info","success","warning","danger","update"].includes(item.kind)?item.kind:"info";return `<article class="homeNotice notificationCard ${kind} ${item.is_read?'':'unread'}"><div class="announcementSummary"><h3><span class="announcementLevelBadge ${kind}">通知</span>${esc(item.title)} ${item.is_read?'':'<span class="statusBadge pending">未讀</span>'}</h3></div><div class="announcementDetails"><p>${esc(item.body)}</p><time>${esc(formatAdminDate(item.created_at))}</time><div class="notificationMeta">${esc(item.kind||'info')}</div><div class="listItemActions">${isSafeNotificationLink(item.link)?`<a class="notificationLink" href="${esc(item.link)}">前往</a>`:''}${item.is_read?'':`<button class="secondary readNotificationBtn" data-id="${esc(item.id)}">標為已讀</button>`}</div></div></article>`}).join(""):'<div class="adminEmpty">目前沒有通知。</div>'}
 $("notificationBtn").onclick=async()=>{await loadUserNotifications();renderUserNotifications();$("notificationDialog").showModal()};$("closeNotificationBtn").onclick=()=>$("notificationDialog").close();$("markAllNotificationsBtn").onclick=async()=>{await apiJson("/api/message-center/read-all?item_type=notification",{method:"POST",body:"{}"});await loadUserNotifications()};$("userNotificationList").onclick=async e=>{const read=e.target.closest(".readNotificationBtn"),id=read?.dataset.id;if(!id)return;await apiJson(`/api/message-center/${encodeURIComponent(id)}/read`,{method:"POST",body:"{}"});await loadUserNotifications()};
 
 // ----- 使用者通知、客服與成就回報 -----
@@ -1299,9 +1344,9 @@ $("achievementReportForm").onsubmit=async e=>{e.preventDefault();const button=e.
 $("supportBtn").onclick=async()=>{await loadMySupport();$("supportDialog").showModal()};$("closeSupportBtn").onclick=()=>$("supportDialog").close();
 async function loadMySupport(){if(!currentUser)return;try{const result=await apiJson("/api/support/tickets");const rows=result.tickets||[];$("mySupportList").innerHTML=rows.length?rows.map(renderTicketForUser).join(""):'<div class="adminEmpty">尚未建立客服單。</div>'}catch(err){$("mySupportList").innerHTML=`<div class="error">${esc(err.message)}</div>`}}
 function renderTicketMessages(messages){return `<div class="ticketThread">${(messages||[]).map(m=>`<div class="ticketMessage ${m.sender_role==="admin"?"adminReply":""}"><div class="sender">${esc(m.sender_role==="admin"?"管理員":(m.sender_email||"使用者"))}｜${esc(formatAdminDate(m.created_at))}</div><p>${esc(m.message)}</p></div>`).join("")}</div>`}
-function renderTicketForUser(t){return `<article class="listItem" data-ticket-id="${esc(t.id)}"><h4>${esc(t.subject)} <span class="statusBadge ${t.status==="resolved"||t.status==="closed"?"ok":"pending"}">${esc(t.status)}</span></h4>${renderTicketMessages(t.messages)}<div class="listItemActions"><input class="ticketUserReplyText" placeholder="補充說明"><button class="secondary ticketUserReply">送出回覆</button><button class="dangerBtn ticketUserDelete">刪除客服單</button></div></article>`}
+function renderTicketForUser(t){return `<article class="listItem" data-ticket-id="${esc(t.id)}"><h4>${esc(t.subject)} <span class="statusBadge ${t.status==="resolved"||t.status==="closed"?"ok":"pending"}">${esc(t.status)}</span></h4>${renderTicketMessages(t.messages)}<div class="listItemActions"><textarea class="compactText ticketUserReplyText" rows="3" maxlength="5000" placeholder="補充說明"></textarea><button class="secondary ticketUserReply">送出回覆</button><button class="dangerBtn ticketUserDelete">刪除客服單</button></div></article>`}
 $("supportCreateForm").onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;try{await apiJson("/api/support/tickets",{method:"POST",body:JSON.stringify({subject:$("supportSubject").value,message:$("supportMessage").value})});e.target.reset();await loadMySupport()}catch(err){alert(err.message)}finally{b.disabled=false}};
-$("mySupportList").onclick=async e=>{const reply=e.target.closest(".ticketUserReply"),del=e.target.closest(".ticketUserDelete");if(!reply&&!del)return;const card=(reply||del).closest("[data-ticket-id]"),id=card.dataset.ticketId;if(del){if(!confirm("確定永久刪除此客服單及全部對話嗎？"))return;await apiJson(`/api/support/tickets/${encodeURIComponent(id)}`,{method:"DELETE",body:"{}"})}else{const input=card.querySelector(".ticketUserReplyText");if(!input.value.trim())return;await apiJson(`/api/support/tickets/${encodeURIComponent(id)}/reply`,{method:"POST",body:JSON.stringify({message:input.value})})}await loadMySupport()};
+$("mySupportList").onclick=async e=>{const reply=e.target.closest(".ticketUserReply"),del=e.target.closest(".ticketUserDelete");if(!reply&&!del)return;const card=(reply||del).closest("[data-ticket-id]"),id=card.dataset.ticketId;if(del){if(!confirm(window.MiloraPublicText.translate("確定永久刪除此客服單及全部對話嗎？")))return;await apiJson(`/api/support/tickets/${encodeURIComponent(id)}`,{method:"DELETE",body:"{}"})}else{const input=card.querySelector(".ticketUserReplyText");if(!input.value.trim())return;await apiJson(`/api/support/tickets/${encodeURIComponent(id)}/reply`,{method:"POST",body:JSON.stringify({message:input.value})})}await loadMySupport()};
 
 // ----- 管理員：成就編輯與資料檢查 -----
 function setAuthMode(mode){
@@ -1632,6 +1677,7 @@ achievementSearchInput.addEventListener("input",event=>{
  scheduleAchievementSearchRender();
 });
 $("prevBtn").onclick=()=>{currentPage--;render();scrollTo({top:0,behavior:"smooth"})};$("nextBtn").onclick=()=>{currentPage++;render();scrollTo({top:0,behavior:"smooth"})};
+$("pageJump").onchange=()=>{currentPage=Number($("pageJump").value);render();scrollTo({top:0,behavior:"smooth"})};
 function bulkFilteredMarkPlan(rows){
  const ids=[];
  const proposed=new Set(completed);
@@ -1667,20 +1713,20 @@ function bulkFilteredMarkPlan(rows){
 async function applyFilteredProgress(completedValue){
  const rows=[...filteredCache];
  if(!rows.length)return;
- const owner=currentUser?`帳號「${currentUser.email}」`:"訪客";
+ const owner=currentUser?window.MiloraPublicText.t("accountOwner",{email:currentUser.email}):window.MiloraPublicText.t("guestOwner");
  if(completedValue){
   const plan=bulkFilteredMarkPlan(rows);
   if(!plan.ids.length){
-   alert("目前篩選結果沒有可直接標註的成就；未解鎖階段與尚未選擇的多項互斥組不會自動勾選。");
+   alert(window.MiloraPublicText.translate("目前篩選結果沒有可直接標註的成就；未解鎖階段與尚未選擇的多項互斥組不會自動勾選。"));
    return;
   }
   const notes=[];
-  if(plan.skippedLockedStages)notes.push(`${plan.skippedLockedStages} 項未解鎖階段將略過`);
-  if(plan.skippedExclusiveGroups)notes.push(`${plan.skippedExclusiveGroups} 組含多個選項的互斥成就將略過`);
+  if(plan.skippedLockedStages)notes.push(window.MiloraPublicText.t("skipStages",{count:plan.skippedLockedStages}));
+  if(plan.skippedExclusiveGroups)notes.push(window.MiloraPublicText.t("skipGroups",{count:plan.skippedExclusiveGroups}));
   const note=notes.length?`
 
 ${notes.join("；")}。`:"";
-  if(!confirm(`確定將${owner}目前篩選結果中的 ${effectiveAchievementCount(rows.filter(item=>plan.ids.includes(String(item.id))))} 項成就標註為已完成嗎？${note}`))return;
+  if(!confirm(window.MiloraPublicText.t("markConfirm",{owner,count:effectiveAchievementCount(rows.filter(item=>plan.ids.includes(String(item.id)))),note})))return;
   try{
    if(currentUser){
     await setManyProgress(plan.ids,true);
@@ -1689,17 +1735,15 @@ ${notes.join("；")}。`:"";
     saveGuestProgress();
    }
    await loadPublicCompletionStats(true);
-  }catch(err){alert("批次標註失敗："+err.message)}
+  }catch(err){alert(window.MiloraPublicText.translate("批次標註失敗："+err.message))}
   return;
  }
  const ids=[...new Set(rows.map(item=>String(item.id)).filter(id=>completed.has(id)))];
  if(!ids.length){
-  alert("目前篩選結果沒有已完成的成就。");
+  alert(window.MiloraPublicText.translate("目前篩選結果沒有已完成的成就。"));
   return;
  }
- if(!confirm(`確定清除${owner}目前篩選結果中的 ${effectiveAchievementCount(rows.filter(item=>ids.includes(String(item.id))))} 項完成紀錄嗎？
-
-若包含階段成就，後續階段會依規則一併取消。`))return;
+ if(!confirm(window.MiloraPublicText.t("clearConfirm",{owner,count:effectiveAchievementCount(rows.filter(item=>ids.includes(String(item.id))))})))return;
  try{
   if(currentUser){
    await setManyProgress(ids,false);
@@ -1708,7 +1752,7 @@ ${notes.join("；")}。`:"";
    saveGuestProgress();
   }
   await loadPublicCompletionStats(true);
- }catch(err){alert("批次清除失敗："+err.message)}
+ }catch(err){alert(window.MiloraPublicText.translate("批次清除失敗："+err.message))}
 }
 $("markFilteredBtn").onclick=()=>applyFilteredProgress(true);
 $("resetBtn").onclick=()=>applyFilteredProgress(false);
@@ -1728,15 +1772,15 @@ $("progressFile").onchange=async e=>{
   const ids=[...new Set(Array.isArray(obj)?obj:(obj.completed||[]))];
   if(currentUser){
    await replaceProgress(ids);
-   alert(`進度已匯入帳號「${currentUser.email}」。`);
+   alert(window.MiloraPublicText.t("accountImported",{email:currentUser.email}));
   }else{
    completed=new Set(normalizeChoiceProgressIds(ids));
    saveGuestProgress();
-   alert("進度已匯入訪客紀錄；互斥與階段成就已依規則整理後匯入。");
+   alert(window.MiloraPublicText.translate("進度已匯入訪客紀錄；互斥與階段成就已依規則整理後匯入。"));
   }
   render();
  }catch(err){
-  alert("進度匯入失敗："+err.message);
+  alert(window.MiloraPublicText.translate("進度匯入失敗："+err.message));
  }
  e.target.value="";
 };

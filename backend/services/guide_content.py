@@ -12,11 +12,14 @@ GUIDE_IMAGE_PATH_PATTERN = re.compile(r"^/api/guide-media/[0-9a-fA-F-]{36}$")
 HEX_COLOR_PATTERN = re.compile(r"^#[0-9a-fA-F]{6}$")
 YOUTUBE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{6,20}$")
 BILIBILI_ID_PATTERN = re.compile(r"^BV[A-Za-z0-9]{8,20}$", re.IGNORECASE)
-ALLOWED_FONT_SIZES = {"12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px"}
-ALLOWED_ALIGNMENTS = {"left", "center", "right"}
+ALLOWED_FONT_SIZES = {f"{size}px" for size in (12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 26, 28, 32, 36, 40)}
+ALLOWED_ALIGNMENTS = {"left", "center", "right", "justify"}
+ALLOWED_LINE_HEIGHTS = {"1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "2", "2.2"}
+ALLOWED_FONT_FAMILIES = {"微軟正黑體", "微軟正黑體 UI", "思源黑體", "思源宋體", "蘋方繁", "新細明體", "細明體", "標楷體", "Microsoft JhengHei", "Microsoft JhengHei UI", "Noto Sans TC", "Noto Serif TC", "PingFang TC", "PMingLiU", "MingLiU", "DFKai-SB", "Arial", "Georgia", "Times New Roman", "Tahoma", "Verdana", "Consolas", "Courier New"}
 ALLOWED_TAGS = {
-    "p", "br", "h2", "h3", "strong", "b", "em", "i", "u", "s", "strike", "del", "span",
+    "p", "br", "h1", "h2", "h3", "h4", "h5", "h6", "strong", "b", "em", "i", "u", "s", "strike", "del", "span",
     "ul", "ol", "li", "a", "blockquote", "figure", "figcaption", "img", "hr",
+    "table", "thead", "tbody", "tr", "th", "td", "pre", "code",
 }
 VOID_TAGS = {"br", "img", "hr"}
 
@@ -57,6 +60,10 @@ def normalize_video_url(value: str) -> str:
         parts = [part for part in path.split("/") if part]
         if len(parts) >= 2 and parts[0].lower() == "video" and BILIBILI_ID_PATTERN.fullmatch(parts[1]):
             return f"https://www.bilibili.com/video/{parts[1]}"
+    if host == "player.bilibili.com" and path == "player.html":
+        video_id = (parse_qs(parsed.query).get("bvid") or [""])[0]
+        if BILIBILI_ID_PATTERN.fullmatch(video_id):
+            return f"https://www.bilibili.com/video/{video_id}"
     return ""
 
 
@@ -84,10 +91,18 @@ def _sanitize_style(tag: str, value: str) -> str:
         normalized = raw.strip().lower()
         if name == "color" and tag == "span" and HEX_COLOR_PATTERN.fullmatch(normalized):
             accepted.append(f"color:{normalized}")
-        elif name == "font-size" and tag == "span" and normalized in ALLOWED_FONT_SIZES:
+        elif name == "background-color" and tag in {"span", "th", "td"} and HEX_COLOR_PATTERN.fullmatch(normalized):
+            accepted.append(f"background-color:{normalized}")
+        elif name == "font-family" and tag == "span" and raw.strip().strip("'\"") in ALLOWED_FONT_FAMILIES:
+            accepted.append(f"font-family:{raw.strip().strip(chr(39) + chr(34))}")
+        elif name == "font-size" and tag in {"span", "p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "li"} and normalized in ALLOWED_FONT_SIZES:
             accepted.append(f"font-size:{normalized}")
-        elif name == "text-align" and tag in {"p", "h2", "h3", "blockquote"} and normalized in ALLOWED_ALIGNMENTS:
+        elif name == "line-height" and tag in {"p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "li"} and normalized in ALLOWED_LINE_HEIGHTS:
+            accepted.append(f"line-height:{normalized}")
+        elif name == "text-align" and tag in {"p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "th", "td"} and normalized in ALLOWED_ALIGNMENTS:
             accepted.append(f"text-align:{normalized}")
+        elif name == "margin-left" and tag in {"p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "li"} and re.fullmatch(r"(?:[1-9]|[1-9][0-9]|100)px", normalized):
+            accepted.append(f"margin-left:{normalized}")
     return ";".join(accepted)
 
 
@@ -106,8 +121,8 @@ class GuideHTMLSanitizer(HTMLParser):
         style = _sanitize_style(tag, raw_attrs.get("style", ""))
         if style:
             safe_attrs.append(("style", style))
-        if tag == "span" and raw_attrs.get("class") == "guideSpoiler":
-            safe_attrs.extend((("class", "guideSpoiler"), ("data-spoiler", "1"), ("tabindex", "0"), ("role", "button")))
+        if tag == "span" and raw_attrs.get("class") in {"spoiler", "guideSpoiler"}:
+            safe_attrs.extend((("class", "spoiler"), ("data-spoiler", "1"), ("tabindex", "0"), ("role", "button")))
         elif tag == "a":
             href = normalize_external_link(raw_attrs.get("href", ""))
             if href:
@@ -126,6 +141,11 @@ class GuideHTMLSanitizer(HTMLParser):
                 if not video_url:
                     return
                 safe_attrs.extend((("class", "guideVideo"), ("data-guide-video-url", video_url)))
+        elif tag in {"th", "td"}:
+            for name in ("colspan", "rowspan"):
+                raw_number = raw_attrs.get(name, "")
+                if raw_number.isascii() and raw_number.isdecimal() and 1 <= int(raw_number) <= 20:
+                    safe_attrs.append((name, raw_number))
         rendered = "".join(f' {name}="{html.escape(value, quote=True)}"' for name, value in safe_attrs)
         self.output.append(f"<{tag}{rendered}>")
         if tag not in VOID_TAGS:

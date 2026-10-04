@@ -75,6 +75,23 @@ def normalize_catalog_rows(
                 ),
             }
         )
+        if game_id in {'hsr', 'zzz', 'wuwa', 'nte'} and isinstance(item.get('sourceDetails'), dict):
+            details = item['sourceDetails']
+            rows[-1]['source_record'] = {
+                'official_source_id': str(item.get('officialId') or achievement_id),
+                'category_id': str(item.get('categoryId') or ''),
+                'group_id': str(item.get('groupId') or ''),
+                'group_name': str(item.get('groupName') or ''),
+                'progress_value': int(item.get('progress') or 0),
+                'level': int(item.get('level') or 0),
+                'next_link': str(item.get('nextLink') or ''),
+                'reward_id': str(item.get('rewardId') or ''),
+                'primary_source_id': str(details.get('primary') or ''),
+                'secondary_source_id': str(details.get('secondary') or ''),
+                'source_ref': str(details.get('ref') or ''),
+                'raw_json': json.dumps(details.get('raw') or {}, ensure_ascii=False),
+                'provenance_json': json.dumps(details.get('provenance') or {}, ensure_ascii=False),
+            }
     if rows_transform:
         rows = rows_transform(rows)
     if len(rows) < max(1, int(minimum_count)):
@@ -95,6 +112,10 @@ def replace_catalog_rows(
     preserve_sources: tuple[str, ...] = ("manual", "admin"),
 ) -> tuple[int, int]:
     values = list(rows)
+    # Verified source metadata must survive core replacement's FK cascade.
+    existing_sources = {str(row['achievement_id']): dict(row) for row in db.execute(
+        'select * from game_catalog_source_records where game_id=?', (game_id,)
+    )} if game_id in {'hsr', 'zzz', 'wuwa', 'nte'} else {}
     placeholders = ",".join("?" for _ in preserve_sources)
     db.execute(
         f"delete from game_catalog_items where game_id=? and lower(source) not in ({placeholders})",
@@ -123,4 +144,20 @@ def replace_catalog_rows(
             for row in values
         ],
     )
+    if game_id in {'hsr', 'zzz', 'wuwa', 'nte'}:
+        fields = ('official_source_id', 'category_id', 'group_id', 'group_name',
+                  'progress_value', 'level', 'next_link', 'reward_id', 'primary_source_id',
+                  'secondary_source_id', 'source_ref', 'raw_json', 'provenance_json')
+        records = []
+        for row in values:
+            record = row.get('source_record') or existing_sources.get(str(row['achievement_id']))
+            if record is not None:
+                records.append((game_id, row['achievement_id'], *(record.get(field,
+                    0 if field in {'progress_value', 'level'} else '{}' if field in {'raw_json', 'provenance_json'} else '')
+                    for field in fields), updated_at))
+        db.executemany('''insert into game_catalog_source_records(
+            game_id,achievement_id,official_source_id,category_id,group_id,group_name,
+            progress_value,level,next_link,reward_id,primary_source_id,secondary_source_id,
+            source_ref,raw_json,provenance_json,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            on conflict(game_id,achievement_id) do nothing''', records)
     return len(values), len({str(row["achievement_id"]) for row in values})

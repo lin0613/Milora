@@ -125,6 +125,7 @@ def scan_governance(
     registered_fields: set[str] | None = None,
     identity_rows: list[dict[str, Any]] | None = None,
     source_id_rows: list[dict[str, Any]] | None = None,
+    manual_achievement_ids: set[str] | None = None,
 ) -> dict[str, Any]:
     issues: list[dict[str, Any]] = []
     registered_fields = {text(value) for value in (registered_fields or set()) if text(value)}
@@ -139,6 +140,16 @@ def scan_governance(
         relation_counts[text(row.get("achievement_id"))] += 1
     identity_rows = identity_rows or []
     source_id_rows = source_id_rows or []
+    manual_achievement_ids = {text(value) for value in (manual_achievement_ids or set()) if text(value)}
+
+    def manual_pairs(ids: list[str]) -> list[tuple[str, str]]:
+        unique = list(dict.fromkeys(ids))
+        return [
+            (left, right)
+            for index, left in enumerate(unique)
+            for right in unique[index + 1:]
+            if left in manual_achievement_ids or right in manual_achievement_ids
+        ]
 
     # Basic field and type validation.
     id_rows: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -246,21 +257,18 @@ def scan_governance(
         if len(rows) > 1:
             issues.append(make_issue(game_id, "duplicate_id", "error", "blocked", "成就 ID 重複", f"ID {achievement_id} 出現 {len(rows)} 次。", [achievement_id], {"occurrences": len(rows)}, ["merge_fields", "keep_selected", "manual_edit"], progress_counts[achievement_id], relation_counts[achievement_id]))
     for key, ids in exact_rows.items():
-        unique = list(dict.fromkeys(ids))
-        if len(unique) > 1:
-            issues.append(make_issue(game_id, "exact_duplicate", "warning", "needs_review", "名稱與條件完全重複", "多個不同 ID 的名稱與條件完全相同。", unique, {"normalized_name": key[0], "normalized_condition": key[1]}, ["merge_fields", "create_alias", "mark_legal_exception"], sum(progress_counts[x] for x in unique), sum(relation_counts[x] for x in unique)))
+        for pair in manual_pairs(ids):
+            issues.append(make_issue(game_id, "exact_duplicate", "warning", "needs_review", "名稱與條件完全重複", "兩個不同 ID 的名稱與條件完全相同。", list(pair), {"normalized_name": key[0], "normalized_condition": key[1]}, ["merge_fields", "create_alias", "mark_legal_exception"], sum(progress_counts[x] for x in pair), sum(relation_counts[x] for x in pair)))
     for key, ids in name_rows.items():
-        unique = list(dict.fromkeys(ids))
-        if len(unique) > 1:
-            conditions = {normalized(next((row.get("condition") for row in catalog_items if _item_id(row) == aid), "")) for aid in unique}
+        for pair in manual_pairs(ids):
+            conditions = {normalized(next((row.get("condition") for row in catalog_items if _item_id(row) == aid), "")) for aid in pair}
             if len(conditions) > 1:
-                issues.append(make_issue(game_id, "same_name_different_condition", "info", "needs_review", "同名但條件不同", "可能為階段型、互斥型或官方刻意重名成就。", unique, {"normalized_name": key}, ["create_stage_group", "create_exclusive_group", "mark_legal_exception", "merge_fields"], sum(progress_counts[x] for x in unique), sum(relation_counts[x] for x in unique)))
+                issues.append(make_issue(game_id, "same_name_different_condition", "info", "needs_review", "同名但條件不同", "手動新增成就與另一項成就同名但條件不同。", list(pair), {"normalized_name": key}, ["create_stage_group", "create_exclusive_group", "mark_legal_exception", "merge_fields"], sum(progress_counts[x] for x in pair), sum(relation_counts[x] for x in pair)))
     for key, ids in condition_rows.items():
-        unique = list(dict.fromkeys(ids))
-        if len(unique) > 1:
-            names = {normalized(next((row.get("name") for row in catalog_items if _item_id(row) == aid), "")) for aid in unique}
+        for pair in manual_pairs(ids):
+            names = {normalized(next((row.get("name") for row in catalog_items if _item_id(row) == aid), "")) for aid in pair}
             if len(names) > 1:
-                issues.append(make_issue(game_id, "same_condition_different_name", "info", "needs_review", "條件相同但名稱不同", "可能是改名、翻譯差異或重複資料。", unique, {"normalized_condition": key}, ["merge_fields", "create_alias", "mark_legal_exception"], sum(progress_counts[x] for x in unique), sum(relation_counts[x] for x in unique)))
+                issues.append(make_issue(game_id, "same_condition_different_name", "info", "needs_review", "條件相同但名稱不同", "手動新增成就與另一項成就條件相同但名稱不同。", list(pair), {"normalized_condition": key}, ["merge_fields", "create_alias", "mark_legal_exception"], sum(progress_counts[x] for x in pair), sum(relation_counts[x] for x in pair)))
     for order, ids in order_rows.items():
         unique = [x for x in ids if x]
         if len(unique) > 1:
@@ -281,7 +289,7 @@ def scan_governance(
             continue
         for i, (left_id, left_name) in enumerate(rows):
             for right_id, right_name in rows[i + 1:]:
-                if left_name == right_name:
+                if left_name == right_name or (left_id not in manual_achievement_ids and right_id not in manual_achievement_ids):
                     continue
                 ratio = SequenceMatcher(None, left_name, right_name).ratio()
                 if ratio >= similarity_threshold:

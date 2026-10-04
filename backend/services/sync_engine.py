@@ -8,9 +8,19 @@ from dataclasses import dataclass
 from typing import Any, Iterable
 
 from backend.services.catalog_sorting import sort_catalog_rows, sync_change_sort_key
+from backend.services.catalog_localization import public_localizations
+from backend.services.zzz_rewards import reward_rows
 
 SYNC_FIELDS = ("name", "condition", "version", "category", "reward", "hidden", "tags_json", "source_order")
 PROTECTED_FIELDS = {"version", "category", "hidden", "source_order"}
+
+
+def filter_change_type(rows: list[dict[str, Any]], change_type: str) -> list[dict[str, Any]]:
+    if change_type == "translation":
+        return [row for row in rows if row.get("translation_only")]
+    if change_type == "modified":
+        return [row for row in rows if row.get("type") == "modified" and not row.get("translation_only")]
+    return [row for row in rows if row.get("type") == change_type] if change_type else rows
 
 
 def normalize_space(value: Any) -> str:
@@ -47,8 +57,16 @@ def comparison_text(value: Any) -> str:
 
 
 def row_fingerprint(rows: Iterable[dict[str, Any]]) -> str:
+    def complete_reward_fields(row: dict[str, Any]) -> dict[str, Any]:
+        try:
+            raw = json.loads(row.get("raw_json") or "{}")
+            if raw.get("_tracker_reward_game") == "zzz":
+                return {"rewards": reward_rows(raw)}
+        except (ValueError, TypeError, AttributeError):
+            pass
+        return {}
     value = [
-        {"achievement_id": row.get("achievement_id"), **{field: row.get(field) for field in SYNC_FIELDS}}
+        {"achievement_id": row.get("achievement_id"), **{field: row.get(field) for field in SYNC_FIELDS}, **complete_reward_fields(row)}
         for row in sorted(rows, key=lambda item: str(item.get("achievement_id") or ""))
     ]
     raw = json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
@@ -75,6 +93,8 @@ def normalize_row(row: dict[str, Any]) -> dict[str, Any]:
         "tags_json": tags,
         "source": normalize_space(row.get("source")) or "official",
         "source_order": int(row.get("source_order") if row.get("source_order") is not None else row.get("sourceOrder") or 0),
+        "localizations": row.get("localizations") if isinstance(row.get("localizations"), dict) else public_localizations(row.get("raw_json"), row),
+        "rewards": reward_rows({"_tracker_rewards": row["rewards"]}) if isinstance(row.get("rewards"), list) else reward_rows(row.get("raw_json")),
     }
 
 
@@ -135,6 +155,7 @@ def build_diff(
     summary = {
         "added": 0,
         "modified": 0,
+        "translation_updates": 0,
         "removed": 0,
         "suspected_removed": 0,
         "unchanged": 0,
@@ -157,6 +178,8 @@ def build_diff(
         if old is None and new is not None:
             kind = "added"
             fields = [{"field": field, "before": None, "after": new.get(field), "protected": False, "default_selected": True} for field in SYNC_FIELDS]
+            if game_id == "zzz":
+                fields.append({"field":"rewards","before":None,"after":new.get("rewards",[]),"protected":False,"default_selected":True})
         elif old is not None and new is None:
             kind = "removed"
             risk = "needs_review"
@@ -164,6 +187,10 @@ def build_diff(
             default_selected = False
         elif old is not None and new is not None:
             fields = _field_differences(old, new)
+            if game_id == "zzz" and old.get("rewards") != new.get("rewards"):
+                fields.append({"field": "rewards", "before": old.get("rewards", []), "after": new.get("rewards", []), "protected": False, "default_selected": True})
+            if game_id in {"genshin", "hsr", "zzz", "wuwa", "nte"} and new.get("localizations") and old.get("localizations") != new.get("localizations"):
+                fields.append({"field": "localizations", "before": old.get("localizations", {}), "after": new["localizations"], "protected": False, "default_selected": True})
             if fields:
                 kind = "modified"
             else:
@@ -240,6 +267,7 @@ def build_diff(
             "status": risk,
             "default_selected": default_selected,
             "fields": fields,
+            "translation_only": kind == "modified" and bool(fields) and all(field.get("field") == "localizations" for field in fields),
             "reasons": reasons,
             "current": old,
             "candidate": new,
@@ -263,7 +291,7 @@ def build_diff(
             "source": (new or old or {}).get("source", ""),
         }
         changes.append(item)
-        summary[kind] += 1
+        summary["translation_updates" if item["translation_only"] else kind] += 1
         if kind == "removed":
             summary["suspected_removed"] += 1
         summary[risk] += 1
@@ -271,7 +299,7 @@ def build_diff(
             summary["safe_default"] += 1
 
     changes.sort(key=lambda row: sync_change_sort_key(game_id, row))
-    summary["total_changes"] = summary["added"] + summary["modified"] + summary["removed"]
+    summary["total_changes"] = summary["added"] + summary["modified"] + summary["removed"] + summary["translation_updates"]
     return {
         "current_count": len(current),
         "candidate_count": len(candidate),
@@ -299,7 +327,7 @@ def default_selection_decisions(changes: Iterable[dict[str, Any]]) -> list[dict[
         fields = [
             str(field.get("field") or "")
             for field in (change.get("fields") or [])
-            if field.get("default_selected") and str(field.get("field") or "") in SYNC_FIELDS
+            if field.get("default_selected") and str(field.get("field") or "") in (*SYNC_FIELDS, "rewards")
         ]
         fields = [field for field in fields if field]
         # A candidate decision without fields would be a false-positive success.
@@ -325,12 +353,16 @@ def apply_decisions(
     game_id: str = "",
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     decisions = decisions or {}
+    allowed_fields = (*SYNC_FIELDS, "localizations") if game_id in {"genshin", "hsr", "zzz", "wuwa", "nte"} else SYNC_FIELDS
+    if game_id == "zzz":
+        allowed_fields = (*allowed_fields, "rewards")
     current = {normalize_row(row)["achievement_id"]: normalize_row(row) for row in current_rows if normalize_row(row)["achievement_id"]}
     candidate = {normalize_row(row)["achievement_id"]: normalize_row(row) for row in candidate_rows if normalize_row(row)["achievement_id"]}
     by_id = {str(row.get("change_id") or ""): row for row in changes}
     final = dict(current)
     summary: dict[str, Any] = {
         "added": 0, "modified": 0, "removed": 0, "selected": 0, "field_updates": 0,
+        "translation_updates": 0,
         "recorded_no_action": 0, "pending_review": 0, "legal_difference": 0,
         "admin_overrides": 0, "unchanged_selected": 0, "field_update_counts": {},
         "applied_changes": [], "recorded_decisions": [],
@@ -376,10 +408,11 @@ def apply_decisions(
         if kind == "added":
             final[achievement_id] = new
             summary["added"] += 1
-            summary["field_updates"] += len(SYNC_FIELDS)
-            for field in SYNC_FIELDS:
+            added_fields = list(SYNC_FIELDS) + (["rewards"] if game_id == "zzz" else [])
+            summary["field_updates"] += len(added_fields)
+            for field in added_fields:
                 summary["field_update_counts"][field] = int(summary["field_update_counts"].get(field, 0)) + 1
-            summary["applied_changes"].append({"change_id": change_id, "achievement_id": achievement_id, "action": action, "fields": list(SYNC_FIELDS)})
+            summary["applied_changes"].append({"change_id": change_id, "achievement_id": achievement_id, "action": action, "fields": added_fields})
             continue
         old = dict(final.get(achievement_id) or new)
         fields = decision.get("fields")
@@ -387,10 +420,10 @@ def apply_decisions(
             fields = [row["field"] for row in change.get("fields") or []]
         elif action == "fill_blank":
             requested = fields if isinstance(fields, list) and fields else [row["field"] for row in change.get("fields") or []]
-            fields = [field for field in requested if field in SYNC_FIELDS and old.get(field) in (None, "", 0, "未標示", "未辨識分類", "[]")]
+            fields = [field for field in requested if field in allowed_fields and old.get(field) in (None, "", 0, "未標示", "未辨識分類", "[]", {})]
         elif not isinstance(fields, list):
             fields = [row["field"] for row in change.get("fields") or [] if row.get("default_selected")]
-        fields = [str(field) for field in fields if field in SYNC_FIELDS]
+        fields = [str(field) for field in fields if field in allowed_fields]
         if action in {"candidate", "admin_override"} and not fields:
             raise ValueError(f"成就 {achievement_id} 未選擇任何可套用欄位。")
         actually_changed: list[str] = []
@@ -404,7 +437,7 @@ def apply_decisions(
         if actually_changed:
             old["source"] = new.get("source") or old.get("source") or "official"
             final[achievement_id] = old
-            summary["modified"] += 1
+            summary["translation_updates" if actually_changed == ["localizations"] else "modified"] += 1
             if action == "admin_override":
                 summary["admin_overrides"] += 1
             summary["applied_changes"].append({"change_id": change_id, "achievement_id": achievement_id, "action": action, "fields": actually_changed})
@@ -416,5 +449,5 @@ def apply_decisions(
         })
 
     rows = sort_catalog_rows(game_id, final.values())
-    summary["total_changes"] = summary["added"] + summary["modified"] + summary["removed"]
+    summary["total_changes"] = summary["added"] + summary["modified"] + summary["removed"] + summary["translation_updates"]
     return rows, summary

@@ -1,6 +1,9 @@
 {
   "schemaVersion": 5,
   "defaultGame": "wuwa",
+  "sharedUi": {
+    "accountNote": "登入一次即可在所有遊戲共用帳號及管理員權限；各遊戲的成就進度仍分開保存。"
+  },
   "projects": [
     {
       "id": "wuwa",
