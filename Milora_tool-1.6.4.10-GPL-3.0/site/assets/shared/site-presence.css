@@ -1,0 +1,16 @@
+.sitePresence{display:grid;grid-template-columns:5px minmax(0,1fr) auto;align-items:center;gap:6px;min-width:0;min-height:28px;padding:4px 10px;border:1px solid rgba(143,174,202,.08);border-radius:7px;background:rgba(98,219,201,.015);font-size:11px;line-height:18px;color:#8da4b7}
+.sitePresenceDot{width:5px;height:5px;border-radius:50%;background:#708394}
+.sitePresenceValue{min-width:0;color:#9cb0c0;font-size:11px;font-weight:700;overflow-wrap:anywhere;text-align:right}
+.sitePresence[data-presence-state="ready"] .sitePresenceDot{background:#62dbc9;box-shadow:0 0 9px #62dbc935;animation:presencePulse 2.6s ease-in-out infinite}
+.sitePresence[data-presence-state="ready"] .sitePresenceValue{color:#e6f0f7;font-size:11px;font-variant-numeric:tabular-nums}
+.sidebarPresence{margin:auto 7px 0}
+.sidebar .sidebarActions{margin-bottom:12px}
+.sidebar .sidebarSocialLinks{margin-top:10px;padding-top:12px}
+.hub.collapsed .sidebarPresence{grid-template-columns:5px minmax(0,1fr);justify-items:center;gap:4px;margin:auto -2px 0;padding:4px 5px}
+.hub.collapsed .sidebarPresence .sitePresenceLabel{display:none}
+.hub.collapsed .sidebarPresence .sitePresenceValue{text-align:center;font-size:10px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hub.collapsed .sidebarPresence[data-presence-state="ready"] .sitePresenceValue{font-size:11px}
+.hub.collapsed .sidebarSocialLinks{margin-top:8px;padding-top:8px}
+.mobileSheetPresence{margin-top:14px;flex:0 0 auto}
+@keyframes presencePulse{0%,100%{opacity:.65}50%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.sitePresenceDot{animation:none!important}}

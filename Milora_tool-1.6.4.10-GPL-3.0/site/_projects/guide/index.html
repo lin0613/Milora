@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<script defer src="/assets/shared/i18n.js?v=20261121-trim-routine-audit-16410&amp;rev=guide-l10n"></script>
+<script defer src="/assets/shared/i18n-public-extra.js?v=20261121-trim-routine-audit-16410"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,follow">
+<title>成就攻略｜milora</title>
+<link rel="stylesheet" href="/assets/shared/common.css">
+<link rel="stylesheet" href="/assets/vendor/suneditor-3.3.3/suneditor.min.css">
+<link rel="stylesheet" href="/assets/shared/guide.css?v=20261121-trim-routine-audit-16410">
+<script defer src="/assets/shared/runtime.js?v=20261121-trim-routine-audit-16410"></script>
+<link rel="stylesheet" href="/assets/shared/achievement-scroll-reveal.css?v=20261121-trim-routine-audit-16410">
+<script defer src="/assets/shared/achievement-scroll-reveal.js?v=20261121-trim-routine-audit-16410"></script>
+<script defer src="/assets/vendor/suneditor-3.3.3/suneditor.min.js"></script>
+<script defer src="/assets/vendor/suneditor-3.3.3/suneditor.zh_tw.js"></script>
+<script defer src="/assets/vendor/suneditor-3.3.3/suneditor.en.js?v=3.3.3"></script>
+<script defer src="/assets/vendor/suneditor-3.3.3/suneditor.ja.js?v=3.3.3"></script>
+<script defer src="/assets/vendor/suneditor-3.3.3/suneditor.zh_cn.js?v=3.3.3"></script>
+<script defer src="/assets/vendor/suneditor-3.3.3/suneditor.ko.js?v=3.3.3"></script>
+<script defer src="/assets/shared/i18n-guide-editor.js?v=20261121-trim-routine-audit-16410"></script>
+<script defer src="/assets/shared/guide.js?v=20261121-trim-routine-audit-16410&amp;rev=guide-l10n"></script>
+<script defer src="/assets/shared/i18n-guide.js?v=20261121-trim-routine-audit-16410&amp;rev=guide-l10n"></script>
+<script defer src="/assets/shared/live-updates.js?v=20261121-trim-routine-audit-16410"></script>
+</head>
+<body>
+<main class="guidePage" id="guidePage" aria-busy="true">
+ <section class="guideAchievementHeader" id="guideAchievementHeader" hidden>
+  <div class="guideAchievementCopy">
+   <h1 id="guideAchievementName">成就攻略</h1>
+   <p id="guideAchievementCondition"></p>
+   <div class="guideAchievementMeta" id="guideAchievementMeta"></div>
+  </div>
+  <button class="guideSecondary guideEditButton" id="guideEditButton" type="button">編輯攻略</button>
+ </section>
+
+ <div class="guideNotice" id="guideNotice">正在載入攻略……</div>
+
+ <section class="guideSubmissionState" id="guideSubmissionState" hidden>
+  <div><strong id="guideSubmissionStateTitle"></strong><p id="guideSubmissionStateMessage"></p></div>
+  <span class="guideStatusBadge" id="guideSubmissionStateBadge"></span>
+ </section>
+
+ <section class="guideReadingSurface" id="guideReadingSurface" hidden>
+  <header class="guideSectionHeader">
+   <div><h2>攻略內容</h2><p id="guideProviderLine"></p></div>
+   <time id="guidePublishedAt"></time>
+  </header>
+  <article class="guideDocument" id="guidePublishedContent"></article>
+ </section>
+
+ <section class="guideEmptyState" id="guideEmptyState" hidden>
+  <h2>暫無攻略</h2>
+  <p>目前還沒有通過審查的攻略內容。</p>
+  <button class="guideSecondary" id="guideEmptyEditButton" type="button">編輯攻略</button>
+ </section>
+
+ <section class="guideEditorSection" id="guideEditorSection" hidden>
+  <div class="guideEditorWorkspace" id="guideEditorWorkspace">
+   <div class="guideEditorPanel" id="guideEditorPanel">
+    <header class="guideEditorHeader"><div><h2 id="guideEditorTitle">編輯攻略</h2><p id="guideEditorProvider"></p></div><button class="guideSecondary" id="guideCloseEditorButton" type="button">關閉編輯</button></header>
+    <div id="guideEditor" aria-label="攻略內容"></div>
+    <footer class="guideEditorFooter"><p>送出後狀態將變成「等待審查」，管理員核准前不會公開。<br><span id="guideDraftStatus" role="status" aria-live="polite"></span><br><span id="guideWordCount">字數：0</span></p><div><button class="guideSecondary" id="guidePreviewButton" type="button" hidden>預覽文章</button><button class="guideSecondary" id="guideCancelEditorButton" type="button">取消</button><button class="guideSecondary" id="guideSubmitButton" type="button">送出審查</button></div></footer>
+   </div>
+
+   <aside class="guideAdminReview" id="guideAdminReview" hidden>
+    <h2>待審投稿</h2>
+    <div class="guidePendingList" id="guidePendingList"></div>
+    <div class="guideReviewDetail" id="guideReviewDetail" hidden>
+     <p id="guideReviewProvider"></p><span class="guideStatusBadge pending">等待審查</span>
+     <label>審查備註<textarea id="guideReviewNote" maxlength="2000" placeholder="輸入審查備註（選填）"></textarea></label>
+     <div class="guideReviewActions"><button class="guideDanger" id="guideRejectButton" type="button">退回修改</button><button class="guideSecondary" id="guideApproveButton" type="button">核准發布</button></div>
+    </div>
+   </aside>
+  </div>
+ </section>
+</main>
+
+<dialog class="guideDialog guidePreviewDialog" id="guidePreviewDialog"><header><h2>文章預覽</h2><button type="button" id="guideClosePreviewButton" aria-label="關閉預覽">×</button></header><article class="guideDocument" id="guidePreviewContent"></article></dialog>
+
+<dialog class="guideDialog" id="guideEmojiDialog"><header class="guidePickerHeader"><h2>加入 Emoji</h2><button type="button" id="guideCloseEmojiButton" aria-label="關閉">×</button></header><div class="guideEmojiGrid" id="guideEmojiGrid"></div></dialog>
+<dialog class="guideDialog" id="guideStickerDialog"><header class="guidePickerHeader"><h2>貼圖／GIF</h2><button type="button" id="guideCloseStickerButton" aria-label="關閉">×</button></header><div class="guideDialogBody"><p class="guideFieldHint">上傳後可在此瀏覽器重複使用；網站貼圖庫日後可加入素材。</p><div class="guideStickerGrid" id="guideStickerGrid"></div><label>上傳貼圖或 GIF<input id="guideStickerFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label><p class="guideFieldHint" id="guideStickerStatus" role="status" aria-live="polite"></p></div></dialog>
+
+</body>
+</html>

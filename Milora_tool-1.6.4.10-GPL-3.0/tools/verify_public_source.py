@@ -1,0 +1,106 @@
+from __future__ import annotations
+
+import ast
+import hashlib
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".svg", ".bmp", ".avif"}
+FORBIDDEN_TEXT = {
+    "bubblebot" + ".tdvr.tw",
+    "lin200" + "60613",
+    "haJ4" + "EUufPk",
+    "GENSHIN_EMBEDDED_" + "COMPLETION_67",
+    "'id': '804" + "90'",
+}
+SECRET_PATTERNS = {
+    "private_key": re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
+    "github_token": re.compile(r"\b(?:ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,})\b"),
+    "google_api_key": re.compile(r"\bAIza[0-9A-Za-z_-]{30,}\b"),
+    "aws_access_key": re.compile(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"),
+}
+FORBIDDEN_PUBLIC_FILES = {
+    ".achievement-hub-root",
+    "OPEN_SOURCE_INVENTORY.json",
+    "OPEN_SOURCE_SCOPE.md",
+    "release-info.json",
+    "THIRD_PARTY_NOTICES.md",
+    "SECURITY.md",
+    "backend/backup_db.py",
+    "backend/test_mail.py",
+    "site/_projects/game-template/index.html",
+    "tools/maintenance/add_game.py",
+    "tools/maintenance/build_open_source.py",
+    "tools/maintenance/create_safety_backup.py",
+}
+
+errors: list[str] = []
+files = [path for path in ROOT.rglob("*") if path.is_file() and ".git" not in path.parts]
+for path in files:
+    relative = path.relative_to(ROOT)
+    if relative.as_posix() in FORBIDDEN_PUBLIC_FILES:
+        errors.append(f"excluded public file: {relative}")
+    if relative.parts and relative.parts[0] == "scripts":
+        errors.append(f"excluded scripts file: {relative}")
+    if path.suffix.lower() == ".cmd":
+        errors.append(f"command file: {relative}")
+    if path.suffix.lower() in IMAGE_SUFFIXES:
+        errors.append(f"image file: {relative}")
+    if any(part in {".venv", "__pycache__", "logs", "backups", "data"} for part in relative.parts):
+        errors.append(f"runtime path: {relative}")
+    if path.name == ".env" or path.suffix.lower() in {".db", ".sqlite", ".sqlite3", ".pdf"}:
+        errors.append(f"private/binary file: {relative}")
+    if re.fullmatch(r"google[a-z0-9]+\.html", path.name, flags=re.IGNORECASE):
+        errors.append(f"site verification file: {relative}")
+    if path.suffix.lower() in {".py", ".html", ".css", ".js", ".json", ".xml", ".txt", ".md", ".ps1", ".cmd", ".config", ".example"} or path.name in {"LICENSE", ".gitignore"}:
+        text = path.read_text(encoding="utf-8-sig", errors="replace")
+        for token in FORBIDDEN_TEXT:
+            if token.casefold() in text.casefold():
+                errors.append(f"forbidden text {token!r}: {relative}")
+        for name, pattern in SECRET_PATTERNS.items():
+            if pattern.search(text):
+                errors.append(f"possible {name}: {relative}")
+
+for path in ROOT.rglob("*.py"):
+    if ".git" in path.parts:
+        continue
+    try:
+        ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+    except SyntaxError as exc:
+        errors.append(f"python syntax: {path.relative_to(ROOT)}:{exc.lineno}:{exc.msg}")
+
+for path in (ROOT / "site").rglob("*"):
+    if not path.is_file():
+        continue
+    relative = path.relative_to(ROOT).as_posix()
+    text = path.read_text(encoding="utf-8-sig", errors="replace")
+    if relative != "site/assets/shared/guide.js" and not relative.startswith("site/assets/vendor/") and re.search(r"<img\b", text, flags=re.IGNORECASE):
+        errors.append(f"site still contains an img element: {relative}")
+site_text = "\n".join(path.read_text(encoding="utf-8-sig", errors="replace") for path in (ROOT / "site").rglob("*") if path.is_file())
+if re.search(r"(?:/assets/(?:games|social)/|favicon\.(?:png|ico|svg))", site_text, flags=re.IGNORECASE):
+    errors.append("site still references removed image assets")
+
+manifest = ROOT / "SOURCE_MANIFEST.sha256"
+if manifest.is_file():
+    listed: dict[str, str] = {}
+    for line in manifest.read_text(encoding="utf-8").splitlines():
+        digest, separator, relative = line.partition("  ")
+        if not separator or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            errors.append(f"invalid hash manifest line: {line}")
+            continue
+        listed[relative] = digest
+    expected = {path.relative_to(ROOT).as_posix() for path in ROOT.rglob("*") if path.is_file() and path != manifest and ".git" not in path.parts}
+    if set(listed) != expected:
+        errors.append(f"hash manifest file set mismatch: listed={len(listed)} expected={len(expected)}")
+    for relative, digest in listed.items():
+        path = ROOT / relative
+        if path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            errors.append(f"hash mismatch: {relative}")
+
+if errors:
+    print("PUBLIC SOURCE CHECK FAILED")
+    for error in errors:
+        print(f"- {error}")
+    raise SystemExit(1)
+print(f"PUBLIC SOURCE CHECK OK: {len(files)} files")

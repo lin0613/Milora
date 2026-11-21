@@ -1,0 +1,22 @@
+/* Only pages that load this stylesheet and script opt into scroll reveals. */
+@media (prefers-reduced-motion: no-preference) {
+  .achievementRevealPending {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  .achievementRevealEntering {
+    animation: achievementScrollEnter .85s cubic-bezier(.22, 1, .36, 1) both;
+  }
+
+  .achievementRevealPending:focus-within {
+    opacity: 1;
+    transform: none;
+  }
+
+  @keyframes achievementScrollEnter {
+    from { opacity: 0; transform: translateY(18px); }
+    /* Opacity returns to the card's own completed/locked appearance. */
+    to { transform: translateY(0); }
+  }
+}

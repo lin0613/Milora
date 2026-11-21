@@ -1,0 +1,307 @@
+{
+  "schemaVersion": 5,
+  "defaultGame": "wuwa",
+  "sharedUi": {
+    "accountNote": "登入一次即可在所有遊戲共用帳號及管理員權限；各遊戲的成就進度仍分開保存。"
+  },
+  "projects": [
+    {
+      "id": "wuwa",
+      "name": "鳴潮",
+      "subtitle": "成就紀錄器",
+      "route": "/_projects/wuwa/index.html",
+      "enabled": true,
+      "iconEndpoint": "",
+      "achievementPointLabel": "星聲",
+      "minimumCatalogCount": 800,
+      "catalogFile": "data/catalogs/wuwa/achievements.json",
+      "relationsDir": "data/relations/wuwa",
+      "features": {
+        "hiddenAchievements": true,
+        "relations": true,
+        "officialSync": true
+      },
+      "sourcePolicy": {
+        "preserveFields": [
+          "hidden",
+          "category",
+          "source_order",
+          "raw"
+        ],
+        "reviewOnConflict": true,
+        "reviewOnRemoval": true,
+        "protectProgress": true,
+        "protectRelations": true,
+        "primary": {
+          "id": "ww_data",
+          "name": "Arikatsu/WutheringWaves_Data（WW_Data）",
+          "url": "https://github.com/Arikatsu/WutheringWaves_Data",
+          "role": "primary",
+          "mode": "remote_repository",
+          "purpose": "official_catalog",
+          "trustedFields": [
+            "achievement_id",
+            "name",
+            "condition",
+            "category",
+            "reward",
+            "hidden",
+            "source_order",
+            "level",
+            "next_link"
+          ]
+        },
+        "fallback": {
+          "id": "verified_catalog_snapshot",
+          "name": "目前正式目錄（僅供故障保護）",
+          "url": "",
+          "role": "fallback",
+          "mode": "protected_snapshot",
+          "automaticApply": false
+        }
+      }
+    },
+    {
+      "id": "hsr",
+      "name": "崩壞：星穹鐵道",
+      "subtitle": "成就紀錄器",
+      "route": "/_projects/hsr/index.html",
+      "enabled": true,
+      "iconEndpoint": "",
+      "achievementPointLabel": "星瓊",
+      "minimumCatalogCount": 1200,
+      "catalogFile": "data/catalogs/hsr/achievements.json",
+      "relationsDir": "data/relations/hsr",
+      "features": {
+        "hiddenAchievements": true,
+        "relations": true,
+        "officialSync": true
+      },
+      "sourcePolicy": {
+        "preserveFields": [
+          "hidden",
+          "category",
+          "source_order",
+          "raw"
+        ],
+        "reviewOnConflict": true,
+        "reviewOnRemoval": true,
+        "protectProgress": true,
+        "protectRelations": true,
+        "primary": {
+          "id": "turn_based_game_data",
+          "name": "Dimbreath/TurnBasedGameData",
+          "url": "https://gitlab.com/Dimbreath/turnbasedgamedata",
+          "role": "primary",
+          "mode": "remote_repository",
+          "purpose": "official_catalog",
+          "trustedFields": [
+            "achievement_id",
+            "name",
+            "condition",
+            "category",
+            "reward",
+            "hidden",
+            "source_order",
+            "progress"
+          ]
+        },
+        "fallback": {
+          "id": "verified_catalog_snapshot",
+          "name": "目前正式目錄（僅供故障保護）",
+          "url": "",
+          "role": "fallback",
+          "mode": "protected_snapshot",
+          "automaticApply": false
+        }
+      }
+    },
+    {
+      "id": "genshin",
+      "name": "原神",
+      "subtitle": "成就紀錄器",
+      "route": "/_projects/genshin/index.html",
+      "enabled": true,
+      "iconEndpoint": "",
+      "achievementPointLabel": "原石",
+      "minimumCatalogCount": 1200,
+      "catalogFile": "data/catalogs/genshin/achievements.json",
+      "relationsDir": "data/relations/genshin",
+      "features": {
+        "hiddenAchievements": true,
+        "relations": true,
+        "officialSync": true
+      },
+      "sourcePolicy": {
+        "preserveFields": [
+          "hidden",
+          "category",
+          "source_order",
+          "raw"
+        ],
+        "reviewOnConflict": true,
+        "reviewOnRemoval": true,
+        "protectProgress": true,
+        "protectRelations": true,
+        "primary": {
+          "id": "anime_game_data",
+          "name": "Dimbreath/animegamedata2",
+          "url": "https://gitlab.com/Dimbreath/animegamedata2",
+          "role": "primary",
+          "mode": "remote_repository",
+          "purpose": "official_catalog",
+          "trustedFields": [
+            "achievement_id",
+            "name",
+            "condition",
+            "category",
+            "reward",
+            "hidden",
+            "source_order",
+            "progress"
+          ]
+        },
+        "fallback": {
+          "id": "verified_catalog_snapshot",
+          "name": "目前正式目錄（僅供故障保護）",
+          "url": "",
+          "role": "fallback",
+          "mode": "protected_snapshot",
+          "automaticApply": false
+        }
+      }
+    },
+    {
+      "id": "zzz",
+      "name": "絕區零",
+      "subtitle": "成就紀錄器",
+      "route": "/_projects/zzz/index.html",
+      "enabled": true,
+      "iconEndpoint": "",
+      "achievementPointLabel": "菲林",
+      "minimumCatalogCount": 600,
+      "catalogFile": "data/catalogs/zzz/achievements.json",
+      "relationsDir": "data/relations/zzz",
+      "features": {
+        "hiddenAchievements": true,
+        "relations": true,
+        "officialSync": true
+      },
+      "sourcePolicy": {
+        "preserveFields": [
+          "hidden",
+          "category",
+          "source_order",
+          "raw"
+        ],
+        "reviewOnConflict": true,
+        "reviewOnRemoval": true,
+        "protectProgress": true,
+        "protectRelations": true,
+        "primary": {
+          "id": "zenless_data",
+          "name": "Dimbreath/ZenlessData",
+          "url": "https://git.mero.moe/dimbreath/ZenlessData",
+          "role": "primary",
+          "mode": "remote_repository",
+          "purpose": "official_catalog",
+          "trustedFields": [
+            "achievement_id",
+            "name",
+            "condition",
+            "category",
+            "reward",
+            "hidden",
+            "source_order",
+            "progress"
+          ]
+        },
+        "fallback": {
+          "id": "verified_catalog_snapshot",
+          "name": "目前正式目錄（僅供故障保護）",
+          "url": "",
+          "role": "fallback",
+          "mode": "protected_snapshot",
+          "automaticApply": false
+        }
+      }
+    },
+    {
+      "id": "nte",
+      "name": "異環",
+      "subtitle": "成就紀錄器",
+      "route": "/_projects/nte/index.html",
+      "enabled": true,
+      "iconEndpoint": "",
+      "achievementPointLabel": "環石",
+      "minimumCatalogCount": 380,
+      "catalogFile": "data/catalogs/nte/achievements.json",
+      "relationsDir": "data/relations/nte",
+      "features": {
+        "hiddenAchievements": true,
+        "relations": true,
+        "officialSync": true
+      },
+      "sourcePolicy": {
+        "preserveFields": [
+          "hidden",
+          "category",
+          "source_order",
+          "raw"
+        ],
+        "reviewOnConflict": true,
+        "reviewOnRemoval": true,
+        "protectProgress": true,
+        "protectRelations": true,
+        "primary": {
+          "id": "nte_assets",
+          "name": "Waifus-Grace/NTE_Assets",
+          "url": "https://github.com/Waifus-Grace/NTE_Assets",
+          "role": "primary",
+          "mode": "remote_repository",
+          "purpose": "official_catalog",
+          "trustedFields": [
+            "achievement_id",
+            "name",
+            "condition",
+            "category",
+            "reward",
+            "hidden",
+            "source_order",
+            "version",
+            "raw"
+          ]
+        },
+        "fallback": {
+          "id": "verified_catalog_snapshot",
+          "name": "目前正式目錄（僅供故障保護）",
+          "url": "",
+          "role": "fallback",
+          "mode": "protected_snapshot",
+          "automaticApply": false
+        }
+      }
+    },
+    {
+      "id": "hna",
+      "name": "崩壞：因緣精靈",
+      "subtitle": "成就紀錄器｜尚未開放",
+      "route": "/_projects/hna/index.html",
+      "enabled": false,
+      "placeholder": true,
+      "iconEndpoint": "",
+      "features": {
+        "placeholder": true,
+        "officialSync": false
+      }
+    },
+    {
+      "id": "coming-soon",
+      "name": "敬請期待",
+      "subtitle": "",
+      "route": "",
+      "enabled": false,
+      "iconEndpoint": ""
+    }
+  ]
+}
